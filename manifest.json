@@ -1,0 +1,10 @@
+{
+  "id": "note-bar",
+  "name": "Note Bar",
+  "version": "1.0.0",
+  "minAppVersion": "1.0.0",
+  "description": "飞书风格浮动格式工具栏 — 选中文本时弹出格式化工具",
+  "author": "YourName",
+  "authorUrl": "",
+  "isDesktopOnly": false
+}

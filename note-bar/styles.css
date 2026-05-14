@@ -1,0 +1,357 @@
+/* Note Bar — 浮动格式工具栏样式 */
+/* 毛玻璃质感，飞书风格，支持浅色/深色主题 */
+
+.note-bar-toolbar {
+  position: fixed;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  border-radius: 14px;
+  font-size: 13px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  user-select: none;
+  pointer-events: auto;
+  opacity: 0;
+  transform: translateY(4px) scale(0.96);
+  transition: opacity 150ms cubic-bezier(0.22, 1, 0.36, 1),
+              transform 150ms cubic-bezier(0.22, 1, 0.36, 1);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.note-bar-toolbar--visible {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  pointer-events: auto;
+}
+
+/* 浅色主题毛玻璃 */
+.note-bar-toolbar--light {
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 0.5px solid rgba(255, 255, 255, 0.5);
+}
+
+/* 深色主题毛玻璃 */
+.note-bar-toolbar--dark {
+  background: rgba(30, 30, 30, 0.78);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 0.5px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3), 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+/* 下拉菜单按钮 */
+.note-bar-dropdown-trigger {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  border: none;
+  font-size: 13px;
+  font-weight: 500;
+  background: transparent;
+  transition: background 100ms ease;
+  white-space: nowrap;
+}
+
+.note-bar-toolbar--light .note-bar-dropdown-trigger {
+  color: #333;
+}
+
+.note-bar-toolbar--dark .note-bar-dropdown-trigger {
+  color: #E0E0E0;
+}
+
+.note-bar-dropdown-trigger:hover {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.note-bar-toolbar--dark .note-bar-dropdown-trigger:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.note-bar-dropdown-trigger--active {
+  background: rgba(0, 0, 0, 0.08);
+}
+
+.note-bar-toolbar--dark .note-bar-dropdown-trigger--active {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.note-bar-dropdown-arrow {
+  font-size: 10px;
+  opacity: 0.5;
+  margin-left: 2px;
+}
+
+/* 分割线 */
+.note-bar-divider {
+  width: 1px;
+  height: 22px;
+  margin: 0 4px;
+  flex-shrink: 0;
+}
+
+.note-bar-toolbar--light .note-bar-divider {
+  background: rgba(0, 0, 0, 0.1);
+}
+
+.note-bar-toolbar--dark .note-bar-divider {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* 格式按钮 */
+.note-bar-format-btn {
+  padding: 4px 7px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  background: transparent;
+  font-size: 14px;
+  transition: background 100ms ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+}
+
+.note-bar-toolbar--light .note-bar-format-btn {
+  color: #333;
+}
+
+.note-bar-toolbar--dark .note-bar-format-btn {
+  color: #E0E0E0;
+}
+
+.note-bar-format-btn:hover {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.note-bar-toolbar--dark .note-bar-format-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.note-bar-format-btn--active {
+  background: rgba(0, 0, 0, 0.08);
+}
+
+.note-bar-toolbar--dark .note-bar-format-btn--active {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+/* 高亮按钮拆分容器 */
+.note-bar-highlight-group {
+  display: inline-flex;
+  align-items: center;
+}
+
+.note-bar-highlight-btn {
+  padding: 4px 6px;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition: background 100ms ease;
+}
+
+.note-bar-highlight-btn--main {
+  border-radius: 6px 0 0 6px;
+}
+
+.note-bar-highlight-btn--arrow {
+  border-radius: 0 6px 6px 0;
+  font-size: 10px;
+  border-left: 0.5px solid rgba(0, 0, 0, 0.08);
+  padding: 4px 4px;
+}
+
+.note-bar-highlight-color-indicator {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+/* 下拉菜单弹出面板 */
+.note-bar-dropdown-panel {
+  position: fixed;
+  z-index: 1001;
+  min-width: 160px;
+  padding: 4px;
+  border-radius: 10px;
+  opacity: 0;
+  transform: translateY(-4px) scale(0.96);
+  transition: opacity 120ms ease, transform 120ms ease;
+  pointer-events: none;
+}
+
+.note-bar-dropdown-panel--open {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  pointer-events: auto;
+}
+
+/* 面板浅色主题 — 面板在 body 下，直接带有工具栏主题 class */
+.note-bar-dropdown-panel.note-bar-toolbar--light {
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 0.5px solid rgba(255, 255, 255, 0.5);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+
+/* 面板深色主题 */
+.note-bar-dropdown-panel.note-bar-toolbar--dark {
+  background: rgba(30, 30, 30, 0.78);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 0.5px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+}
+
+.note-bar-dropdown-item {
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  transition: background 80ms ease;
+  white-space: nowrap;
+}
+
+/* 下拉项浅色主题 */
+.note-bar-dropdown-panel.note-bar-toolbar--light .note-bar-dropdown-item {
+  color: #333;
+}
+
+/* 下拉项深色主题 */
+.note-bar-dropdown-panel.note-bar-toolbar--dark .note-bar-dropdown-item {
+  color: #E0E0E0;
+}
+
+.note-bar-dropdown-item:hover {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.note-bar-dropdown-panel.note-bar-toolbar--dark .note-bar-dropdown-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.note-bar-dropdown-item--active {
+  font-weight: 600;
+}
+
+.note-bar-dropdown-item--sub {
+  padding-left: 24px;
+  font-size: 12px;
+  opacity: 0.8;
+}
+
+/* 子菜单（H4-H6） */
+.note-bar-submenu {
+  position: fixed;
+  z-index: 1002;
+  min-width: 120px;
+  padding: 4px;
+  border-radius: 10px;
+  opacity: 0;
+  transform: translateX(-4px) scale(0.96);
+  transition: opacity 100ms ease, transform 100ms ease;
+  pointer-events: none;
+}
+
+.note-bar-submenu--open {
+  opacity: 1;
+  transform: translateX(0) scale(1);
+  pointer-events: auto;
+}
+
+/* 颜色选择器 */
+.note-bar-color-picker {
+  position: fixed;
+  z-index: 1001;
+  padding: 10px;
+  border-radius: 10px;
+  opacity: 0;
+  transform: translateY(-4px) scale(0.96);
+  transition: opacity 120ms ease, transform 120ms ease;
+  pointer-events: none;
+}
+
+.note-bar-color-picker--open {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  pointer-events: auto;
+}
+
+.note-bar-color-picker.note-bar-toolbar--light {
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 0.5px solid rgba(255, 255, 255, 0.5);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+
+.note-bar-color-picker.note-bar-toolbar--dark {
+  background: rgba(30, 30, 30, 0.78);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 0.5px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+}
+
+.note-bar-color-picker-label {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 0 4px 6px;
+}
+
+.note-bar-color-picker.note-bar-toolbar--light .note-bar-color-picker-label {
+  color: #333;
+  opacity: 0.6;
+}
+
+.note-bar-color-picker.note-bar-toolbar--dark .note-bar-color-picker-label {
+  color: #E0E0E0;
+  opacity: 0.6;
+}
+
+.note-bar-color-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 6px;
+}
+
+.note-bar-color-swatch {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition: transform 100ms ease, border-color 100ms ease;
+}
+
+.note-bar-color-swatch:hover {
+  transform: scale(1.12);
+}
+
+.note-bar-color-swatch--selected {
+  border-color: var(--interactive-accent);
+}
+
+/* Obsidian 主题变量适配 */
+.theme-dark .note-bar-toolbar--light {
+  display: none;
+}
+
+.theme-light .note-bar-toolbar--dark {
+  display: none;
+}

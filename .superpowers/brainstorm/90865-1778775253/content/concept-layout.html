@@ -1,0 +1,109 @@
+<h2>📝 飞书风格悬浮格式工具栏</h2>
+<p class="subtitle">概念原型 — 参考飞书云文档浮动工具栏设计</p>
+
+<div class="section">
+  <h3>整体布局预览</h3>
+  <p>当用户在 Obsidian Markdown 编辑器中选中文本时，在选区上方弹出此浮动工具栏。</p>
+</div>
+
+<div class="mockup" style="margin-top: 24px;">
+  <div class="mockup-header">Floating Format Toolbar · 灵感来源：飞书云文档</div>
+  <div class="mockup-body" style="padding: 16px; background: var(--bg);">
+    <!-- Toolbar mockup -->
+    <div style="
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 6px 8px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+      font-size: 13px;
+      width: fit-content;
+      flex-wrap: wrap;
+    ">
+      <!-- Style Dropdown -->
+      <div style="display:flex;align-items:center;gap:2px;padding:2px 8px;border:1px solid var(--border);border-radius:4px;cursor:pointer;background:var(--bg);">
+        <span>正文</span>
+        <span style="font-size:10px;margin-left:4px;">▾</span>
+      </div>
+
+      <!-- Divider -->
+      <div style="width:1px;height:20px;background:var(--border);margin:0 4px;"></div>
+
+      <!-- Alignment Dropdown -->
+      <div style="display:flex;align-items:center;gap:2px;padding:2px 8px;border:1px solid var(--border);border-radius:4px;cursor:pointer;background:var(--bg);">
+        <span>≡ 左对齐</span>
+        <span style="font-size:10px;margin-left:4px;">▾</span>
+      </div>
+
+      <!-- Divider -->
+      <div style="width:1px;height:20px;background:var(--border);margin:0 4px;"></div>
+
+      <!-- Format Buttons -->
+      <button style="padding:4px 6px;border:none;border-radius:4px;cursor:pointer;background:transparent;font-weight:bold;">B</button>
+      <button style="padding:4px 6px;border:none;border-radius:4px;cursor:pointer;background:transparent;text-decoration:line-through;">S</button>
+      <button style="padding:4px 6px;border:none;border-radius:4px;cursor:pointer;background:transparent;font-style:italic;">I</button>
+      <button style="padding:4px 6px;border:none;border-radius:4px;cursor:pointer;background:transparent;text-decoration:underline;">U</button>
+      <button style="padding:4px 6px;border:none;border-radius:4px;cursor:pointer;background:transparent;">🔗</button>
+      <button style="padding:4px 6px;border:none;border-radius:4px;cursor:pointer;background:var(--accent);color:white;">∏</button>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top: 32px;">
+  <h3>工具组成说明</h3>
+  
+  <div class="cards" style="display:flex;flex-direction:column;gap:12px;">
+    <div class="card" data-choice="style-context">
+      <div class="card-body">
+        <h3>① 样式下拉菜单 (Style Dropdown)</h3>
+        <p><strong>选项：</strong>正文、H1、H2、H3、H4-6、有序列表、无序列表、任务、代码块、引用、高亮块</p>
+        <p>类似飞书的「正文/标题」切换器，选中后自动转换行格式。</p>
+      </div>
+    </div>
+    <div class="card" data-choice="align-context">
+      <div class="card-body">
+        <h3>② 对齐与缩进下拉菜单 (Alignment Dropdown)</h3>
+        <p><strong>选项：</strong>左对齐、居中对齐、右对齐、增加缩进、减少缩进</p>
+        <p>控制段落对齐方式和列表缩进层级。</p>
+      </div>
+    </div>
+    <div class="card" data-choice="format-buttons">
+      <div class="card-body">
+        <h3>③ 格式按钮组 (Format Buttons)</h3>
+        <p><strong>按钮：</strong>加粗(B)、删除线(S)、斜体(I)、下划线(U)、超链接(🔗)、高亮(∏)</p>
+        <p>快速应用内联文本格式。</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top: 32px;">
+  <h3>交互行为</h3>
+  <ul>
+    <li><strong>触发：</strong>在 Markdown 编辑器中选中文本后立即弹出</li>
+    <li><strong>定位：</strong>智能定位在选区上方居中，自动避开视口边缘</li>
+    <li><strong>隐藏：</strong>点击空白区域或按下 Escape 键时消失</li>
+    <li><strong>动画：</strong>淡入 + 轻微上移 (opacity + translateY)，约 150ms</li>
+    <li><strong>主题兼容：</strong>支持 Obsidian 浅色/深色主题</li>
+  </ul>
+</div>
+
+<div class="options" style="margin-top: 32px;">
+  <div class="option" data-choice="proceed" onclick="toggleSelect(this)">
+    <div class="letter">✓</div>
+    <div class="content">
+      <h3>这个布局方向符合预期，继续详细设计</h3>
+      <p>整体布局和功能分区没问题，可以进入下一步</p>
+    </div>
+  </div>
+  <div class="option" data-choice="adjust" onclick="toggleSelect(this)">
+    <div class="letter">✎</div>
+    <div class="content">
+      <h3>需要调整一些细节</h3>
+      <p>某些功能或布局需要修改，请继续提问</p>
+    </div>
+  </div>
+</div>

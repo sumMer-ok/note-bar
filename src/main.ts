@@ -1,8 +1,15 @@
-import { App, MarkdownView, Notice, Plugin, PluginSettingTab, Setting } from "obsidian";
+import { App, MarkdownView, Notice, Plugin, PluginSettingTab, Setting, TAbstractFile, TFile, WorkspaceLeaf } from "obsidian";
+import { Extension } from '@codemirror/state';
 import { ToolbarManager } from "./toolbar/ToolbarManager";
 import { FormattingContext } from "./toolbar/formatting-context";
 import { VocabularyManager } from "./hiwords/core/vocabulary-manager";
-import type { HiWordsSettings } from "./hiwords/utils/types";
+import { MasteredService } from "./hiwords/core/mastered-service";
+import { createWordHighlighterExtension, highlighterManager } from "./hiwords/core/word-highlighter";
+import { registerReadingModeHighlighter } from "./hiwords/ui/reading-mode-highlighter";
+import { HiWordsSidebarView, SIDEBAR_VIEW_TYPE } from "./hiwords/ui/sidebar-view";
+import { DefinitionPopover } from "./hiwords/ui/definition-popover";
+import { shouldHighlightFile } from "./hiwords/utils/highlight-utils";
+import type { HiWordsSettings, VocabularyBookDisplaySettings, WordDefinition } from "./hiwords/utils/types";
 
 const DEFAULT_AI_DEFINITION_PROMPT = '请严格按照以下的格式进行输出，不要加入任何其他md格式的符号\n1）音标\n2）中文含义\n3）英文释义\n4）例句\n\n举例为：\n1）英/ səˈsteɪn /  美/ səˈsteɪn /\n2）\nv.维持，保持；维持……的生命；遭受，经受；（在体力或精神方面）支持，支撑；承受住……的重量；证实，证明；认可，赞成，确认；（演员）充分表演（角色，人物），扮演\nn.（乐）延音\n3）to cause or allow something to continue for a period of time\n4）The economy looks set to sustain its growth into next year.\n\n请为单词 "{{word}}" 提供释义，上下文句子：{{sentence}}';
 
@@ -17,6 +24,7 @@ const DEFAULT_HIWORDS_SETTINGS: HiWordsSettings = {
   enableMasteredFeature: true,
   showMasteredInSidebar: true,
   blurDefinitions: false,
+  showSidebar: true,
   masteredDetection: 'group',
   ttsTemplate: 'https://dict.youdao.com/dictvoice?audio={{word}}&type=2',
   pronunciationVariant: 'us',
@@ -44,12 +52,21 @@ const DEFAULT_HIWORDS_SETTINGS: HiWordsSettings = {
     targetLang: 'zh-CN',
     prompt: DEFAULT_TRANSLATE_PROMPT
   },
+  hideDefinitions: false,
 };
+
+interface HiWordsRefreshHooks {
+    _refreshReadingModeHighlighter?: () => void;
+}
 
 export default class NoteBarPlugin extends Plugin {
   toolbarManager: ToolbarManager | null = null;
   hiwordsSettings: HiWordsSettings = DEFAULT_HIWORDS_SETTINGS;
   vocabularyManager: VocabularyManager | null = null;
+  masteredService: MasteredService | null = null;
+  definitionPopover: DefinitionPopover | null = null;
+  private editorExtensions: Extension[] = [];
+  private isSidebarInitialized = false;
 
   async onload() {
     console.log("Note Bar plugin loaded");
@@ -60,10 +77,38 @@ export default class NoteBarPlugin extends Plugin {
     // 初始化词库管理器
     this.vocabularyManager = new VocabularyManager(this.app, this.hiwordsSettings);
 
+    // 初始化已掌握服务
+    this.masteredService = new MasteredService(this, this.vocabularyManager);
+
+    // 初始化定义弹出框
+    this.definitionPopover = new DefinitionPopover(this);
+    this.addChild(this.definitionPopover);
+    this.definitionPopover.setVocabularyManager(this.vocabularyManager);
+    this.definitionPopover.setMasteredService(this.masteredService);
+
+    // 注册侧边栏视图
+    this.registerView(
+      SIDEBAR_VIEW_TYPE,
+      (leaf) => new HiWordsSidebarView(leaf, this)
+    );
+
+    // 注册编辑器扩展
+    this.setupEditorExtensions();
+
+    // 注册阅读模式高亮
+    registerReadingModeHighlighter({
+      settings: this.hiwordsSettings,
+      vocabularyManager: this.vocabularyManager,
+      shouldHighlightFile: (filePath: string) => this.shouldHighlightFile(filePath),
+      registerMarkdownPostProcessor: this.registerMarkdownPostProcessor.bind(this),
+      _refreshReadingModeHighlighter: undefined,
+    });
+
     // 延迟加载生词本（避免阻塞 Obsidian 启动）
     this.app.workspace.onLayoutReady(() => {
       void (async () => {
         await this.vocabularyManager!.loadAllVocabularyBooks();
+        this.refreshHighlighter();
       })().catch(error => {
         console.error('Note Bar: failed to load vocabulary books:', error);
       });
@@ -78,6 +123,186 @@ export default class NoteBarPlugin extends Plugin {
 
     // 注册设置页面
     this.addSettingTab(new NoteBarSettingTab(this.app, this));
+
+    // 初始化侧边栏
+    this.initializeSidebar();
+
+    // Ribbon 图标：打开/聚焦侧边栏
+    this.addRibbonIcon('book-open', 'HiWords 生词本', () => {
+      void this.activateSidebarView();
+    });
+
+    // 根据设置自动打开侧边栏
+    if (this.hiwordsSettings.showSidebar !== false) {
+      this.app.workspace.onLayoutReady(() => {
+        void this.activateSidebarView();
+      });
+    }
+
+    // 注册文件变更事件（Canvas 生词本删除/修改同步）
+    this.registerVaultEvents();
+  }
+
+  private setupEditorExtensions() {
+    const extension = createWordHighlighterExtension(
+      this.vocabularyManager!,
+      (filePath: string) => this.shouldHighlightFile(filePath)
+    );
+    this.editorExtensions = [extension];
+    this.registerEditorExtension(this.editorExtensions);
+  }
+
+  shouldHighlightFile(filePath: string): boolean {
+    return shouldHighlightFile(filePath, this.hiwordsSettings);
+  }
+
+  refreshHighlighter() {
+    highlighterManager.refreshAll();
+
+    const hooks = this as NoteBarPlugin & HiWordsRefreshHooks;
+    if (hooks._refreshReadingModeHighlighter) {
+      hooks._refreshReadingModeHighlighter();
+    }
+
+    const leaves = this.app.workspace.getLeavesOfType(SIDEBAR_VIEW_TYPE);
+    leaves.forEach(leaf => {
+      if (leaf.view instanceof HiWordsSidebarView) {
+        leaf.view.refresh();
+      }
+    });
+  }
+
+  private initializeSidebar() {
+    if (this.isSidebarInitialized) return;
+    this.app.workspace.onLayoutReady(() => {
+      this.isSidebarInitialized = true;
+    });
+  }
+
+  private registerVaultEvents() {
+    const modifiedCanvasFiles = new Set<string>();
+    let activeCanvasFile: string | null = null;
+
+    // 1) 监听文件变化：记录被修改的 Canvas 生词本
+    this.registerEvent(
+      this.app.vault.on('modify', (file) => {
+        if (file instanceof TFile && file.extension === 'canvas') {
+          const isVocabBook = this.hiwordsSettings.vocabularyBooks.some(
+            (book) => book.path === file.path
+          );
+          if (isVocabBook) {
+            modifiedCanvasFiles.add(file.path);
+          }
+        }
+      })
+    );
+
+    // 2) 监听活动标签页变化：当用户离开被修改的 Canvas 时立即重载
+    const handleActiveLeafChange = async () => {
+      const activeFile = this.app.workspace.getActiveFile();
+
+      // 如果之前有活动的 Canvas 文件被修改，且现在切换到了其他文件
+      if (
+        activeCanvasFile &&
+        modifiedCanvasFiles.has(activeCanvasFile) &&
+        (!activeFile || activeFile.path !== activeCanvasFile)
+      ) {
+        await this.vocabularyManager!.reloadVocabularyBook(activeCanvasFile);
+        this.refreshHighlighter();
+        modifiedCanvasFiles.delete(activeCanvasFile);
+      }
+
+      // 更新当前活动的 Canvas 文件
+      if (activeFile && activeFile.extension === 'canvas') {
+        activeCanvasFile = activeFile.path;
+      } else {
+        activeCanvasFile = null;
+
+        // 如果切换到非 Canvas 文件，处理所有待解析的修改
+        if (modifiedCanvasFiles.size > 0) {
+          const filesToProcess = Array.from(modifiedCanvasFiles);
+          modifiedCanvasFiles.clear();
+
+          for (const filePath of filesToProcess) {
+            await this.vocabularyManager!.reloadVocabularyBook(filePath);
+          }
+          this.refreshHighlighter();
+        } else {
+          activeWindow.setTimeout(() => this.refreshHighlighter(), 100);
+        }
+      }
+    };
+
+    this.registerEvent(
+      this.app.workspace.on('active-leaf-change', () => {
+        void handleActiveLeafChange().catch((error) => {
+          console.error('Note Bar: 处理活动文件变化失败:', error);
+        });
+      })
+    );
+
+    // 3) 监听文件重命名/移动：同步更新生词本路径
+    const handleRename = async (file: TAbstractFile, oldPath: string) => {
+      if (
+        file instanceof TFile &&
+        (file.extension === 'canvas' || file.extension === 'hiwords')
+      ) {
+        const bookIndex = this.hiwordsSettings.vocabularyBooks.findIndex(
+          (book) => book.path === oldPath
+        );
+        if (bookIndex !== -1) {
+          this.hiwordsSettings.vocabularyBooks[bookIndex].path = file.path;
+          this.hiwordsSettings.vocabularyBooks[bookIndex].name = file.basename;
+          await this.saveData(this.hiwordsSettings);
+
+          this.vocabularyManager!.removeBookData(oldPath);
+          await this.vocabularyManager!.reloadVocabularyBook(file.path);
+          this.refreshHighlighter();
+
+          new Notice(`生词本路径已更新: ${file.basename}`);
+        }
+      }
+    };
+
+    this.registerEvent(
+      this.app.vault.on('rename', (file, oldPath) => {
+        void handleRename(file, oldPath).catch((error) => {
+          console.error('Note Bar: 处理文件重命名失败:', error);
+        });
+      })
+    );
+  }
+
+  async activateSidebarView() {
+    const { workspace } = this.app;
+    let leaf: WorkspaceLeaf | null = null;
+    const leaves = workspace.getLeavesOfType(SIDEBAR_VIEW_TYPE);
+
+    if (leaves.length > 0) {
+      leaf = leaves[0];
+    } else {
+      leaf = workspace.getRightLeaf(false);
+      if (leaf) {
+        await leaf.setViewState({ type: SIDEBAR_VIEW_TYPE, active: true });
+      }
+    }
+
+    if (leaf) {
+      await workspace.revealLeaf(leaf);
+    }
+  }
+
+  async showWordInSidebar(wordDef: WordDefinition, origin: 'document' | 'library' = 'document') {
+    await this.activateSidebarView();
+    const leaves = this.app.workspace.getLeavesOfType(SIDEBAR_VIEW_TYPE);
+    const view = leaves[0]?.view;
+    if (view instanceof HiWordsSidebarView) {
+      await view.focusWord(wordDef, origin);
+    }
+  }
+
+  getVocabularyBookDisplaySettings(sourcePath: string): VocabularyBookDisplaySettings | undefined {
+    return this.hiwordsSettings.vocabularyBooks.find(book => book.path === sourcePath)?.display;
   }
 
   async loadHiWordsSettings() {
@@ -88,6 +313,8 @@ export default class NoteBarPlugin extends Plugin {
   async saveHiWordsSettings() {
     await this.saveData(this.hiwordsSettings);
     this.toolbarManager?.updateHiWordsSettings(this.hiwordsSettings);
+    this.vocabularyManager?.updateSettings(this.hiwordsSettings);
+    this.masteredService?.updateSettings();
   }
 
   private registerSelectionChangeListener(): void {
@@ -144,6 +371,13 @@ export default class NoteBarPlugin extends Plugin {
       this.vocabularyManager.destroy();
       this.vocabularyManager = null;
     }
+    if (this.definitionPopover) {
+      this.definitionPopover = null;
+    }
+    if (this.masteredService) {
+      this.masteredService = null;
+    }
+    highlighterManager.clear();
   }
 }
 
@@ -319,5 +553,45 @@ class NoteBarSettingTab extends PluginSettingTab {
         cls: 'setting-item-description'
       });
     }
+
+    // 显示设置
+    containerEl.createEl('h3', { text: '显示设置' });
+
+    new Setting(containerEl)
+      .setName('显示 HiWords 侧边栏')
+      .setDesc('开启后，插件启动时自动显示右侧生词本侧边栏')
+      .addToggle(toggle => toggle
+        .setValue(this.plugin.hiwordsSettings.showSidebar ?? true)
+        .onChange(async (value) => {
+          this.plugin.hiwordsSettings.showSidebar = value;
+          await this.plugin.saveHiWordsSettings();
+          if (value) {
+            void this.plugin.activateSidebarView();
+          } else {
+            const leaves = this.plugin.app.workspace.getLeavesOfType(SIDEBAR_VIEW_TYPE);
+            leaves.forEach(leaf => leaf.detach());
+          }
+        }));
+
+    new Setting(containerEl)
+      .setName('释义毛玻璃效果')
+      .setDesc('开启后，鼠标悬停单词时释义呈现半透明模糊状态，悬停释义区域后清晰显示')
+      .addToggle(toggle => toggle
+        .setValue(this.plugin.hiwordsSettings.blurDefinitions)
+        .onChange(async (value) => {
+          this.plugin.hiwordsSettings.blurDefinitions = value;
+          await this.plugin.saveHiWordsSettings();
+          this.plugin.refreshHighlighter();
+        }));
+
+    new Setting(containerEl)
+      .setName('隐藏单词释义')
+      .setDesc('开启后，在相关视图中默认隐藏单词释义内容')
+      .addToggle(toggle => toggle
+        .setValue(this.plugin.hiwordsSettings.hideDefinitions ?? false)
+        .onChange(async (value) => {
+          this.plugin.hiwordsSettings.hideDefinitions = value;
+          await this.plugin.saveHiWordsSettings();
+        }));
   }
 }

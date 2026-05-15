@@ -13,6 +13,7 @@ import { FormattingContextProvider } from "../formatting-context";
 export interface ToolbarComponent {
   el: HTMLElement;
   destroy: () => void;
+  updateHighlightState?: (isActive: boolean, colorKey?: HighlightColorKey) => void;
 }
 
 export function createFormatButtons(
@@ -27,6 +28,7 @@ export function createFormatButtons(
 
   let currentHighlightColor: HighlightColorKey = DEFAULT_HIGHLIGHT_COLOR;
   let destroyHighlightPicker: (() => void) | null = null;
+  let isHighlightActive = false;
 
   const buttons: { label: string; type: FormatType; html?: string }[] = [
     { label: "B", type: "bold", html: "<strong>B</strong>" },
@@ -69,18 +71,31 @@ export function createFormatButtons(
     <span>A</span>
     <span class="note-bar-highlight-color-indicator" style="background:${HIGHLIGHT_COLORS[currentHighlightColor].value}"></span>
   `;
+
+  const updateHighlightVisual = (active: boolean, colorKey?: HighlightColorKey) => {
+    isHighlightActive = active;
+    if (colorKey) {
+      currentHighlightColor = colorKey;
+    }
+    highlightMain.classList.toggle("note-bar-format-btn--active", active);
+    const indicator = highlightMain.querySelector(".note-bar-highlight-color-indicator") as HTMLElement;
+    if (indicator) {
+      indicator.style.background = HIGHLIGHT_COLORS[currentHighlightColor].value;
+    }
+  };
+
   highlightMain.addEventListener("mousedown", (e) => {
     e.preventDefault();
-      e.stopPropagation();
-      try {
-        const context = getContext();
-        if (context?.mode === "source") {
-          context.editor.focus();
-          applyHighlight(context.editor, currentHighlightColor);
-        } else if (context?.mode === "preview") {
-          void applyHighlightToFileSelection(app, context.file, context.selection, currentHighlightColor);
-        }
-      } catch (err) {
+    e.stopPropagation();
+    try {
+      const context = getContext();
+      if (context?.mode === "source") {
+        context.editor.focus();
+        applyHighlight(context.editor, currentHighlightColor);
+      } else if (context?.mode === "preview") {
+        void applyHighlightToFileSelection(app, context.file, context.selection, currentHighlightColor);
+      }
+    } catch (err) {
       console.error("Note Bar: failed to apply highlight", err);
     }
     onAction();
@@ -112,5 +127,11 @@ export function createFormatButtons(
     document.querySelectorAll(".note-bar-color-picker").forEach((el) => el.remove());
   };
 
-  return { el: container, destroy };
+  return {
+    el: container,
+    destroy,
+    updateHighlightState: (isActive, colorKey) => {
+      updateHighlightVisual(isActive, colorKey);
+    },
+  };
 }

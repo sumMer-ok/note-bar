@@ -183,16 +183,61 @@ export async function applyInlineFormatToFileSelection(
   await app.vault.modify(file, content.slice(0, selectedRange.from) + replacement + content.slice(selectedRange.to));
 }
 
+const HIGHLIGHT_COLOR_VALUES = Object.values(HIGHLIGHT_COLORS).map(c => c.value);
+
 /**
- * 应用高亮颜色
+ * 检测文本是否被高亮包裹
+ */
+export function getHighlightState(text: string): { isHighlighted: boolean; color?: string; innerText?: string } {
+  const allColors = HIGHLIGHT_COLOR_VALUES.map(v => v.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+  const regex = new RegExp(`^<mark style="background:(${allColors})">([\\s\\S]*)</mark>$`);
+  const match = text.match(regex);
+  if (match) {
+    return { isHighlighted: true, color: match[1], innerText: match[2] };
+  }
+  return { isHighlighted: false };
+}
+
+/**
+ * 检测 preview 模式下当前选区是否处于高亮状态
+ */
+export function detectPreviewHighlight(): { isHighlighted: boolean; color?: string } {
+  const selection = window.getSelection();
+  if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
+    return { isHighlighted: false };
+  }
+
+  const range = selection.getRangeAt(0);
+  let startNode: Node | null = range.startContainer;
+  if (startNode.nodeType === Node.TEXT_NODE) startNode = startNode.parentElement;
+
+  let endNode: Node | null = range.endContainer;
+  if (endNode.nodeType === Node.TEXT_NODE) endNode = endNode.parentElement;
+
+  if (startNode instanceof HTMLElement && startNode.tagName === 'MARK' && startNode === endNode) {
+    const bg = startNode.style.background || startNode.style.backgroundColor;
+    const colorEntry = Object.entries(HIGHLIGHT_COLORS).find(([_, c]) => bg?.includes(c.value));
+    return { isHighlighted: true, color: colorEntry?.[0] };
+  }
+
+  return { isHighlighted: false };
+}
+
+/**
+ * 应用高亮颜色（支持二次点击取消）
  */
 export function applyHighlight(editor: Editor, colorKey: HighlightColorKey): void {
   const selection = editor.getSelection();
   if (!selection) return;
 
+  const state = getHighlightState(selection);
+  if (state.isHighlighted) {
+    editor.replaceSelection(state.innerText || selection);
+    return;
+  }
+
   const color = HIGHLIGHT_COLORS[colorKey].value;
   const wrapped = `<mark style="background:${color}">${selection}</mark>`;
-
   editor.replaceSelection(wrapped);
 }
 
@@ -206,9 +251,17 @@ export async function applyHighlightToFileSelection(
   const selectedRange = findSelectionRange(content, selection);
   if (!selectedRange) return;
 
-  const color = HIGHLIGHT_COLORS[colorKey].value;
   const selectedText = content.slice(selectedRange.from, selectedRange.to);
-  const replacement = `<mark style="background:${color}">${selectedText}</mark>`;
+  const state = getHighlightState(selectedText);
+
+  let replacement: string;
+  if (state.isHighlighted) {
+    replacement = state.innerText || selectedText;
+  } else {
+    const color = HIGHLIGHT_COLORS[colorKey].value;
+    replacement = `<mark style="background:${color}">${selectedText}</mark>`;
+  }
+
   await app.vault.modify(file, content.slice(0, selectedRange.from) + replacement + content.slice(selectedRange.to));
 }
 

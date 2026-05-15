@@ -1,5 +1,5 @@
 import { App, TFile } from 'obsidian';
-import type { StudyItem, WordDefinition, VocabularyBook, HiWordsSettings } from '../utils';
+import type { StudyItem, WordDefinition, VocabularyBook, HiWordsSettings, CanvasData, CanvasNode } from '../utils';
 import { CanvasParser } from '../canvas/canvas-parser';
 import { CanvasEditor } from '../canvas/canvas-editor';
 import { HiWordsParser } from '../card';
@@ -30,6 +30,7 @@ export class VocabularyManager {
     }
 
     async loadAllVocabularyBooks(): Promise<void> {
+        await this.flushAllPendingSyncs();
         this.definitions.clear();
         this.invalidateCache();
         const loadPromises = this.settings.vocabularyBooks
@@ -40,6 +41,7 @@ export class VocabularyManager {
     }
 
     async loadVocabularyBook(book: VocabularyBook): Promise<void> {
+        await this.flushPendingSyncForBook(book.path);
         const file = this.app.vault.getAbstractFileByPath(book.path);
         if (!file || !(file instanceof TFile)) {
             console.warn(`Canvas file not found: ${book.path}`);
@@ -113,6 +115,166 @@ export class VocabularyManager {
             totalWords += definitions.length;
         }
         return { totalBooks, enabledBooks, totalWords };
+    }
+
+    getStudyItems(): StudyItem[] {
+        if (!this.cacheValid) {
+            this.rebuildCache();
+        }
+        return [...this.studyItemCache.values()];
+    }
+
+    getStudyDefinitionsForHighlight(): WordDefinition[] {
+        return this.getStudyItems()
+            .filter(item => !this.settings.enableMasteredFeature || !item.mastered)
+            .map(item => item.primary);
+    }
+
+    getStudyDefinitions(): WordDefinition[] {
+        return this.getStudyItems().map(item => item.primary);
+    }
+
+    async reloadVocabularyBook(bookPath: string): Promise<void> {
+        const book = this.settings.vocabularyBooks.find(b => b.path === bookPath);
+        if (book && book.enabled) {
+            await this.loadVocabularyBook(book);
+            this.invalidateCache();
+        }
+    }
+
+    removeBookData(bookPath: string): void {
+        this.definitions.delete(bookPath);
+        this.invalidateCache();
+    }
+
+    getSettings(): HiWordsSettings {
+        return this.settings;
+    }
+
+    async getWordDefinitionByNodeId(bookPath: string, nodeId: string): Promise<WordDefinition | null> {
+        const bookWords = this.definitions.get(bookPath);
+        if (!bookWords) return null;
+        const wordDef = bookWords.find(w => w.nodeId === nodeId);
+        return wordDef || null;
+    }
+
+    async updateWordDefinition(bookPath: string, nodeId: string, updatedDef: WordDefinition): Promise<boolean> {
+        const bookWords = this.definitions.get(bookPath);
+        if (!bookWords) return false;
+
+        const index = bookWords.findIndex(w => w.nodeId === nodeId);
+        if (index === -1) return false;
+
+        const oldDef = bookWords[index];
+        bookWords[index] = updatedDef;
+
+        this.wordDefinitionCache.delete(oldDef.word);
+        if (oldDef.aliases) {
+            oldDef.aliases.forEach(alias => this.wordDefinitionCache.delete(alias));
+        }
+
+        this.wordDefinitionCache.set(updatedDef.word, updatedDef);
+        if (updatedDef.aliases) {
+            updatedDef.aliases.forEach(alias => this.wordDefinitionCache.set(alias, updatedDef));
+        }
+
+        this.cacheValid = false;
+
+        if (!bookPath.endsWith('.hiwords')) {
+            try {
+                await this.saveWordDefinitionToCanvas(bookPath, nodeId, updatedDef);
+            } catch (error) {
+                console.error('保存单词定义到 Canvas 失败:', error);
+            }
+        }
+
+        return true;
+    }
+
+    updateStudyKeyMasteredStatus(studyKey: string, mastered: boolean): void {
+        for (const definitions of this.definitions.values()) {
+            definitions.forEach((definition) => {
+                if (definition.studyKey === studyKey) {
+                    definition.mastered = mastered;
+                }
+            });
+        }
+
+        for (const definitions of this.memoryOnlyWords.values()) {
+            definitions.forEach((definition) => {
+                if (definition.studyKey === studyKey) {
+                    definition.mastered = mastered;
+                }
+            });
+        }
+
+        this.cacheValid = false;
+    }
+
+    async getAllWordDefinitions(): Promise<WordDefinition[]> {
+        return this.getStudyDefinitions();
+    }
+
+    async getWordDefinitionsByBook(bookPath: string): Promise<WordDefinition[]> {
+        const bookWords = this.definitions.get(bookPath) || [];
+        const memoryWords = this.memoryOnlyWords.get(bookPath) || [];
+        return [...bookWords, ...memoryWords];
+    }
+
+    async setNodeColor(bookPath: string, nodeId: string, color?: number): Promise<boolean> {
+        try {
+            const ok = await this.canvasEditor.setNodeColor(bookPath, nodeId, color);
+            if (!ok) return false;
+
+            const defs = this.definitions.get(bookPath);
+            if (defs) {
+                const idx = defs.findIndex(d => d.nodeId === nodeId);
+                if (idx >= 0) {
+                    const def = defs[idx];
+                    def.color = color !== undefined ? this.getColorString(color) : undefined;
+                    this.wordDefinitionCache.set(def.word, def);
+                    if (def.aliases) {
+                        def.aliases.forEach(alias => this.wordDefinitionCache.set(alias, def));
+                    }
+                    this.cacheValid = false;
+                }
+            }
+            return true;
+        } catch (e) {
+            console.error('设置节点颜色失败:', e);
+            return false;
+        }
+    }
+
+    private async saveWordDefinitionToCanvas(bookPath: string, _nodeId: string, wordDef: WordDefinition): Promise<void> {
+        const file = this.app.vault.getAbstractFileByPath(bookPath);
+        if (!(file instanceof TFile)) {
+            throw new Error(`Canvas 文件不存在: ${bookPath}`);
+        }
+
+        try {
+            await this.app.vault.process(file, (content) => {
+                const canvasData = JSON.parse(content) as CanvasData;
+                const node = canvasData.nodes.find((n: CanvasNode) => n.id === wordDef.nodeId);
+                if (!node) {
+                    throw new Error(`找不到节点 ID: ${wordDef.nodeId}`);
+                }
+
+                let textContent = wordDef.word;
+                if (wordDef.aliases && wordDef.aliases.length > 0) {
+                    textContent += `\n*${wordDef.aliases.join(', ')}*`;
+                }
+                if (wordDef.definition) {
+                    textContent += '\n' + wordDef.definition;
+                }
+                node.text = textContent;
+
+                return JSON.stringify(canvasData);
+            });
+        } catch (error) {
+            console.error('保存 Canvas 文件失败:', error);
+            throw error;
+        }
     }
 
     clear(): void {
@@ -281,6 +443,22 @@ export class VocabularyManager {
         }
     }
 
+    private async flushAllPendingSyncs(): Promise<void> {
+        const pendingPaths = [...this.pendingSyncWords.keys()];
+        await Promise.all(pendingPaths.map(path => this.syncPendingWords(path)));
+    }
+
+    private async flushPendingSyncForBook(bookPath: string): Promise<void> {
+        const timeout = this.syncTimeouts.get(bookPath);
+        if (timeout) {
+            activeWindow.clearTimeout(timeout);
+            this.syncTimeouts.delete(bookPath);
+        }
+        if (this.pendingSyncWords.has(bookPath)) {
+            await this.syncPendingWords(bookPath);
+        }
+    }
+
     private getColorNumber(colorString: string): number {
         const colorNum = parseInt(colorString, 10);
         return (colorNum >= 1 && colorNum <= 6) ? colorNum : 0;
@@ -388,7 +566,7 @@ export class VocabularyManager {
         return [...merged];
     }
 
-    private updateCacheForBook(bookPath: string, _definitions: WordDefinition[]): void {
+    private updateCacheForBook(_bookPath: string, _definitions: WordDefinition[]): void {
         this.rebuildCache();
     }
 

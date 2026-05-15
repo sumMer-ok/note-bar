@@ -38,3 +38,36 @@ export function normalizeLayout(canvasData: CanvasData, settings: HiWordsSetting
         node.height = CARD_HEIGHT;
     }
 }
+
+export function layoutGroupInner(
+    canvasData: CanvasData,
+    group: CanvasNode,
+    settings: HiWordsSettings,
+    parser: CanvasParser
+) {
+    const CARD_WIDTH = settings.cardWidth ?? DEFAULT_CARD_WIDTH;
+    const CARD_HEIGHT = settings.cardHeight ?? DEFAULT_CARD_HEIGHT;
+
+    const members = canvasData.nodes.filter(
+        (n) => n.type !== 'group' && parser.isNodeInGroup(n, group)
+    );
+
+    if (members.length === 0) return;
+
+    for (let i = 0; i < members.length; i++) {
+        const node = members[i];
+        const col = i % GROUP_COLUMNS;
+        const row = Math.floor(i / GROUP_COLUMNS);
+        node.x = group.x + GROUP_PADDING + col * (CARD_WIDTH + GROUP_GAP);
+        node.y = group.y + GROUP_PADDING + row * (CARD_HEIGHT + GROUP_GAP);
+        node.width = CARD_WIDTH;
+        node.height = CARD_HEIGHT;
+    }
+
+    const rows = Math.ceil(members.length / GROUP_COLUMNS);
+    const minWidth = GROUP_PADDING * 2 + GROUP_COLUMNS * CARD_WIDTH + (GROUP_COLUMNS - 1) * GROUP_GAP;
+    const minHeight = GROUP_PADDING * 2 + rows * CARD_HEIGHT + (rows - 1) * GROUP_GAP;
+
+    group.width = Math.max(group.width, minWidth);
+    group.height = Math.max(group.height, minHeight);
+}

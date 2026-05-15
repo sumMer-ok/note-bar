@@ -234,6 +234,7 @@ export interface HiWordsSettings {
     enableMasteredFeature: boolean;
     showMasteredInSidebar: boolean;
     blurDefinitions: boolean;
+    showSidebar?: boolean;
     masteredDetection?: 'group' | 'color';
     ttsTemplate?: string;
     pronunciationVariant?: 'uk' | 'us';
@@ -248,6 +249,7 @@ export interface HiWordsSettings {
     enableSectionTabs?: boolean;
     sidebarDefaultDisplayMode?: 'detail' | 'word';
     selectionTranslate: SelectionTranslateSettings;
+    hideDefinitions?: boolean;
 }
 
 export interface WordMatch {

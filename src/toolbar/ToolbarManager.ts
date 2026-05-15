@@ -15,10 +15,13 @@ import { AddWordModal } from "../hiwords/ui/add-word-modal";
 import { VocabularyManager } from "../hiwords/core/vocabulary-manager";
 import type { HiWordsSettings } from "../hiwords/utils/types";
 import { extractSentenceFromEditorMultiline, extractSentenceFromSelection } from "../hiwords/utils/sentence-extractor";
+import { getHighlightState, detectPreviewHighlight } from "../utils/editor-formatter";
+import { HIGHLIGHT_COLORS, type HighlightColorKey } from "../constants";
 
 interface ToolbarComponent {
   el: HTMLElement;
   destroy: () => void;
+  updateHighlightState?: (isActive: boolean, colorKey?: HighlightColorKey) => void;
 }
 
 export class ToolbarManager {
@@ -232,7 +235,39 @@ export class ToolbarManager {
     }
 
     this.updateTheme();
+    this.detectAndUpdateHighlightState(context);
     this.show(selectionPos);
+  }
+
+  /**
+   * 检测当前选区的高亮状态并更新按钮视觉反馈
+   */
+  private detectAndUpdateHighlightState(context: FormattingContext | null): void {
+    let isActive = false;
+    let colorKey: HighlightColorKey | undefined;
+
+    if (context?.mode === "source") {
+      const selection = context.editor.getSelection();
+      if (selection) {
+        const state = getHighlightState(selection);
+        isActive = state.isHighlighted;
+        if (state.color) {
+          const entry = Object.entries(HIGHLIGHT_COLORS).find(([_, c]) => c.value === state.color);
+          if (entry) colorKey = entry[0] as HighlightColorKey;
+        }
+      }
+    } else if (context?.mode === "preview") {
+      const state = detectPreviewHighlight();
+      isActive = state.isHighlighted;
+      if (state.color) {
+        colorKey = state.color as HighlightColorKey;
+      }
+    }
+
+    const formatButtons = this.components.find((c) => c.updateHighlightState);
+    if (formatButtons) {
+      formatButtons.updateHighlightState!(isActive, colorKey);
+    }
   }
 
   private show(selectionPos: ToolbarPosition): void {

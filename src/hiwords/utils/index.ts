@@ -2,6 +2,10 @@ export * from './types';
 export * from './pattern-matcher';
 export * from './color-utils';
 export * from './sentence-extractor';
+export * from './trie';
+export * from './highlight-utils';
+export * from './tts';
+export * from './study-key';
 
 export function buildStudyKey(params: { word: string; language?: string; type?: string }): string {
     const parts = [params.word.toLowerCase().trim()];

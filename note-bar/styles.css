@@ -355,3 +355,239 @@
 .theme-light .note-bar-toolbar--dark {
   display: none;
 }
+
+/* ========== HiWords 翻译浮窗样式 ========== */
+.note-bar-translate-popover {
+  position: absolute;
+  z-index: 1000;
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
+  padding: 0;
+  max-width: 420px;
+  min-width: 240px;
+  font-size: 14px;
+  animation: note-bar-translate-fade-in 0.15s ease;
+  overflow: hidden;
+}
+
+@keyframes note-bar-translate-fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.note-bar-translate-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 10px 8px 16px;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.note-bar-translate-title {
+  flex: 1;
+  font-size: 14px;
+  color: var(--text-normal);
+  line-height: 1.4;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.note-bar-translate-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.note-bar-translate-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  color: var(--text-faint);
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.note-bar-translate-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.note-bar-translate-btn:hover {
+  color: var(--text-normal);
+  background: var(--background-modifier-hover);
+}
+
+.note-bar-translate-btn-add:hover {
+  color: var(--interactive-accent);
+}
+
+.note-bar-translate-content {
+  padding: 20px 16px;
+  min-height: 32px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.note-bar-translate-loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.note-bar-translate-spinner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: note-bar-spin 1s linear infinite;
+}
+
+.note-bar-translate-spinner svg {
+  width: 16px;
+  height: 16px;
+  color: var(--text-muted);
+}
+
+@keyframes note-bar-spin {
+  to { transform: rotate(360deg); }
+}
+
+.note-bar-translate-result {
+  color: var(--text-normal);
+  line-height: 1.6;
+  font-size: 14px;
+  font-weight: 500;
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+
+.note-bar-translate-error {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-error);
+  font-size: 13px;
+}
+
+.note-bar-translate-error-icon {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.note-bar-translate-error-icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* ========== HiWords 按钮样式 ========== */
+.note-bar-hiwords-btn {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  letter-spacing: 0.02em;
+}
+
+/* ========== HiWords 模态框样式 ========== */
+.hiwords-word-definition-input {
+  width: 100%;
+  min-height: 100px;
+  margin: 8px 0;
+}
+
+.hiwords-modal-button-container {
+  margin-top: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.hiwords-modal-button-container button.mod-cta {
+  margin-left: 8px;
+}
+
+.hiwords-button-group-left {
+  display: flex;
+  gap: 8px;
+}
+
+.hiwords-button-group-right {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.hiwords-form-item {
+  margin: 8px 0 20px 0;
+}
+
+.hiwords-form-item-label {
+  display: block;
+  margin-bottom: 6px;
+  font-weight: 400;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+.hiwords-form-item select,
+.hiwords-form-item textarea,
+.hiwords-form-item input {
+  width: 100%;
+}
+
+.hiwords-definition-label-container {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.hiwords-auto-fill-btn {
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.hiwords-auto-fill-btn:hover {
+  background-color: var(--background-modifier-hover);
+  color: var(--interactive-accent);
+}
+
+.hiwords-auto-fill-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.hiwords-auto-fill-icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+.hiwords-auto-fill-btn.hiwords-loading {
+  pointer-events: none;
+}
+
+.hiwords-auto-fill-btn.hiwords-loading .hiwords-auto-fill-icon {
+  animation: note-bar-spin 1s linear infinite;
+}
+
+.hiwords-button-container {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 0;
+}

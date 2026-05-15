@@ -4,7 +4,7 @@ import { FormattingContext } from "./toolbar/formatting-context";
 import { VocabularyManager } from "./hiwords/core/vocabulary-manager";
 import type { HiWordsSettings } from "./hiwords/utils/types";
 
-const DEFAULT_AI_DEFINITION_PROMPT = 'Please provide a concise definition for the word "{{word}}" based on this context:\n\nSentence: {{sentence}}\n\nFormat:\n1) Part of speech\n2) English definition\n3) Chinese translation\n4) Example sentence (use the original sentence if appropriate)';
+const DEFAULT_AI_DEFINITION_PROMPT = '请严格按照以下的格式进行输出，不要加入任何其他md格式的符号\n1）音标\n2）中文含义\n3）英文释义\n4）例句\n\n举例为：\n1）英/ səˈsteɪn /  美/ səˈsteɪn /\n2）\nv.维持，保持；维持……的生命；遭受，经受；（在体力或精神方面）支持，支撑；承受住……的重量；证实，证明；认可，赞成，确认；（演员）充分表演（角色，人物），扮演\nn.（乐）延音\n3）to cause or allow something to continue for a period of time\n4）The economy looks set to sustain its growth into next year.\n\n请为单词 "{{word}}" 提供释义，上下文句子：{{sentence}}';
 
 const DEFAULT_TRANSLATE_PROMPT = 'Translate the following text to {{to}}. Only return the translation, no explanation.\n\nText: {{text}}';
 
@@ -239,38 +239,59 @@ class NoteBarSettingTab extends PluginSettingTab {
     // 词库设置
     containerEl.createEl('h3', { text: '词库设置' });
 
-    new Setting(containerEl)
-      .setName('生词本')
-      .setDesc('管理 Canvas 生词本文件')
-      .addButton(button => {
-        button.setButtonText('添加生词本');
-        button.onClick(async () => {
-          // 获取所有 Canvas 文件
-          const canvasFiles = this.app.vault.getFiles()
-            .filter(f => f.extension === 'canvas');
-          if (canvasFiles.length === 0) {
-            new Notice('未找到 Canvas 文件，请先创建一个 .canvas 文件');
-            return;
-          }
-          // 简单添加第一个未添加的 Canvas 文件
-          for (const file of canvasFiles) {
-            const exists = this.plugin.hiwordsSettings.vocabularyBooks.some(b => b.path === file.path);
-            if (!exists) {
-              this.plugin.hiwordsSettings.vocabularyBooks.push({
-                path: file.path,
-                name: file.basename,
-                enabled: true
-              });
-              await this.plugin.saveHiWordsSettings();
-              await this.plugin.vocabularyManager!.loadAllVocabularyBooks();
-              new Notice(`已添加生词本: ${file.basename}`);
-              this.display();
-              return;
-            }
-          }
-          new Notice('所有 Canvas 文件已添加');
+    // 获取所有未添加的 Canvas 文件
+    const allCanvasFiles = this.app.vault.getFiles().filter(f => f.extension === 'canvas');
+    const existingPaths = new Set(this.plugin.hiwordsSettings.vocabularyBooks.map(b => b.path));
+    const availableCanvasFiles = allCanvasFiles.filter(f => !existingPaths.has(f.path));
+
+    const addBookSetting = new Setting(containerEl)
+      .setName('添加生词本')
+      .setDesc('选择一个 Canvas 文件作为生词本');
+
+    let selectedCanvasPath = '';
+
+    if (availableCanvasFiles.length === 0) {
+      addBookSetting.setDesc('没有可用的 Canvas 文件（所有 Canvas 文件已添加或尚未创建）');
+      addBookSetting.addButton(button => {
+        button.setButtonText('无可用文件');
+        button.setDisabled(true);
+      });
+    } else {
+      addBookSetting.addDropdown(dropdown => {
+        dropdown.addOption('', '选择 Canvas 文件...');
+        availableCanvasFiles.forEach(file => {
+          dropdown.addOption(file.path, `${file.basename} (${file.path})`);
+        });
+        dropdown.onChange(value => {
+          selectedCanvasPath = value;
         });
       });
+
+      addBookSetting.addButton(button => {
+        button.setButtonText('添加');
+        button.setCta();
+        button.onClick(async () => {
+          if (!selectedCanvasPath) {
+            new Notice('请先选择一个 Canvas 文件');
+            return;
+          }
+          const file = availableCanvasFiles.find(f => f.path === selectedCanvasPath);
+          if (!file) {
+            new Notice('选择的文件无效');
+            return;
+          }
+          this.plugin.hiwordsSettings.vocabularyBooks.push({
+            path: file.path,
+            name: file.basename,
+            enabled: true
+          });
+          await this.plugin.saveHiWordsSettings();
+          await this.plugin.vocabularyManager!.loadAllVocabularyBooks();
+          new Notice(`已添加生词本: ${file.basename}`);
+          this.display();
+        });
+      });
+    }
 
     // 显示当前生词本列表
     const bookList = containerEl.createDiv();

@@ -1,4 +1,4 @@
-import { Plugin } from "obsidian";
+import { App, MarkdownView, Plugin, setIcon } from "obsidian";
 import {
   TOOLBAR_CLASS,
   TOOLBAR_VISIBLE_CLASS,
@@ -10,6 +10,11 @@ import { createStyleDropdown } from "./components/StyleDropdown";
 import { createAlignDropdown } from "./components/AlignDropdown";
 import { createFormatButtons } from "./components/FormatButtons";
 import { FormattingContext } from "./formatting-context";
+import { TranslatePopover } from "../hiwords/ui/translate-popover";
+import { AddWordModal } from "../hiwords/ui/add-word-modal";
+import { VocabularyManager } from "../hiwords/core/vocabulary-manager";
+import type { HiWordsSettings } from "../hiwords/utils/types";
+import { extractSentenceFromEditorMultiline, extractSentenceFromSelection } from "../hiwords/utils/sentence-extractor";
 
 interface ToolbarComponent {
   el: HTMLElement;
@@ -19,16 +24,45 @@ interface ToolbarComponent {
 export class ToolbarManager {
   private toolbarEl: HTMLElement;
   private plugin: Plugin;
+  private app: App;
   private isVisible = false;
   private debounceTimer: number | null = null;
   private currentContext: FormattingContext | null = null;
   private onDismiss: () => void;
   private components: ToolbarComponent[] = [];
+  private hiwordsSettings: HiWordsSettings;
+  private vocabularyManager: VocabularyManager;
+  private translatePopover: TranslatePopover;
 
-  constructor(plugin: Plugin) {
+  constructor(
+    plugin: Plugin,
+    hiwordsSettings: HiWordsSettings,
+    vocabularyManager: VocabularyManager
+  ) {
     this.plugin = plugin;
+    this.app = plugin.app;
+    this.hiwordsSettings = hiwordsSettings;
+    this.vocabularyManager = vocabularyManager;
     this.onDismiss = () => this.hide();
     this.toolbarEl = this.createToolbarElement();
+    this.translatePopover = new TranslatePopover(
+      this.app,
+      hiwordsSettings,
+      (word, sentence, translation) => {
+        // 从翻译结果点击"加入词库"后的回调
+        new AddWordModal(
+          this.app,
+          this.hiwordsSettings,
+          this.vocabularyManager,
+          word,
+          sentence,
+          false,
+          translation,
+          undefined,
+          () => this.vocabularyManager.loadAllVocabularyBooks()
+        ).open();
+      }
+    );
   }
 
   private createToolbarElement(): HTMLElement {
@@ -43,9 +77,9 @@ export class ToolbarManager {
     el.addEventListener("click", (e) => e.stopPropagation());
 
     const getContext = () => this.currentContext;
-    const styleDropdown = createStyleDropdown(this.plugin.app, getContext, this.onDismiss);
-    const alignDropdown = createAlignDropdown(this.plugin.app, getContext, this.onDismiss);
-    const formatButtons = createFormatButtons(this.plugin.app, getContext, this.onDismiss);
+    const styleDropdown = createStyleDropdown(this.app, getContext, this.onDismiss);
+    const alignDropdown = createAlignDropdown(this.app, getContext, this.onDismiss);
+    const formatButtons = createFormatButtons(this.app, getContext, this.onDismiss);
 
     this.components.push(styleDropdown, alignDropdown, formatButtons);
 
@@ -61,8 +95,111 @@ export class ToolbarManager {
     el.appendChild(divider());
     el.appendChild(formatButtons.el);
 
+    // 添加 HiWords 功能按钮分隔线
+    el.appendChild(divider());
+
+    // 翻译按钮
+    const translateBtn = document.createElement("button");
+    translateBtn.className = "note-bar-format-btn note-bar-hiwords-btn";
+    translateBtn.textContent = "翻译";
+    translateBtn.style.fontSize = "12px";
+    translateBtn.style.fontWeight = "500";
+    translateBtn.style.padding = "4px 10px";
+    translateBtn.addEventListener("mousedown", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      this.handleTranslate();
+    });
+    el.appendChild(translateBtn);
+
+    // 加入词库按钮
+    const addWordBtn = document.createElement("button");
+    addWordBtn.className = "note-bar-format-btn note-bar-hiwords-btn";
+    addWordBtn.textContent = "加入词库";
+    addWordBtn.style.fontSize = "12px";
+    addWordBtn.style.fontWeight = "500";
+    addWordBtn.style.padding = "4px 10px";
+    addWordBtn.addEventListener("mousedown", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      this.handleAddWord();
+    });
+    el.appendChild(addWordBtn);
+
     document.body.appendChild(el);
     return el;
+  }
+
+  /**
+   * 处理翻译按钮点击
+   */
+  private handleTranslate() {
+    const selectedText = this.getSelectedText();
+    if (!selectedText) return;
+    // 先隐藏 toolbar，避免遮挡
+    this.hide();
+    this.translatePopover.show(selectedText);
+  }
+
+  /**
+   * 处理加入词库按钮点击
+   */
+  private handleAddWord() {
+    const selectedText = this.getSelectedText();
+    if (!selectedText) return;
+    const sentence = this.getSentence();
+    this.hide();
+    new AddWordModal(
+      this.app,
+      this.hiwordsSettings,
+      this.vocabularyManager,
+      selectedText,
+      sentence,
+      false,
+      "",
+      undefined,
+      () => this.vocabularyManager.loadAllVocabularyBooks()
+    ).open();
+  }
+
+  /**
+   * 获取当前选中的文本
+   */
+  private getSelectedText(): string {
+    const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
+    const editor = activeView?.editor;
+    const viewMode = activeView?.getMode();
+
+    if (editor && viewMode === "source") {
+      return editor.getSelection().trim();
+    }
+
+    const selection = window.getSelection();
+    return selection?.toString().trim() || "";
+  }
+
+  /**
+   * 获取选中文本所在的句子
+   */
+  private getSentence(): string {
+    const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
+    const editor = activeView?.editor;
+    const viewMode = activeView?.getMode();
+
+    if (editor && viewMode === "source") {
+      return extractSentenceFromEditorMultiline(editor);
+    }
+
+    return extractSentenceFromSelection(window.getSelection());
+  }
+
+  /**
+   * 更新 HiWords 设置
+   */
+  updateHiWordsSettings(settings: HiWordsSettings) {
+    this.hiwordsSettings = settings;
+    this.translatePopover.updateSettings(settings);
+    this.vocabularyManager.updateSettings(settings);
   }
 
   /**
@@ -123,6 +260,7 @@ export class ToolbarManager {
     this.toolbarEl.style.pointerEvents = "none";
     this.isVisible = false;
     this.currentContext = null;
+    this.translatePopover.remove();
   }
 
   private updateTheme(): void {
@@ -143,6 +281,8 @@ export class ToolbarManager {
       if (target.closest(".note-bar-dropdown-panel")) return;
       if (target.closest(".note-bar-submenu")) return;
       if (target.closest(".note-bar-color-picker")) return;
+      // 不关闭翻译浮窗
+      if (target.closest(".note-bar-translate-popover")) return;
       this.hide();
     }
   }
@@ -161,6 +301,7 @@ export class ToolbarManager {
    */
   destroy(): void {
     this.hide();
+    this.translatePopover.destroy();
     this.components.forEach((component) => component.destroy());
     this.components = [];
     this.toolbarEl.remove();

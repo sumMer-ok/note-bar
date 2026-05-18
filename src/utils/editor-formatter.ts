@@ -265,6 +265,45 @@ export async function applyHighlightToFileSelection(
   await app.vault.modify(file, content.slice(0, selectedRange.from) + replacement + content.slice(selectedRange.to));
 }
 
+/**
+ * 在选中文本末尾插入 Obsidian 内联脚注 ^[]
+ * 光标自动移动到中括号中间
+ */
+export function insertComment(editor: Editor): void {
+  const selection = editor.getSelection();
+  if (!selection) return;
+
+  const to = editor.getCursor("to");
+  const marker = "^[]";
+
+  // 在选区末尾插入 ^[]
+  editor.replaceRange(marker, to);
+
+  // 光标定位到中括号中间
+  editor.setCursor({
+    line: to.line,
+    ch: to.ch + 2,
+  });
+}
+
+/**
+ * 在预览模式选中文本末尾插入 Obsidian 内联脚注 ^[]
+ */
+export async function insertCommentToFileSelection(
+  app: App,
+  file: TFile,
+  selection: string
+): Promise<void> {
+  const content = await app.vault.read(file);
+  const selectedRange = findSelectionRange(content, selection);
+  if (!selectedRange) return;
+
+  const before = content.slice(0, selectedRange.to);
+  const after = content.slice(selectedRange.to);
+
+  await app.vault.modify(file, before + "^[]" + after);
+}
+
 function getSelectedLineRange(editor: Editor): { fromLine: number; toLine: number } {
   const from = editor.getCursor("from");
   const to = editor.getCursor("to");

@@ -115,7 +115,12 @@ export default class NoteBarPlugin extends Plugin {
     });
 
     // 初始化工具栏管理器
-    this.toolbarManager = new ToolbarManager(this, this.hiwordsSettings, this.vocabularyManager);
+    this.toolbarManager = new ToolbarManager(
+      this,
+      this.hiwordsSettings,
+      this.vocabularyManager,
+      () => this.refreshHighlighter()
+    );
 
     this.registerSelectionChangeListener();
     this.registerDomEvent(document, "mousedown", (e) => this.toolbarManager?.onGlobalClick(e));

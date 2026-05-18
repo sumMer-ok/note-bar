@@ -1,4 +1,4 @@
-import { App, MarkdownView, Plugin, setIcon } from "obsidian";
+import { App, MarkdownView, Notice, Plugin, setIcon } from "obsidian";
 import {
   TOOLBAR_CLASS,
   TOOLBAR_VISIBLE_CLASS,
@@ -13,9 +13,10 @@ import { FormattingContext } from "./formatting-context";
 import { TranslatePopover } from "../hiwords/ui/translate-popover";
 import { AddWordModal } from "../hiwords/ui/add-word-modal";
 import { VocabularyManager } from "../hiwords/core/vocabulary-manager";
+import { highlighterManager } from "../hiwords/core/word-highlighter";
 import type { HiWordsSettings } from "../hiwords/utils/types";
 import { extractSentenceFromEditorMultiline, extractSentenceFromSelection } from "../hiwords/utils/sentence-extractor";
-import { getHighlightState, detectPreviewHighlight } from "../utils/editor-formatter";
+import { getHighlightState, detectPreviewHighlight, insertComment, insertCommentToFileSelection } from "../utils/editor-formatter";
 import { HIGHLIGHT_COLORS, type HighlightColorKey } from "../constants";
 
 interface ToolbarComponent {
@@ -36,16 +37,19 @@ export class ToolbarManager {
   private hiwordsSettings: HiWordsSettings;
   private vocabularyManager: VocabularyManager;
   private translatePopover: TranslatePopover;
+  private onVocabularyChanged: (() => void) | undefined;
 
   constructor(
     plugin: Plugin,
     hiwordsSettings: HiWordsSettings,
-    vocabularyManager: VocabularyManager
+    vocabularyManager: VocabularyManager,
+    onVocabularyChanged?: () => void
   ) {
     this.plugin = plugin;
     this.app = plugin.app;
     this.hiwordsSettings = hiwordsSettings;
     this.vocabularyManager = vocabularyManager;
+    this.onVocabularyChanged = onVocabularyChanged;
     this.onDismiss = () => this.hide();
     this.toolbarEl = this.createToolbarElement();
     this.translatePopover = new TranslatePopover(
@@ -62,7 +66,10 @@ export class ToolbarManager {
           false,
           translation,
           undefined,
-          () => this.vocabularyManager.loadAllVocabularyBooks()
+          () => {
+            void this.vocabularyManager.loadAllVocabularyBooks();
+            this.onVocabularyChanged?.();
+          }
         ).open();
       }
     );
@@ -129,6 +136,46 @@ export class ToolbarManager {
     });
     el.appendChild(addWordBtn);
 
+    // 增加注释按钮
+    const commentBtn = document.createElement("button");
+    commentBtn.className = "note-bar-format-btn note-bar-hiwords-btn";
+    commentBtn.textContent = "注释";
+    commentBtn.style.fontSize = "12px";
+    commentBtn.style.fontWeight = "500";
+    commentBtn.style.padding = "4px 10px";
+    commentBtn.addEventListener("mousedown", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      try {
+        const context = getContext();
+        if (context?.mode === "source") {
+          context.editor.focus();
+          insertComment(context.editor);
+        } else if (context?.mode === "preview") {
+          void insertCommentToFileSelection(this.app, context.file, context.selection);
+        }
+      } catch (err) {
+        console.error("Note Bar: failed to insert comment", err);
+      }
+      this.onDismiss();
+    });
+    el.appendChild(commentBtn);
+
+    // 终端按钮（最右侧，视觉突出）
+    el.appendChild(divider());
+    const terminalBtn = document.createElement("button");
+    terminalBtn.className = "note-bar-format-btn note-bar-terminal-btn";
+    terminalBtn.textContent = "终端";
+    terminalBtn.style.fontSize = "12px";
+    terminalBtn.style.fontWeight = "600";
+    terminalBtn.style.padding = "4px 10px";
+    terminalBtn.addEventListener("mousedown", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      this.handleTerminal();
+    });
+    el.appendChild(terminalBtn);
+
     document.body.appendChild(el);
     return el;
   }
@@ -161,8 +208,33 @@ export class ToolbarManager {
       false,
       "",
       undefined,
-      () => this.vocabularyManager.loadAllVocabularyBooks()
+      () => {
+        void this.vocabularyManager.loadAllVocabularyBooks();
+        this.onVocabularyChanged?.();
+      }
     ).open();
+  }
+
+  /**
+   * 处理终端按钮点击：将选中文本与文件路径组合后发送到终端输入
+   */
+  private async handleTerminal() {
+    const selectedText = this.getSelectedText();
+    if (!selectedText) return;
+
+    const activeFile = this.app.workspace.getActiveFile();
+    const filePath = activeFile?.path ?? "未命名文件";
+    const terminalInput = `${filePath}: ${selectedText}`;
+
+    try {
+      await navigator.clipboard.writeText(terminalInput);
+      new Notice(`已发送到终端: ${terminalInput.substring(0, 40)}${terminalInput.length > 40 ? "..." : ""}`, 3000);
+    } catch (err) {
+      console.error("Note Bar: 复制到剪贴板失败", err);
+      new Notice("发送到终端失败，请重试", 2000);
+    }
+
+    this.hide();
   }
 
   /**

@@ -16,7 +16,6 @@ export class AddWordModal extends Modal {
     private prefilledDefinition: string;
     private onWordAdded?: () => void;
 
-    private static lastSelectedBookPath: string | null = null;
     private static lastSelectedColorValue: string | null = null;
 
     constructor(
@@ -77,33 +76,50 @@ export class AddWordModal extends Modal {
             }
         }
 
-        // 生词本选择
+        // 生词本多选列表
         const bookSelectContainer = contentEl.createDiv({ cls: 'hiwords-form-item' });
-        bookSelectContainer.createEl('label', { text: '单词本', cls: 'hiwords-form-item-label' });
-        const bookSelect = bookSelectContainer.createEl('select', { cls: 'dropdown' });
-        bookSelect.createEl('option', { text: '选择单词本', value: '' });
+        bookSelectContainer.createEl('label', { text: '单词本（可多选）', cls: 'hiwords-form-item-label' });
 
         const enabledBooks = this.settings.vocabularyBooks
             .filter(book => book.enabled && book.path.endsWith('.canvas'));
-        let defaultBookSelected = false;
-        enabledBooks.forEach((book, index) => {
-            const option = bookSelect.createEl('option', { text: book.name, value: book.path });
+
+        const bookCheckboxes: { path: string; checkbox: HTMLInputElement }[] = [];
+        const defaultPaths = new Set(this.settings.defaultVocabularyBookPaths ?? []);
+
+        enabledBooks.forEach(book => {
+            const bookRow = bookSelectContainer.createDiv({ cls: 'hiwords-book-checkbox-row' });
+            const checkbox = bookRow.createEl('input', { type: 'checkbox' });
+            checkbox.style.marginRight = '8px';
+
+            const label = bookRow.createEl('label', {
+                text: book.name,
+                cls: 'hiwords-book-checkbox-label'
+            });
+            label.style.cursor = 'pointer';
+            label.style.display = 'inline';
+            label.onclick = () => {
+                if (!this.isEditMode) {
+                    checkbox.checked = !checkbox.checked;
+                }
+            };
+
             if (this.isEditMode && this.definition && this.definition.source === book.path) {
-                option.selected = true;
-                defaultBookSelected = true;
-            } else if (!this.isEditMode && !defaultBookSelected) {
-                if (AddWordModal.lastSelectedBookPath && book.path === AddWordModal.lastSelectedBookPath) {
-                    option.selected = true;
-                    defaultBookSelected = true;
-                } else if (!AddWordModal.lastSelectedBookPath && index === 0) {
-                    option.selected = true;
-                    defaultBookSelected = true;
+                checkbox.checked = true;
+                checkbox.disabled = true;
+            } else if (!this.isEditMode) {
+                if (defaultPaths.has(book.path)) {
+                    checkbox.checked = true;
                 }
             }
+
+            bookCheckboxes.push({ path: book.path, checkbox });
         });
 
-        if (this.isEditMode && this.definition) {
-            bookSelect.disabled = true;
+        if (enabledBooks.length === 0) {
+            bookSelectContainer.createEl('p', {
+                text: '没有可用的 Canvas 单词本。请在设置中添加单词本。',
+                cls: 'setting-item-description'
+            });
         }
 
         // 颜色选择
@@ -254,7 +270,9 @@ export class AddWordModal extends Modal {
                 }
             }
 
-            const selectedBook = bookSelect.value;
+            const selectedBooks = bookCheckboxes
+                .filter(item => item.checkbox.checked)
+                .map(item => item.path);
             const definition = definitionInput.value;
             const colorValue = colorSelect.value ? parseInt(colorSelect.value) : undefined;
             const aliasesText = aliasesInput.value.trim();
@@ -265,8 +283,8 @@ export class AddWordModal extends Modal {
                 if (aliases.length === 0) aliases = undefined;
             }
 
-            if (!selectedBook) {
-                new Notice('请选择生词本');
+            if (selectedBooks.length === 0) {
+                new Notice('请至少选择一个生词本');
                 return;
             }
 
@@ -294,8 +312,8 @@ export class AddWordModal extends Modal {
                         new Notice('更新词汇失败');
                     }
                 } else {
-                    success = await this.vocabularyManager.addWordToCanvas(
-                        selectedBook,
+                    success = await this.vocabularyManager.addWordToMultipleCanvas(
+                        selectedBooks,
                         finalWord,
                         definition,
                         colorValue,
@@ -303,9 +321,8 @@ export class AddWordModal extends Modal {
                     );
                     loadingNotice.hide();
                     if (success) {
-                        AddWordModal.lastSelectedBookPath = selectedBook;
                         AddWordModal.lastSelectedColorValue = colorSelect.value || '';
-                        new Notice(`词汇 "${finalWord}" 已成功添加到生词本`);
+                        new Notice(`词汇 "${finalWord}" 已成功添加到 ${selectedBooks.length} 个生词本`);
                         if (this.onWordAdded) this.onWordAdded();
                         this.close();
                     } else {

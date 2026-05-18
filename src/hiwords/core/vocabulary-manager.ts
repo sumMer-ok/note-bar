@@ -314,6 +314,18 @@ export class VocabularyManager {
         }
     }
 
+    async addWordToMultipleCanvas(bookPaths: string[], word: string, definition: string, color?: number, aliases?: string[]): Promise<boolean> {
+        let allSuccess = true;
+        for (const bookPath of bookPaths) {
+            const success = await this.addWordToCanvas(bookPath, word, definition, color, aliases);
+            if (!success) {
+                allSuccess = false;
+                console.error(`Failed to add word to canvas book: ${bookPath}`);
+            }
+        }
+        return allSuccess;
+    }
+
     async updateWordInCanvas(bookPath: string, nodeId: string, word: string, definition: string, color?: number, aliases?: string[]): Promise<boolean> {
         try {
             const success = await this.canvasEditor.updateWordInCanvas(bookPath, nodeId, word, definition, color, aliases);

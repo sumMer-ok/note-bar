@@ -53,6 +53,7 @@ const DEFAULT_HIWORDS_SETTINGS: HiWordsSettings = {
     prompt: DEFAULT_TRANSLATE_PROMPT
   },
   hideDefinitions: false,
+  defaultVocabularyBookPaths: [],
 };
 
 interface HiWordsRefreshHooks {
@@ -535,6 +536,7 @@ class NoteBarSettingTab extends PluginSettingTab {
     // 显示当前生词本列表
     const bookList = containerEl.createDiv();
     bookList.style.marginTop = '10px';
+    const defaultPaths = new Set(this.plugin.hiwordsSettings.defaultVocabularyBookPaths ?? []);
     this.plugin.hiwordsSettings.vocabularyBooks.forEach((book, index) => {
       const bookRow = bookList.createDiv({ cls: 'setting-item' });
       bookRow.style.display = 'flex';
@@ -543,9 +545,37 @@ class NoteBarSettingTab extends PluginSettingTab {
       bookRow.style.padding = '6px 0';
       const info = bookRow.createSpan({ text: `${book.name} (${book.path})` });
       info.style.flex = '1';
+
+      const defaultBtn = bookRow.createEl('button', {
+        text: defaultPaths.has(book.path) ? '默认' : '设默认'
+      });
+      defaultBtn.style.marginRight = '8px';
+      defaultBtn.style.fontSize = '11px';
+      defaultBtn.style.padding = '2px 8px';
+      if (defaultPaths.has(book.path)) {
+        defaultBtn.style.background = 'var(--interactive-accent)';
+        defaultBtn.style.color = 'var(--text-on-accent)';
+      }
+      defaultBtn.onclick = async () => {
+        const isDefault = defaultPaths.has(book.path);
+        if (isDefault) {
+          this.plugin.hiwordsSettings.defaultVocabularyBookPaths =
+            (this.plugin.hiwordsSettings.defaultVocabularyBookPaths ?? []).filter(p => p !== book.path);
+        } else {
+          this.plugin.hiwordsSettings.defaultVocabularyBookPaths = [
+            ...(this.plugin.hiwordsSettings.defaultVocabularyBookPaths ?? []),
+            book.path
+          ];
+        }
+        await this.plugin.saveHiWordsSettings();
+        this.display();
+      };
+
       const removeBtn = bookRow.createEl('button', { text: '移除' });
       removeBtn.onclick = async () => {
         this.plugin.hiwordsSettings.vocabularyBooks.splice(index, 1);
+        this.plugin.hiwordsSettings.defaultVocabularyBookPaths =
+          (this.plugin.hiwordsSettings.defaultVocabularyBookPaths ?? []).filter(p => p !== book.path);
         await this.plugin.saveHiWordsSettings();
         await this.plugin.vocabularyManager!.loadAllVocabularyBooks();
         this.display();

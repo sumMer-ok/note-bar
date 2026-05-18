@@ -250,6 +250,7 @@ export interface HiWordsSettings {
     sidebarDefaultDisplayMode?: 'detail' | 'word';
     selectionTranslate: SelectionTranslateSettings;
     hideDefinitions?: boolean;
+    defaultVocabularyBookPaths?: string[];
 }
 
 export interface WordMatch {

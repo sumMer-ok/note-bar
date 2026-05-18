@@ -216,7 +216,7 @@ export class ToolbarManager {
   }
 
   /**
-   * 处理终端按钮点击：将选中文本与文件路径组合后发送到终端输入
+   * 处理终端按钮点击：将选中文本与文件路径组合后发送到 Obsidian 内置终端
    */
   private async handleTerminal() {
     const selectedText = this.getSelectedText();
@@ -226,15 +226,39 @@ export class ToolbarManager {
     const filePath = activeFile?.path ?? "未命名文件";
     const terminalInput = `${filePath}: ${selectedText}`;
 
+    // 尝试多种选择器定位 Obsidian 内置终端的输入框
+    const terminalInputEl =
+      document.querySelector<HTMLTextAreaElement>(".terminal textarea, .xterm-helper-textarea, [class*='terminal'] textarea, [class*='xterm'] textarea") ??
+      document.querySelector<HTMLInputElement>(".terminal input, [class*='terminal'] input");
+
+    if (terminalInputEl) {
+      try {
+        // 聚焦并写入终端输入框
+        terminalInputEl.focus();
+        terminalInputEl.value = terminalInput;
+        terminalInputEl.dispatchEvent(new Event("input", { bubbles: true }));
+        terminalInputEl.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", code: "Enter", bubbles: true }));
+        new Notice("已发送到终端", 2000);
+      } catch (err) {
+        console.error("Note Bar: 写入终端失败", err);
+        await this.fallbackToClipboard(terminalInput);
+      }
+    } else {
+      // 未找到终端输入框，回退到剪贴板
+      await this.fallbackToClipboard(terminalInput);
+    }
+
+    this.hide();
+  }
+
+  private async fallbackToClipboard(text: string): Promise<void> {
     try {
-      await navigator.clipboard.writeText(terminalInput);
-      new Notice(`已发送到终端: ${terminalInput.substring(0, 40)}${terminalInput.length > 40 ? "..." : ""}`, 3000);
+      await navigator.clipboard.writeText(text);
+      new Notice(`已复制到剪贴板: ${text.substring(0, 40)}${text.length > 40 ? "..." : ""}`, 3000);
     } catch (err) {
       console.error("Note Bar: 复制到剪贴板失败", err);
       new Notice("发送到终端失败，请重试", 2000);
     }
-
-    this.hide();
   }
 
   /**

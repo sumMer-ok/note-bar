@@ -527,6 +527,10 @@
 }
 
 .hiwords-book-checkbox-row input[type="checkbox"] {
+  width: 16px !important;
+  height: 16px !important;
+  min-width: 16px !important;
+  flex-shrink: 0;
   margin: 0;
   cursor: pointer;
 }
@@ -536,6 +540,7 @@
   color: var(--text-normal);
   cursor: pointer;
   user-select: none;
+  line-height: 1.4;
 }
 
 /* ========== HiWords 模态框样式 ========== */

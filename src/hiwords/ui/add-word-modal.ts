@@ -86,22 +86,24 @@ export class AddWordModal extends Modal {
         const bookCheckboxes: { path: string; checkbox: HTMLInputElement }[] = [];
         const defaultPaths = new Set(this.settings.defaultVocabularyBookPaths ?? []);
 
-        enabledBooks.forEach(book => {
+        enabledBooks.forEach((book, idx) => {
             const bookRow = bookSelectContainer.createDiv({ cls: 'hiwords-book-checkbox-row' });
+            const checkboxId = `hiwords-book-check-${idx}`;
             const checkbox = bookRow.createEl('input', { type: 'checkbox' });
+            checkbox.id = checkboxId;
+            checkbox.style.width = '16px';
+            checkbox.style.height = '16px';
+            checkbox.style.minWidth = '16px';
+            checkbox.style.flexShrink = '0';
             checkbox.style.marginRight = '8px';
+            checkbox.style.cursor = 'pointer';
 
             const label = bookRow.createEl('label', {
-                text: book.name,
                 cls: 'hiwords-book-checkbox-label'
             });
-            label.style.cursor = 'pointer';
-            label.style.display = 'inline';
-            label.onclick = () => {
-                if (!this.isEditMode) {
-                    checkbox.checked = !checkbox.checked;
-                }
-            };
+            label.htmlFor = checkboxId;
+            label.textContent = book.name;
+            label.style.cursor = this.isEditMode && this.definition && this.definition.source === book.path ? 'default' : 'pointer';
 
             if (this.isEditMode && this.definition && this.definition.source === book.path) {
                 checkbox.checked = true;

@@ -300,6 +300,41 @@ export class ExportVocabularyModal extends Modal {
     }
 
     private async showFolderPicker(): Promise<string | null> {
+        try {
+            const win = window as any;
+            if (win.require) {
+                const electron = win.require('electron');
+
+                // 优先使用 Electron remote.dialog
+                if (electron.remote && electron.remote.dialog) {
+                    const result = await electron.remote.dialog.showOpenDialog({
+                        properties: ['openDirectory', 'createDirectory']
+                    });
+                    if (!result.canceled && result.filePaths && result.filePaths.length > 0) {
+                        return result.filePaths[0].replace(/\\/g, '/');
+                    }
+                    return null;
+                }
+
+                // 新版 Electron 通过 ipcRenderer
+                if (electron.ipcRenderer && electron.ipcRenderer.invoke) {
+                    const result = await electron.ipcRenderer.invoke('show-open-dialog', {
+                        properties: ['openDirectory', 'createDirectory']
+                    });
+                    if (!result.canceled && result.filePaths && result.filePaths.length > 0) {
+                        return result.filePaths[0].replace(/\\/g, '/');
+                    }
+                    return null;
+                }
+            }
+        } catch (e) {
+            console.warn('Electron 文件夹选择器失败，回退到文件输入:', e);
+        }
+
+        return this.showFolderPickerFallback();
+    }
+
+    private async showFolderPickerFallback(): Promise<string | null> {
         return new Promise((resolve) => {
             const input = document.createElement('input');
             input.type = 'file';

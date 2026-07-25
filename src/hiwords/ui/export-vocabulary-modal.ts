@@ -16,7 +16,8 @@ export class ExportVocabularyModal extends Modal {
     private selectedBook: VocabularyBook | null = null;
     private dateOptions: DateOption[] = [];
     private dateCheckboxes: { value: string; checkbox: HTMLInputElement }[] = [];
-    private savePathInput: HTMLInputElement | null = null;
+    private savePathDisplay: HTMLElement | null = null;
+    private selectedSavePath: string = '';
     private dateListContainer: HTMLElement | null = null;
 
     constructor(app: App, settings: HiWordsSettings) {
@@ -65,13 +66,27 @@ export class ExportVocabularyModal extends Modal {
 
         // 保存位置
         const saveContainer = contentEl.createDiv({ cls: 'hiwords-form-item' });
-        saveContainer.createEl('label', { text: '保存位置（文件夹路径）', cls: 'hiwords-form-item-label' });
-        this.savePathInput = saveContainer.createEl('input', {
-            type: 'text',
-            cls: 'setting-item-input'
+        saveContainer.createEl('label', { text: '保存位置', cls: 'hiwords-form-item-label' });
+        const savePathRow = saveContainer.createDiv();
+        savePathRow.style.display = 'flex';
+        savePathRow.style.gap = '8px';
+        savePathRow.style.alignItems = 'center';
+
+        this.savePathDisplay = savePathRow.createEl('div', {
+            cls: 'setting-item-input',
+            text: ''
         });
-        this.savePathInput.style.width = '100%';
-        this.savePathInput.placeholder = '留空则保存到单词本所在目录';
+        this.savePathDisplay.style.flex = '1';
+        this.savePathDisplay.style.padding = '6px 10px';
+        this.savePathDisplay.style.minHeight = '28px';
+        this.savePathDisplay.style.overflow = 'hidden';
+        this.savePathDisplay.style.textOverflow = 'ellipsis';
+        this.savePathDisplay.style.whiteSpace = 'nowrap';
+
+        const browseButton = savePathRow.createEl('button', { text: '选择文件夹' });
+        browseButton.addEventListener('click', () => {
+            void this.pickSaveFolder();
+        });
 
         // 按钮
         const buttonContainer = contentEl.createDiv({ cls: 'hiwords-button-container' });
@@ -123,8 +138,13 @@ export class ExportVocabularyModal extends Modal {
         const allCheckbox = allRow.createEl('input', { type: 'checkbox' });
         allCheckbox.id = 'hiwords-date-check-all';
         allCheckbox.checked = true;
+        allCheckbox.style.width = '16px';
+        allCheckbox.style.height = '16px';
+        allCheckbox.style.minWidth = '16px';
+        allCheckbox.style.flexShrink = '0';
         const allLabel = allRow.createEl('label', { text: '全部', attr: { for: allCheckbox.id } });
         allLabel.style.cursor = 'pointer';
+        allLabel.style.flex = '1';
 
         allCheckbox.addEventListener('change', () => {
             for (const item of this.dateCheckboxes) {
@@ -160,10 +180,14 @@ export class ExportVocabularyModal extends Modal {
     }
 
     private updateSavePathDefault() {
-        if (!this.savePathInput || !this.selectedBook) return;
+        if (!this.selectedBook) return;
         const lastSlash = this.selectedBook.path.lastIndexOf('/');
         const dir = lastSlash > 0 ? this.selectedBook.path.substring(0, lastSlash) : '';
-        this.savePathInput.value = dir;
+        this.selectedSavePath = dir;
+        if (this.savePathDisplay) {
+            this.savePathDisplay.textContent = dir || '单词本所在目录';
+            this.savePathDisplay.title = dir || '单词本所在目录';
+        }
     }
 
     private async onBookSelected(book: VocabularyBook | null) {
@@ -245,27 +269,18 @@ export class ExportVocabularyModal extends Modal {
         const dateSuffix = selectedDates.length === 1 ? selectedDates[0] : 'multi';
         const fileName = `${safeBookName}-export-${dateSuffix}.csv`;
 
-        let saveDir = (this.savePathInput?.value || '').trim();
+        let saveDir = this.selectedSavePath.trim();
         if (!saveDir) {
             const lastSlash = this.selectedBook.path.lastIndexOf('/');
             saveDir = lastSlash > 0 ? this.selectedBook.path.substring(0, lastSlash) : '';
         }
         saveDir = saveDir.replace(/\/$/, '');
 
-        const targetPath = saveDir ? `${saveDir}/${fileName}` : fileName;
-        const normalizedPath = targetPath.startsWith('/') ? targetPath.slice(1) : targetPath;
+        const targetFileName = saveDir ? `${saveDir}/${fileName}` : fileName;
 
         try {
-            // 确保目录存在
-            await this.ensureDirectory(saveDir);
-
-            const existing = this.app.vault.getAbstractFileByPath(normalizedPath);
-            if (existing) {
-                await this.app.vault.adapter.write(normalizedPath, csvContent);
-            } else {
-                await this.app.vault.create(normalizedPath, csvContent);
-            }
-            new Notice(`已导出 ${filtered.length} 个单词到 ${normalizedPath}`);
+            await this.writeCsvFile(targetFileName, csvContent);
+            new Notice(`已导出 ${filtered.length} 个单词到 ${targetFileName}`);
             this.close();
         } catch (error) {
             console.error('导出失败:', error);
@@ -273,7 +288,95 @@ export class ExportVocabularyModal extends Modal {
         }
     }
 
-    private async ensureDirectory(dirPath: string): Promise<void> {
+    private async pickSaveFolder(): Promise<void> {
+        const folderPath = await this.showFolderPicker();
+        if (folderPath) {
+            this.selectedSavePath = folderPath;
+            if (this.savePathDisplay) {
+                this.savePathDisplay.textContent = folderPath;
+                this.savePathDisplay.title = folderPath;
+            }
+        }
+    }
+
+    private async showFolderPicker(): Promise<string | null> {
+        return new Promise((resolve) => {
+            const input = document.createElement('input');
+            input.type = 'file';
+            (input as any).webkitdirectory = true;
+            (input as any).directory = true;
+            input.style.display = 'none';
+            document.body.appendChild(input);
+
+            const cleanup = () => {
+                if (input.parentNode) {
+                    document.body.removeChild(input);
+                }
+            };
+
+            input.addEventListener('change', () => {
+                const files = input.files;
+                if (!files || files.length === 0) {
+                    cleanup();
+                    resolve(null);
+                    return;
+                }
+                const firstFile = files[0];
+                const fullPath = (firstFile as any).path as string | undefined;
+                cleanup();
+                if (!fullPath) {
+                    resolve(null);
+                    return;
+                }
+                const normalized = fullPath.replace(/\\/g, '/');
+                const lastSlash = normalized.lastIndexOf('/');
+                const folderPath = lastSlash > 0 ? normalized.substring(0, lastSlash) : normalized;
+                resolve(folderPath);
+            });
+
+            input.addEventListener('cancel', () => {
+                cleanup();
+                resolve(null);
+            });
+
+            input.click();
+        });
+    }
+
+    private async writeCsvFile(filePath: string, content: string): Promise<void> {
+        const normalized = filePath.replace(/\\/g, '/');
+
+        // 优先使用 Node fs 写入任意本地路径
+        try {
+            const win = window as any;
+            if (win.require) {
+                const fs = win.require('fs');
+                const path = win.require('path');
+                if (fs && path) {
+                    const dir = path.dirname(normalized);
+                    fs.mkdirSync(dir, { recursive: true });
+                    fs.writeFileSync(normalized, content, 'utf8');
+                    return;
+                }
+            }
+        } catch (e) {
+            console.warn('Node fs 写入失败，回退到 Vault API:', e);
+        }
+
+        // 回退：使用 Obsidian Vault API（路径需在仓库内）
+        const normalizedPath = normalized.startsWith('/') ? normalized.slice(1) : normalized;
+        const dirPath = normalizedPath.substring(0, normalizedPath.lastIndexOf('/'));
+        await this.ensureVaultDirectory(dirPath);
+
+        const existing = this.app.vault.getAbstractFileByPath(normalizedPath);
+        if (existing) {
+            await this.app.vault.adapter.write(normalizedPath, content);
+        } else {
+            await this.app.vault.create(normalizedPath, content);
+        }
+    }
+
+    private async ensureVaultDirectory(dirPath: string): Promise<void> {
         if (!dirPath) return;
         const parts = dirPath.split('/').filter(p => p.length > 0);
         let current = '';

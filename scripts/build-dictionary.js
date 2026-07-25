@@ -1,73 +1,20 @@
 const fs = require('fs');
 const path = require('path');
+const { execFileSync } = require('child_process');
 
-const CSV_PATH = path.join(__dirname, '..', 'src', 'hiwords', 'data', 'ecdict.csv');
+const DB_PATH = path.join(__dirname, '..', 'src', 'hiwords', 'data', 'AutoCompleteData.db');
 const OUT_DIR = path.join(__dirname, '..', 'src', 'hiwords', 'data');
 
-function parseCsvLine(line) {
-    const result = [];
-    let current = '';
-    let inQuotes = false;
-    for (const char of line) {
-        if (char === '"') {
-            inQuotes = !inQuotes;
-        } else if (char === ',' && !inQuotes) {
-            result.push(current.trim());
-            current = '';
-        } else {
-            current += char;
-        }
-    }
-    result.push(current.trim());
-    return result;
-}
-
-function main() {
-    const content = fs.readFileSync(CSV_PATH, 'utf-8');
-    const lines = content.split(/\r?\n/).filter(line => line.trim());
-    const header = parseCsvLine(lines[0]);
-    const wordIdx = header.indexOf('word');
-    const translationIdx = header.indexOf('translation');
-    const posIdx = header.indexOf('pos');
-    const collinsIdx = header.indexOf('collins');
-    const oxfordIdx = header.indexOf('oxford');
-    const tagIdx = header.indexOf('tag');
-    const bncIdx = header.indexOf('bnc');
-    const frqIdx = header.indexOf('frq');
-    const exchangeIdx = header.indexOf('exchange');
-    const phoneticIdx = header.indexOf('phonetic');
-
-    let total = 0;
-    let withCollins = 0;
-    let withTag = 0;
-    let withFreq = 0;
-    let collinsOrTagOrFreq = 0;
-
+function buildDictionary(rows) {
     const dictionary = {};
 
-    for (let i = 1; i < lines.length; i++) {
-        const fields = parseCsvLine(lines[i]);
-        if (fields.length < header.length) continue;
-        total++;
+    for (const row of rows) {
+        const word = row.word;
+        const translation = row.translation || '';
+        const exchange = row.exchange || '';
+        const phonetic = row.phonetic || '';
 
-        const word = fields[wordIdx];
-        const translation = fields[translationIdx];
-        const pos = fields[posIdx];
-        const collins = parseInt(fields[collinsIdx], 10) || 0;
-        const oxford = parseInt(fields[oxfordIdx], 10) || 0;
-        const tag = fields[tagIdx];
-        const bnc = parseInt(fields[bncIdx], 10) || 0;
-        const frq = parseInt(fields[frqIdx], 10) || 0;
-        const exchange = fields[exchangeIdx];
-        const phonetic = fields[phoneticIdx];
-
-        if (collins > 0) withCollins++;
-        if (tag) withTag++;
-        if (bnc > 0 || frq > 0) withFreq++;
-
-        // Filter: keep words that are in Collins, or have exam tags
-        if (collins === 0 && !tag) continue;
-        collinsOrTagOrFreq++;
+        if (!word || !translation.trim()) continue;
 
         const lowerWord = word.toLowerCase();
         if (dictionary[lowerWord]) continue; // keep first occurrence
@@ -101,12 +48,36 @@ function main() {
         };
     }
 
-    console.log(`Total entries: ${total}`);
-    console.log(`With Collins star: ${withCollins}`);
-    console.log(`With exam tag: ${withTag}`);
-    console.log(`With frequency data: ${withFreq}`);
-    console.log(`Kept entries: ${collinsOrTagOrFreq}`);
-    console.log(`Unique words in dictionary: ${Object.keys(dictionary).length}`);
+    return dictionary;
+}
+
+function main() {
+    if (!fs.existsSync(DB_PATH)) {
+        console.error(`Dictionary database not found: ${DB_PATH}`);
+        console.error('Please extract AutoCompleteData.zip first.');
+        process.exit(1);
+    }
+
+    console.log('Querying dictionary database...');
+
+    const sql = `
+        SELECT word, phonetic, translation, exchange
+        FROM stardict
+        WHERE collins > 0 OR (tag IS NOT NULL AND tag != '')
+        ORDER BY word
+    `;
+
+    const stdout = execFileSync('sqlite3', [DB_PATH, '.mode json', sql], {
+        encoding: 'utf-8',
+        maxBuffer: 64 * 1024 * 1024 // 64MB buffer
+    });
+
+    const rows = JSON.parse(stdout);
+    console.log(`Query returned ${rows.length} rows`);
+
+    const dictionary = buildDictionary(rows);
+    const uniqueCount = Object.keys(dictionary).length;
+    console.log(`Unique words in dictionary: ${uniqueCount}`);
 
     const outPath = path.join(OUT_DIR, 'dictionary.json');
     fs.writeFileSync(outPath, JSON.stringify(dictionary));

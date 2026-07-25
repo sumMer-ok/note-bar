@@ -20,9 +20,13 @@ export function normalizeLayout(canvasData: CanvasData, settings: HiWordsSetting
         (n) => n.type === 'group' && (n.label === 'Mastered' || n.label === '已掌握')
     );
 
+    const groups = canvasData.nodes.filter((n) => n.type === 'group');
+
     const movableNodes = canvasData.nodes.filter((n) => {
         if (n.type === 'group') return false;
         if (masteredGroup && parser.isNodeInGroup(n, masteredGroup)) return false;
+        // 保留已分组节点（日期分组等）
+        if (groups.some((g) => g !== masteredGroup && parser.isNodeInGroup(n, g))) return false;
         return true;
     });
 

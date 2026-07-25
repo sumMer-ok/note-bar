@@ -410,29 +410,56 @@ export class DefinitionPopover extends Component {
     private async navigateToSource(wordDef: WordDefinition) {
         try {
             const file = this.app.vault.getAbstractFileByPath(wordDef.source);
-            if (file instanceof TFile) {
-                if (file.extension === 'canvas') {
-                    await this.app.workspace.openLinkText(file.path, '');
-                } else {
-                    await this.app.workspace.openLinkText(file.path, '');
-                    activeWindow.setTimeout(() => {
-                        const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
-                        if (activeView && activeView.file?.path === file.path) {
-                            const editor = activeView.editor;
-                            const content = editor.getValue();
-                            const wordIndex = content.toLowerCase().indexOf(wordDef.word.toLowerCase());
-                            if (wordIndex !== -1) {
-                                const pos = editor.offsetToPos(wordIndex);
-                                editor.setCursor(pos);
-                                editor.scrollIntoView({ from: pos, to: pos }, true);
-                            }
+            if (!(file instanceof TFile)) return;
+
+            await this.app.workspace.openLinkText(file.path, '');
+
+            if (file.extension === 'canvas' && wordDef.nodeId) {
+                activeWindow.setTimeout(() => {
+                    this.focusCanvasNode(file.path, wordDef.nodeId!);
+                }, 300);
+            } else if (file.extension === 'md') {
+                activeWindow.setTimeout(() => {
+                    const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
+                    if (activeView && activeView.file?.path === file.path) {
+                        const editor = activeView.editor;
+                        const content = editor.getValue();
+                        const wordIndex = content.toLowerCase().indexOf(wordDef.word.toLowerCase());
+                        if (wordIndex !== -1) {
+                            const pos = editor.offsetToPos(wordIndex);
+                            editor.setCursor(pos);
+                            editor.scrollIntoView({ from: pos, to: pos }, true);
                         }
-                    }, 100);
-                }
+                    }
+                }, 100);
             }
         } catch (error) {
             console.error('导航到源文件失败:', error);
         }
+    }
+
+    private findCanvasView(filePath: string): any {
+        const leaves = this.app.workspace.getLeavesOfType('canvas');
+        for (const leaf of leaves) {
+            const view = (leaf as any).view;
+            if (view?.file?.path === filePath) return view;
+        }
+        return null;
+    }
+
+    private focusCanvasNode(filePath: string, nodeId: string) {
+        const canvasView = this.findCanvasView(filePath);
+        if (!canvasView) return;
+        const canvas = canvasView.canvas;
+        if (!canvas || typeof canvas.nodes !== 'object') return;
+        const node = canvas.nodes.get?.(nodeId) ?? canvas.nodes[nodeId];
+        if (!node) return;
+        if (typeof canvas.deselectAll === 'function') canvas.deselectAll();
+        if (typeof canvas.selectNodes === 'function') canvas.selectNodes([node]);
+        if (typeof canvas.scrollToNodes === 'function') canvas.scrollToNodes([node]);
+        activeWindow.setTimeout(() => {
+            if (typeof node.startEditing === 'function') node.startEditing();
+        }, 200);
     }
 
     onunload() {

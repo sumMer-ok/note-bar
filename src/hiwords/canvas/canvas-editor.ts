@@ -1,7 +1,7 @@
 import { App, TFile } from 'obsidian';
-import type { CanvasData, HiWordsSettings } from '../utils';
+import type { CanvasData, CanvasNode, HiWordsSettings } from '../utils';
 import { CanvasParser } from './canvas-parser';
-import { normalizeLayout } from './layout';
+import { layoutGroupInner, normalizeLayout } from './layout';
 
 export class CanvasEditor {
     private app: App;
@@ -20,6 +20,40 @@ export class CanvasEditor {
         const bytes = new Uint8Array(8);
         window.crypto.getRandomValues(bytes);
         return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+    }
+
+    private getTodayGroupLabel(): string {
+        const now = new Date();
+        return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    }
+
+    private findOrCreateDateGroup(canvasData: CanvasData, cardWidth: number, cardHeight: number): CanvasNode {
+        const groupPadding = 24;
+        const groupGap = 40;
+        const label = this.getTodayGroupLabel();
+        let group = canvasData.nodes.find((n) => n.type === 'group' && n.label === label);
+
+        if (!group) {
+            let maxX = 0;
+            for (const n of canvasData.nodes) {
+                if (n.type === 'group') {
+                    const right = (n.x ?? 0) + (n.width ?? 0);
+                    if (right > maxX) maxX = right;
+                }
+            }
+            const x = canvasData.nodes.length === 0 ? 0 : maxX + groupGap;
+            group = {
+                id: this.genHex16(),
+                type: 'group',
+                x,
+                y: 0,
+                width: groupPadding * 2 + cardWidth,
+                height: groupPadding * 2 + cardHeight,
+                label,
+            };
+            canvasData.nodes.push(group);
+        }
+        return group;
     }
 
     async addWordToCanvas(bookPath: string, word: string, definition: string, color?: number, aliases?: string[]): Promise<string | null> {
@@ -42,59 +76,25 @@ export class CanvasEditor {
                 generatedNodeId = nodeId;
                 const newW = this.settings.cardWidth ?? 260;
                 const newH = this.settings.cardHeight ?? 120;
-                const verticalGap = 20;
                 const groupPadding = 24;
-                const num = (v: unknown, def: number) => (typeof v === 'number' ? v : def);
-                const rectOf = (n: { x?: number; y?: number; width?: number; height?: number }) => ({
-                    x: num(n.x, 0),
-                    y: num(n.y, 0),
-                    w: num(n.width, 200),
-                    h: num(n.height, 60),
-                });
-                const overlaps = (ax: number, aw: number, bx: number, bw: number) => ax < bx + bw && ax + aw > bx;
-                const masteredGroup = canvasData.nodes.find(
-                    (n) => n.type === 'group' && (n.label === 'Mastered' || n.label === '已掌握')
-                );
-                const g = masteredGroup ? rectOf(masteredGroup) : undefined;
-                let x = 0;
-                let y = 0;
-                if (canvasData.nodes.length > 0) {
-                    let ref: { x?: number; y?: number; width?: number; height?: number } | undefined;
-                    for (let i = canvasData.nodes.length - 1; i >= 0; i--) {
-                        const n = canvasData.nodes[i];
-                        if (n.type === 'group') continue;
-                        if (g) {
-                            const r = rectOf(n);
-                            const insideHoriz = overlaps(r.x, r.w, g.x, g.w);
-                            const insideVert = overlaps(r.y, r.h, g.y, g.h);
-                            if (insideHoriz && insideVert) continue;
-                        }
-                        ref = n;
-                        break;
-                    }
-                    if (ref) {
-                        const r = rectOf(ref);
-                        x = r.x;
-                        y = r.y + r.h + verticalGap;
-                    }
-                }
-                if (g && overlaps(x, newW, g.x, g.w)) {
-                    x = g.x + g.w + groupPadding;
-                }
+                // 按添加日期分组
+                const dateGroup = this.findOrCreateDateGroup(canvasData, newW, newH);
+
                 let nodeText = word;
                 if (aliases && aliases.length > 0) nodeText = `${word}\n*${aliases.join(', ')}*`;
                 if (definition) nodeText = `${nodeText}\n\n${definition}`;
-                const newNode = {
+                const newNode: CanvasNode = {
                     id: nodeId,
-                    type: 'text' as const,
-                    x,
-                    y,
+                    type: 'text',
+                    x: (dateGroup.x ?? 0) + groupPadding,
+                    y: (dateGroup.y ?? 0) + groupPadding,
                     width: newW,
                     height: newH,
                     text: nodeText,
                     color: color !== undefined ? color.toString() : undefined,
                 };
                 canvasData.nodes.push(newNode);
+                layoutGroupInner(canvasData, dateGroup, this.settings, parser);
                 normalizeLayout(canvasData, this.settings, parser);
                 return JSON.stringify(canvasData);
             });

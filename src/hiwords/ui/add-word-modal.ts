@@ -233,8 +233,11 @@ export class AddWordModal extends Modal {
                         }
                     } else {
                         definitionInput.value = aiDefinition;
-                        if (!currentAliases && aiAliases.length > 0) {
-                            aliasesInput.value = aiAliases.join(', ');
+                        if (!currentAliases) {
+                            const aliasesToFill = aiAliases.length > 0 ? aiAliases : this.deriveAliases(queryWord);
+                            if (aliasesToFill.length > 0) {
+                                aliasesInput.value = aliasesToFill.join(', ');
+                            }
                         }
                     }
                     new Notice('释义获取成功');
@@ -427,6 +430,76 @@ export class AddWordModal extends Modal {
         return definitions
             .map((def, idx) => `${idx + 1}. ${def}`)
             .join('\n');
+    }
+
+    /**
+     * 当 AI 没有返回别名时，根据常见词形变化规则从本地词库推导可能的原形。
+     */
+    private deriveAliases(word: string): string[] {
+        const lower = word.trim().toLowerCase();
+        if (!lower) return [];
+
+        const candidates = new Set<string>();
+
+        // -ing: running -> run, suing -> sue, making -> make
+        if (lower.endsWith('ing')) {
+            const stem = lower.slice(0, -3);
+            if (stem.length > 0) {
+                // drop double final consonant: running -> run
+                if (stem.length > 2 && stem[stem.length - 1] === stem[stem.length - 2]) {
+                    candidates.add(stem.slice(0, -1));
+                }
+                candidates.add(stem + 'e');
+                candidates.add(stem);
+            }
+        }
+
+        // -ed: baked -> bake, stopped -> stop
+        if (lower.endsWith('ed')) {
+            const stem = lower.slice(0, -2);
+            if (stem.length > 0) {
+                if (stem.length > 2 && stem[stem.length - 1] === stem[stem.length - 2]) {
+                    candidates.add(stem.slice(0, -1));
+                }
+                candidates.add(stem + 'e');
+                candidates.add(stem);
+            }
+        }
+
+        // -ies: companies -> company
+        if (lower.endsWith('ies')) {
+            candidates.add(lower.slice(0, -3) + 'y');
+        }
+
+        // -es: goes -> go, watches -> watch
+        if (lower.endsWith('es')) {
+            const stem = lower.slice(0, -2);
+            candidates.add(stem + 'e');
+            candidates.add(stem);
+        }
+
+        // -s: books -> book
+        if (lower.endsWith('s') && !lower.endsWith('ss')) {
+            candidates.add(lower.slice(0, -1));
+        }
+
+        // -er/-est: bigger -> big, biggest -> big
+        if (lower.endsWith('er') || lower.endsWith('est')) {
+            const suffixLen = lower.endsWith('est') ? 3 : 2;
+            const stem = lower.slice(0, -suffixLen);
+            if (stem.length > 0) {
+                if (stem.length > 2 && stem[stem.length - 1] === stem[stem.length - 2]) {
+                    candidates.add(stem.slice(0, -1));
+                }
+                candidates.add(stem + 'e');
+                candidates.add(stem);
+            }
+        }
+
+        // Only keep candidates that exist in the local dictionary and are not the word itself.
+        return Array.from(candidates)
+            .filter(candidate => candidate !== lower && this.localDictionary.lookup(candidate))
+            .sort();
     }
 
     onClose() {

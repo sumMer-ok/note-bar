@@ -63,13 +63,12 @@ function main() {
     const sql = `
         SELECT word, phonetic, translation, exchange
         FROM stardict
-        WHERE collins > 0 OR (tag IS NOT NULL AND tag != '')
         ORDER BY word
     `;
 
     const stdout = execFileSync('sqlite3', [DB_PATH, '.mode json', sql], {
         encoding: 'utf-8',
-        maxBuffer: 64 * 1024 * 1024 // 64MB buffer
+        maxBuffer: 1024 * 1024 * 1024 // 1GB buffer
     });
 
     const rows = JSON.parse(stdout);

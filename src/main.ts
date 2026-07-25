@@ -11,7 +11,7 @@ import { DefinitionPopover } from "./hiwords/ui/definition-popover";
 import { shouldHighlightFile } from "./hiwords/utils/highlight-utils";
 import type { HiWordsSettings, VocabularyBookDisplaySettings, WordDefinition } from "./hiwords/utils/types";
 
-const DEFAULT_AI_DEFINITION_PROMPT = '请为单词 "{{word}}" 提供释义和常见词形变化，上下文句子：{{sentence}}\n\n请严格按照以下 JSON 格式输出，不要加入任何其他内容（如 markdown 代码块）：\n{\n  "aliases": ["常见变形1", "常见变形2"],\n  "definition": "1）音标\\n2）中文含义\\n3）英文释义\\n4）例句"\n}\n\n示例输出：\n{\n  "aliases": ["sustained", "sustaining", "sustains"],\n  "definition": "1）英/ sə\'steɪn / 美/ sə\'steɪn /\\n2）v. 维持，保持；遭受，经受；支持，支撑\\nn. （乐）延音\\n3）to cause or allow something to continue for a period of time\\n4）The economy looks set to sustain its growth into next year."\n}';
+const DEFAULT_AI_DEFINITION_PROMPT = '请为单词 "{{word}}" 提供释义和常见词形变化，上下文句子：{{sentence}}\n\n如果 "{{word}}" 是某个单词的变形（如动词的 -ing / -ed 形式、名词复数、形容词或副词的比较级/最高级），请务必在 aliases 中返回其原形（lemma）。例如：suing 应返回 sue；went 应返回 go；better 应返回 good。\n\n请严格按照以下 JSON 格式输出，不要加入任何其他内容（如 markdown 代码块）：\n{\n  "aliases": ["原形", "其他常见变形1", "其他常见变形2"],\n  "definition": "1）音标\\n2）中文含义\\n3）英文释义\\n4）例句"\n}\n\n示例输出：\n{\n  "aliases": ["sustain", "sustained", "sustaining", "sustains"],\n  "definition": "1）英/ sə\'steɪn / 美/ sə\'steɪn /\\n2）v. 维持，保持；遭受，经受；支持，支撑\\nn. （乐）延音\\n3）to cause or allow something to continue for a period of time\\n4）The economy looks set to sustain its growth into next year."\n}';
 
 const DEFAULT_TRANSLATE_PROMPT = 'Translate the following text to {{to}}. Only return the translation, no explanation.\n\nText: {{text}}';
 

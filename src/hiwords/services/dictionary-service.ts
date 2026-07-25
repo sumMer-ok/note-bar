@@ -186,10 +186,14 @@ export class DictionaryService {
     }
 
     private parseDefinitionResponse(content: string): { definition: string; aliases: string[] } {
-        const cleanContent = content.replace(/^```json\s*|\s*```$/g, '').trim();
-        if (cleanContent.startsWith('{')) {
+        // 尝试提取 ```json ... ``` 代码块，或文本中的第一个 JSON 对象
+        const codeBlockMatch = content.match(/```json\s*([\s\S]*?)\s*```/);
+        let textToParse = codeBlockMatch ? codeBlockMatch[1].trim() : content.trim();
+
+        const jsonMatch = textToParse.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
             try {
-                const parsed = JSON.parse(cleanContent) as unknown;
+                const parsed = JSON.parse(jsonMatch[0]) as unknown;
                 if (parsed && typeof parsed === 'object') {
                     const data = parsed as Record<string, unknown>;
                     const definition = typeof data.definition === 'string' ? data.definition.trim() : '';
@@ -208,7 +212,7 @@ export class DictionaryService {
                 // fall through to treat entire content as definition
             }
         }
-        return { definition: cleanContent, aliases: [] };
+        return { definition: textToParse, aliases: [] };
     }
 
     private async makeRequestWithRetry(url: string, headers: Record<string, string>, body: JsonObject): Promise<unknown> {

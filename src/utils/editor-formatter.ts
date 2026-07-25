@@ -186,6 +186,45 @@ export async function applyInlineFormatToFileSelection(
 const HIGHLIGHT_COLOR_VALUES = Object.values(HIGHLIGHT_COLORS).map(c => c.value);
 
 /**
+ * 检测文本外层是否被 Markdown 内联格式包裹（如 **粗体**、*斜体*、~~删除线~~、<u>下划线</u>）
+ */
+function detectInlineWrapper(text: string): { prefix: string; suffix: string; inner: string } | null {
+  const wrappers = [
+    { prefix: "**", suffix: "**" },
+    { prefix: "__", suffix: "__" },
+    { prefix: "~~", suffix: "~~" },
+    { prefix: "<u>", suffix: "</u>" },
+    { prefix: "*", suffix: "*" },
+    { prefix: "_", suffix: "_" },
+  ];
+
+  for (const w of wrappers) {
+    if (text.startsWith(w.prefix) && text.endsWith(w.suffix)) {
+      const inner = text.slice(w.prefix.length, text.length - w.suffix.length);
+      return { ...w, inner };
+    }
+  }
+  return null;
+}
+
+/**
+ * 对文本应用高亮，同时保留外层的 Markdown 内联格式标记
+ */
+function applyHighlightPreserveFormat(text: string, color: string): string {
+  const state = getHighlightState(text);
+  if (state.isHighlighted) {
+    return state.innerText || text;
+  }
+
+  const wrapper = detectInlineWrapper(text);
+  if (wrapper) {
+    return `${wrapper.prefix}${applyHighlightPreserveFormat(wrapper.inner, color)}${wrapper.suffix}`;
+  }
+
+  return `<mark style="background:${color}">${text}</mark>`;
+}
+
+/**
  * 检测文本是否被高亮包裹
  */
 export function getHighlightState(text: string): { isHighlighted: boolean; color?: string; innerText?: string } {
@@ -224,21 +263,14 @@ export function detectPreviewHighlight(): { isHighlighted: boolean; color?: stri
 }
 
 /**
- * 应用高亮颜色（支持二次点击取消）
+ * 应用高亮颜色（支持二次点击取消；保留外层 Markdown 内联格式）
  */
 export function applyHighlight(editor: Editor, colorKey: HighlightColorKey): void {
   const selection = editor.getSelection();
   if (!selection) return;
 
-  const state = getHighlightState(selection);
-  if (state.isHighlighted) {
-    editor.replaceSelection(state.innerText || selection);
-    return;
-  }
-
   const color = HIGHLIGHT_COLORS[colorKey].value;
-  const wrapped = `<mark style="background:${color}">${selection}</mark>`;
-  editor.replaceSelection(wrapped);
+  editor.replaceSelection(applyHighlightPreserveFormat(selection, color));
 }
 
 export async function applyHighlightToFileSelection(
@@ -252,15 +284,8 @@ export async function applyHighlightToFileSelection(
   if (!selectedRange) return;
 
   const selectedText = content.slice(selectedRange.from, selectedRange.to);
-  const state = getHighlightState(selectedText);
-
-  let replacement: string;
-  if (state.isHighlighted) {
-    replacement = state.innerText || selectedText;
-  } else {
-    const color = HIGHLIGHT_COLORS[colorKey].value;
-    replacement = `<mark style="background:${color}">${selectedText}</mark>`;
-  }
+  const color = HIGHLIGHT_COLORS[colorKey].value;
+  const replacement = applyHighlightPreserveFormat(selectedText, color);
 
   await app.vault.modify(file, content.slice(0, selectedRange.from) + replacement + content.slice(selectedRange.to));
 }

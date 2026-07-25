@@ -2,6 +2,7 @@ import { App, Modal, Notice, setIcon } from 'obsidian';
 import type { WordDefinition, HiWordsSettings } from '../utils';
 import { VocabularyManager } from '../core/vocabulary-manager';
 import { DictionaryService } from '../services/dictionary-service';
+import { LocalDictionaryService } from '../services/local-dictionary-service';
 
 /**
  * 添加或编辑词汇的模态框
@@ -15,6 +16,7 @@ export class AddWordModal extends Modal {
     private definition: WordDefinition | null;
     private prefilledDefinition: string;
     private onWordAdded?: () => void;
+    private localDictionary: LocalDictionaryService;
 
     private static lastSelectedColorValue: string | null = null;
 
@@ -37,6 +39,7 @@ export class AddWordModal extends Modal {
         this.isEditMode = isEditMode;
         this.prefilledDefinition = prefilledDefinition;
         this.onWordAdded = onWordAdded;
+        this.localDictionary = new LocalDictionaryService();
 
         if (isEditMode) {
             this.definition = definition || this.vocabularyManager.getDefinition(word) || null;
@@ -166,8 +169,27 @@ export class AddWordModal extends Modal {
         const definitionLabelContainer = definitionContainer.createDiv({ cls: 'hiwords-definition-label-container' });
         definitionLabelContainer.createEl('label', { text: '释义', cls: 'hiwords-form-item-label' });
 
+        const autoFillActionsContainer = definitionLabelContainer.createDiv({ cls: 'hiwords-auto-fill-actions' });
+
+        const localDictBtn = autoFillActionsContainer.createDiv({ cls: 'hiwords-auto-fill-btn' });
+        const localDictIcon = localDictBtn.createDiv({ cls: 'hiwords-auto-fill-icon' });
+        setIcon(localDictIcon, 'book-open');
+        localDictBtn.setAttribute('aria-label', '从本地词库自动填充');
+
+        localDictBtn.addEventListener('click', () => {
+            const queryWord = this.isEditMode ? this.word : (wordInput?.value.trim() || '');
+            if (!queryWord) {
+                new Notice('请先输入单词');
+                return;
+            }
+            const found = this.autoFillFromDictionary(queryWord, aliasesInput, definitionInput, true);
+            if (!found) {
+                new Notice('本地词库中未找到该单词');
+            }
+        });
+
         if (this.settings.aiDefinition.enabled) {
-            const autoFillBtn = definitionLabelContainer.createDiv({ cls: 'hiwords-auto-fill-btn' });
+            const autoFillBtn = autoFillActionsContainer.createDiv({ cls: 'hiwords-auto-fill-btn' });
             const iconContainer = autoFillBtn.createDiv({ cls: 'hiwords-auto-fill-icon' });
             setIcon(iconContainer, 'sparkles');
             autoFillBtn.setAttribute('aria-label', 'AI 自动填充释义');
@@ -215,6 +237,21 @@ export class AddWordModal extends Modal {
             definitionInput.value = this.definition.rawDefinition || this.definition.definition;
         } else if (this.prefilledDefinition) {
             definitionInput.value = this.prefilledDefinition;
+        }
+
+        // Auto-fill from local dictionary when word input loses focus
+        if (!this.isEditMode && wordInput) {
+            const inputEl = wordInput;
+            inputEl.addEventListener('blur', () => {
+                this.autoFillFromDictionary(inputEl.value.trim(), aliasesInput, definitionInput, false);
+            });
+
+            // Auto-fill immediately if word is pre-filled
+            if (this.word) {
+                activeWindow.setTimeout(() => {
+                    this.autoFillFromDictionary(this.word, aliasesInput, definitionInput, false);
+                }, 100);
+            }
         }
 
         activeWindow.setTimeout(() => {
@@ -337,6 +374,32 @@ export class AddWordModal extends Modal {
                 new Notice('处理词汇时出错');
             }
         };
+    }
+
+    private autoFillFromDictionary(
+        queryWord: string,
+        aliasesInput: HTMLInputElement,
+        definitionInput: HTMLTextAreaElement,
+        showNotice = true
+    ): boolean {
+        const result = this.localDictionary.lookup(queryWord);
+        if (!result) return false;
+
+        if (result.aliases.length > 0 && !aliasesInput.value.trim()) {
+            aliasesInput.value = result.aliases.join(', ');
+        }
+
+        if (result.definitions.length > 0 && !definitionInput.value.trim()) {
+            const formatted = result.definitions
+                .map((def, idx) => `${idx + 1}. ${def}`)
+                .join('\n');
+            definitionInput.value = formatted;
+        }
+
+        if (showNotice) {
+            new Notice('已从本地词库自动填充');
+        }
+        return true;
     }
 
     onClose() {

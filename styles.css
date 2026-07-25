@@ -597,6 +597,12 @@
   margin-bottom: 8px;
 }
 
+.hiwords-auto-fill-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
 .hiwords-auto-fill-btn {
   cursor: pointer;
   padding: 4px;
@@ -2568,6 +2574,12 @@
     align-items: center;
     justify-content: space-between;
     margin-bottom: 8px;
+}
+
+.hiwords-auto-fill-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
 }
 
 .hiwords-auto-fill-btn {

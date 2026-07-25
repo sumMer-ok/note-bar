@@ -495,25 +495,25 @@
   letter-spacing: 0.02em;
 }
 
-/* ========== 终端按钮样式（视觉突出） ========== */
-.note-bar-toolbar--light .note-bar-terminal-btn {
+/* ========== 复制按钮样式（视觉突出） ========== */
+.note-bar-toolbar--light .note-bar-copy-btn {
   background: rgba(0, 0, 0, 0.08);
   color: #1a1a1a;
   border: 1px solid rgba(0, 0, 0, 0.12);
 }
 
-.note-bar-toolbar--light .note-bar-terminal-btn:hover {
+.note-bar-toolbar--light .note-bar-copy-btn:hover {
   background: rgba(0, 0, 0, 0.14);
   border-color: rgba(0, 0, 0, 0.2);
 }
 
-.note-bar-toolbar--dark .note-bar-terminal-btn {
+.note-bar-toolbar--dark .note-bar-copy-btn {
   background: rgba(255, 255, 255, 0.12);
   color: #f0f0f0;
   border: 1px solid rgba(255, 255, 255, 0.16);
 }
 
-.note-bar-toolbar--dark .note-bar-terminal-btn:hover {
+.note-bar-toolbar--dark .note-bar-copy-btn:hover {
   background: rgba(255, 255, 255, 0.2);
   border-color: rgba(255, 255, 255, 0.28);
 }

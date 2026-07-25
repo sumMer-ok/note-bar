@@ -19,6 +19,7 @@ export class AddWordModal extends Modal {
     private localDictionary: LocalDictionaryService;
 
     private static lastSelectedColorValue: string | null = null;
+    private static lastSelectedBookPaths: string[] | null = null;
 
     constructor(
         app: App,
@@ -88,6 +89,7 @@ export class AddWordModal extends Modal {
 
         const bookCheckboxes: { path: string; checkbox: HTMLInputElement }[] = [];
         const defaultPaths = new Set(this.settings.defaultVocabularyBookPaths ?? []);
+        const lastBookPaths = new Set(AddWordModal.lastSelectedBookPaths ?? []);
 
         enabledBooks.forEach((book, idx) => {
             const bookRow = bookSelectContainer.createDiv({ cls: 'hiwords-book-checkbox-row' });
@@ -112,7 +114,9 @@ export class AddWordModal extends Modal {
                 checkbox.checked = true;
                 checkbox.disabled = true;
             } else if (!this.isEditMode) {
-                if (defaultPaths.has(book.path)) {
+                if (AddWordModal.lastSelectedBookPaths !== null) {
+                    checkbox.checked = lastBookPaths.has(book.path);
+                } else if (defaultPaths.has(book.path)) {
                     checkbox.checked = true;
                 }
             }
@@ -212,8 +216,27 @@ export class AddWordModal extends Modal {
                         service: this.settings.aiService,
                         prompt: this.settings.aiDefinition.prompt
                     });
-                    const definition = await dictionaryService.fetchDefinition(queryWord, this.sentence);
-                    definitionInput.value = definition;
+                    const { definition: aiDefinition, aliases: aiAliases } = await dictionaryService.fetchDefinition(queryWord, this.sentence);
+                    const localResult = this.localDictionary.lookup(queryWord);
+                    const currentDefinition = definitionInput.value.trim();
+                    const currentAliases = aliasesInput.value.trim();
+
+                    if (localResult) {
+                        if (!currentAliases && localResult.aliases.length > 0) {
+                            aliasesInput.value = localResult.aliases.join(', ');
+                        }
+                        const localDefinition = this.formatDefinitions(localResult.definitions);
+                        if (currentDefinition) {
+                            definitionInput.value = `${currentDefinition}\n\n--- AI 释义 ---\n${aiDefinition}`;
+                        } else {
+                            definitionInput.value = `${localDefinition}\n\n--- AI 释义 ---\n${aiDefinition}`;
+                        }
+                    } else {
+                        definitionInput.value = aiDefinition;
+                        if (!currentAliases && aiAliases.length > 0) {
+                            aliasesInput.value = aiAliases.join(', ');
+                        }
+                    }
                     new Notice('释义获取成功');
                 } catch (error) {
                     console.error('Failed to fetch definition:', error);
@@ -361,6 +384,7 @@ export class AddWordModal extends Modal {
                     loadingNotice.hide();
                     if (success) {
                         AddWordModal.lastSelectedColorValue = colorSelect.value || '';
+                        AddWordModal.lastSelectedBookPaths = selectedBooks;
                         new Notice(`词汇 "${finalWord}" 已成功添加到 ${selectedBooks.length} 个生词本`);
                         if (this.onWordAdded) this.onWordAdded();
                         this.close();
@@ -390,16 +414,19 @@ export class AddWordModal extends Modal {
         }
 
         if (result.definitions.length > 0 && !definitionInput.value.trim()) {
-            const formatted = result.definitions
-                .map((def, idx) => `${idx + 1}. ${def}`)
-                .join('\n');
-            definitionInput.value = formatted;
+            definitionInput.value = this.formatDefinitions(result.definitions);
         }
 
         if (showNotice) {
             new Notice('已从本地词库自动填充');
         }
         return true;
+    }
+
+    private formatDefinitions(definitions: string[]): string {
+        return definitions
+            .map((def, idx) => `${idx + 1}. ${def}`)
+            .join('\n');
     }
 
     onClose() {

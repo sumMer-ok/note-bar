@@ -158,14 +158,16 @@ export class DictionaryService {
         }
     }
 
-    async fetchDefinition(word: string, sentence?: string): Promise<string> {
+    async fetchDefinition(word: string, sentence?: string): Promise<{ definition: string; aliases: string[] }> {
         if (!word?.trim()) throw new Error('单词不能为空');
         const validation = this.validateConfig();
         if (!validation.isValid) throw new Error(validation.error ?? '请求失败');
         const cleanWord = word.trim();
         const cacheKey = `${cleanWord}:${sentence || ''}`;
         const cached = this.cache.get(cacheKey);
-        if (cached && Date.now() - cached.timestamp < this.CACHE_TTL) return cached.content;
+        if (cached && Date.now() - cached.timestamp < this.CACHE_TTL) {
+            return this.parseDefinitionResponse(cached.content);
+        }
         const apiType = this.detectAPIType();
         const adapter = this.API_ADAPTERS[apiType];
         const prompt = this.replacePlaceholders(cleanWord, sentence);
@@ -180,7 +182,33 @@ export class DictionaryService {
         if (!content) throw new Error('API 返回了无效的响应格式');
         const result = content.trim();
         this.cache.set(cacheKey, { content: result, timestamp: Date.now() });
-        return result;
+        return this.parseDefinitionResponse(result);
+    }
+
+    private parseDefinitionResponse(content: string): { definition: string; aliases: string[] } {
+        const cleanContent = content.replace(/^```json\s*|\s*```$/g, '').trim();
+        if (cleanContent.startsWith('{')) {
+            try {
+                const parsed = JSON.parse(cleanContent) as unknown;
+                if (parsed && typeof parsed === 'object') {
+                    const data = parsed as Record<string, unknown>;
+                    const definition = typeof data.definition === 'string' ? data.definition.trim() : '';
+                    let aliases: string[] = [];
+                    if (Array.isArray(data.aliases)) {
+                        aliases = data.aliases
+                            .filter((item): item is string => typeof item === 'string')
+                            .map(alias => alias.trim().toLowerCase())
+                            .filter(alias => alias.length > 0);
+                    }
+                    if (definition) {
+                        return { definition, aliases };
+                    }
+                }
+            } catch {
+                // fall through to treat entire content as definition
+            }
+        }
+        return { definition: cleanContent, aliases: [] };
     }
 
     private async makeRequestWithRetry(url: string, headers: Record<string, string>, body: JsonObject): Promise<unknown> {

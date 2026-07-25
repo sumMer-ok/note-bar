@@ -4,13 +4,20 @@ import { CanvasParser } from '../canvas/canvas-parser';
 import { CanvasExporter, WordWithDate } from '../canvas/canvas-exporter';
 import { writeCsv } from '../utils';
 
-const ALL_DATES = '__all__';
+interface DateOption {
+    value: string;
+    label: string;
+    count: number;
+}
 
 export class ExportVocabularyModal extends Modal {
     private settings: HiWordsSettings;
     private words: WordWithDate[] = [];
     private selectedBook: VocabularyBook | null = null;
-    private dateSelect: HTMLSelectElement | null = null;
+    private dateOptions: DateOption[] = [];
+    private dateCheckboxes: { value: string; checkbox: HTMLInputElement }[] = [];
+    private savePathInput: HTMLInputElement | null = null;
+    private dateListContainer: HTMLElement | null = null;
 
     constructor(app: App, settings: HiWordsSettings) {
         super(app);
@@ -47,12 +54,24 @@ export class ExportVocabularyModal extends Modal {
             option.textContent = book.name;
         }
 
-        // 日期选择
+        // 日期选择（多选）
         const dateContainer = contentEl.createDiv({ cls: 'hiwords-form-item' });
-        dateContainer.createEl('label', { text: '添加日期', cls: 'hiwords-form-item-label' });
-        this.dateSelect = dateContainer.createEl('select', { cls: 'dropdown' });
-        this.dateSelect.style.width = '100%';
-        this.updateDateOptions([{ value: ALL_DATES, label: '全部' }]);
+        dateContainer.createEl('label', { text: '添加日期（可多选）', cls: 'hiwords-form-item-label' });
+        this.dateListContainer = dateContainer.createDiv({ cls: 'hiwords-date-checkbox-list' });
+        this.dateListContainer.style.display = 'flex';
+        this.dateListContainer.style.flexDirection = 'column';
+        this.dateListContainer.style.gap = '6px';
+        this.dateListContainer.style.marginTop = '8px';
+
+        // 保存位置
+        const saveContainer = contentEl.createDiv({ cls: 'hiwords-form-item' });
+        saveContainer.createEl('label', { text: '保存位置（文件夹路径）', cls: 'hiwords-form-item-label' });
+        this.savePathInput = saveContainer.createEl('input', {
+            type: 'text',
+            cls: 'setting-item-input'
+        });
+        this.savePathInput.style.width = '100%';
+        this.savePathInput.placeholder = '留空则保存到单词本所在目录';
 
         // 按钮
         const buttonContainer = contentEl.createDiv({ cls: 'hiwords-button-container' });
@@ -83,27 +102,84 @@ export class ExportVocabularyModal extends Modal {
         void this.onBookSelected(this.selectedBook);
     }
 
-    private updateDateOptions(options: { value: string; label: string }[]) {
-        if (!this.dateSelect) return;
-        this.dateSelect.empty();
-        for (const opt of options) {
-            const option = this.dateSelect.createEl('option');
-            option.value = opt.value;
-            option.textContent = opt.label;
+    private renderDateOptions() {
+        if (!this.dateListContainer) return;
+        this.dateListContainer.empty();
+        this.dateCheckboxes = [];
+
+        if (this.dateOptions.length === 0) {
+            this.dateListContainer.createEl('p', {
+                text: '没有可用的日期',
+                cls: 'setting-item-description'
+            });
+            return;
         }
+
+        // 全选 / 全不选
+        const allRow = this.dateListContainer.createDiv({ cls: 'hiwords-date-checkbox-row' });
+        allRow.style.display = 'flex';
+        allRow.style.alignItems = 'center';
+        allRow.style.gap = '6px';
+        const allCheckbox = allRow.createEl('input', { type: 'checkbox' });
+        allCheckbox.id = 'hiwords-date-check-all';
+        allCheckbox.checked = true;
+        const allLabel = allRow.createEl('label', { text: '全部', attr: { for: allCheckbox.id } });
+        allLabel.style.cursor = 'pointer';
+
+        allCheckbox.addEventListener('change', () => {
+            for (const item of this.dateCheckboxes) {
+                item.checkbox.checked = allCheckbox.checked;
+            }
+        });
+
+        for (const opt of this.dateOptions) {
+            const row = this.dateListContainer.createDiv({ cls: 'hiwords-date-checkbox-row' });
+            row.style.display = 'flex';
+            row.style.alignItems = 'center';
+            row.style.gap = '6px';
+            const checkbox = row.createEl('input', { type: 'checkbox' });
+            checkbox.id = `hiwords-date-check-${opt.value}`;
+            checkbox.value = opt.value;
+            checkbox.checked = true;
+            checkbox.style.width = '16px';
+            checkbox.style.height = '16px';
+            checkbox.style.minWidth = '16px';
+            checkbox.style.flexShrink = '0';
+
+            const label = row.createEl('label', { text: opt.label, attr: { for: checkbox.id } });
+            label.style.cursor = 'pointer';
+            label.style.flex = '1';
+
+            this.dateCheckboxes.push({ value: opt.value, checkbox });
+
+            checkbox.addEventListener('change', () => {
+                const allChecked = this.dateCheckboxes.every(item => item.checkbox.checked);
+                allCheckbox.checked = allChecked;
+            });
+        }
+    }
+
+    private updateSavePathDefault() {
+        if (!this.savePathInput || !this.selectedBook) return;
+        const lastSlash = this.selectedBook.path.lastIndexOf('/');
+        const dir = lastSlash > 0 ? this.selectedBook.path.substring(0, lastSlash) : '';
+        this.savePathInput.value = dir;
     }
 
     private async onBookSelected(book: VocabularyBook | null) {
         this.selectedBook = book;
+        this.dateOptions = [];
+        this.updateSavePathDefault();
+
         if (!book) {
-            this.updateDateOptions([{ value: ALL_DATES, label: '全部' }]);
+            this.renderDateOptions();
             this.words = [];
             return;
         }
 
         const file = this.app.vault.getAbstractFileByPath(book.path);
         if (!(file instanceof TFile)) {
-            this.updateDateOptions([{ value: ALL_DATES, label: '全部' }]);
+            this.renderDateOptions();
             this.words = [];
             return;
         }
@@ -113,19 +189,25 @@ export class ExportVocabularyModal extends Modal {
             const exporter = new CanvasExporter(this.app, parser);
             this.words = await exporter.getWordsWithDates(file);
             const uniqueDates = exporter.getUniqueDates(this.words);
-            const options = [{ value: ALL_DATES, label: `全部 (${this.words.length})` }];
-            for (const date of uniqueDates) {
+            this.dateOptions = uniqueDates.map((date) => {
                 const count = this.words.filter(w => w.date === date).length;
                 const label = date === '无日期' ? `无日期 (${count})` : `${date} (${count})`;
-                options.push({ value: date, label });
-            }
-            this.updateDateOptions(options);
+                return { value: date, label, count };
+            });
+            this.renderDateOptions();
         } catch (error) {
             console.error('加载单词本失败:', error);
             new Notice('加载单词本失败');
             this.words = [];
-            this.updateDateOptions([{ value: ALL_DATES, label: '全部' }]);
+            this.dateOptions = [];
+            this.renderDateOptions();
         }
+    }
+
+    private getSelectedDates(): string[] {
+        return this.dateCheckboxes
+            .filter(item => item.checkbox.checked)
+            .map(item => item.value);
     }
 
     private async exportWords() {
@@ -138,11 +220,13 @@ export class ExportVocabularyModal extends Modal {
             return;
         }
 
-        const selectedDate = this.dateSelect?.value || ALL_DATES;
-        const filtered = selectedDate === ALL_DATES
-            ? this.words
-            : this.words.filter(w => w.date === selectedDate);
+        const selectedDates = this.getSelectedDates();
+        if (selectedDates.length === 0) {
+            new Notice('请至少选择一个日期');
+            return;
+        }
 
+        const filtered = this.words.filter(w => selectedDates.includes(w.date));
         if (filtered.length === 0) {
             new Notice('所选日期没有单词');
             return;
@@ -157,24 +241,48 @@ export class ExportVocabularyModal extends Modal {
         }
 
         const csvContent = writeCsv(rows);
-        const dateSuffix = selectedDate === ALL_DATES ? 'all' : selectedDate;
         const safeBookName = this.selectedBook.name.replace(/[\\/:*?"<>|]/g, '_');
+        const dateSuffix = selectedDates.length === 1 ? selectedDates[0] : 'multi';
         const fileName = `${safeBookName}-export-${dateSuffix}.csv`;
 
+        let saveDir = (this.savePathInput?.value || '').trim();
+        if (!saveDir) {
+            const lastSlash = this.selectedBook.path.lastIndexOf('/');
+            saveDir = lastSlash > 0 ? this.selectedBook.path.substring(0, lastSlash) : '';
+        }
+        saveDir = saveDir.replace(/\/$/, '');
+
+        const targetPath = saveDir ? `${saveDir}/${fileName}` : fileName;
+        const normalizedPath = targetPath.startsWith('/') ? targetPath.slice(1) : targetPath;
+
         try {
-            const targetPath = `${this.selectedBook.path.substring(0, this.selectedBook.path.lastIndexOf('/'))}/${fileName}`;
-            const normalizedPath = targetPath.startsWith('/') ? targetPath.slice(1) : targetPath;
+            // 确保目录存在
+            await this.ensureDirectory(saveDir);
+
             const existing = this.app.vault.getAbstractFileByPath(normalizedPath);
             if (existing) {
                 await this.app.vault.adapter.write(normalizedPath, csvContent);
             } else {
                 await this.app.vault.create(normalizedPath, csvContent);
             }
-            new Notice(`已导出 ${filtered.length} 个单词到 ${fileName}`);
+            new Notice(`已导出 ${filtered.length} 个单词到 ${normalizedPath}`);
             this.close();
         } catch (error) {
             console.error('导出失败:', error);
             new Notice('导出失败，请检查文件路径');
+        }
+    }
+
+    private async ensureDirectory(dirPath: string): Promise<void> {
+        if (!dirPath) return;
+        const parts = dirPath.split('/').filter(p => p.length > 0);
+        let current = '';
+        for (const part of parts) {
+            current = current ? `${current}/${part}` : part;
+            const folder = this.app.vault.getAbstractFileByPath(current);
+            if (!folder) {
+                await this.app.vault.createFolder(current);
+            }
         }
     }
 

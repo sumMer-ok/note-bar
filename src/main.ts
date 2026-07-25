@@ -8,6 +8,7 @@ import { createWordHighlighterExtension, highlighterManager } from "./hiwords/co
 import { registerReadingModeHighlighter } from "./hiwords/ui/reading-mode-highlighter";
 import { HiWordsSidebarView, SIDEBAR_VIEW_TYPE } from "./hiwords/ui/sidebar-view";
 import { DefinitionPopover } from "./hiwords/ui/definition-popover";
+import { ExportVocabularyModal } from "./hiwords/ui/export-vocabulary-modal";
 import { shouldHighlightFile } from "./hiwords/utils/highlight-utils";
 import type { HiWordsSettings, VocabularyBookDisplaySettings, WordDefinition } from "./hiwords/utils/types";
 
@@ -136,6 +137,15 @@ export default class NoteBarPlugin extends Plugin {
     // Ribbon 图标：打开/聚焦侧边栏
     this.addRibbonIcon('book-open', 'HiWords 生词本', () => {
       void this.activateSidebarView();
+    });
+
+    // 命令：导出单词本为 Excel
+    this.addCommand({
+      id: 'note-bar-export-vocabulary',
+      name: '导出单词本为 Excel',
+      callback: () => {
+        new ExportVocabularyModal(this.app, this.hiwordsSettings).open();
+      }
     });
 
     // 根据设置自动打开侧边栏

@@ -6,6 +6,7 @@ export * from './trie';
 export * from './highlight-utils';
 export * from './tts';
 export * from './study-key';
+export * from './csv-writer';
 
 export function buildStudyKey(params: { word: string; language?: string; type?: string }): string {
     const parts = [params.word.toLowerCase().trim()];

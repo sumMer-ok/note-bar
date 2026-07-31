@@ -124,7 +124,7 @@ export function buildFlashcardQueue(
         : [...limitedNew, ...limitedReview];
 }
 
-export function getTodayTotalTaskCount(
+export function getTodayDueReviewCount(
     studyItems: StudyItem[],
     studyProgress: Record<string, StudyProgressItem>,
     bookPaths?: string[],
@@ -144,13 +144,10 @@ export function getTodayTotalTaskCount(
         seen.add(item.studyKey);
 
         const progress = studyProgress[item.studyKey];
-        if (!progress) {
+        if (!progress) continue;
+        const normalized = normalizeProgress(progress);
+        if (normalized.status !== 'mastered' && (!normalized.dueDate || normalized.dueDate <= todayStr)) {
             count++;
-        } else {
-            const normalized = normalizeProgress(progress);
-            if (normalized.status !== 'mastered' && (!normalized.dueDate || normalized.dueDate <= todayStr)) {
-                count++;
-            }
         }
     }
 

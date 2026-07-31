@@ -5,7 +5,7 @@ import { playWordTTS, Trie } from '../utils';
 import { findPatternMatches } from '../utils/pattern-matcher';
 import { renderWordCard } from './word-card-renderer';
 import { FlashcardBookPickerModal } from './flashcard-book-picker-modal';
-import { getTodayTotalTaskCount } from '../core/flashcard-queue';
+import { getTodayDueReviewCount } from '../core/flashcard-queue';
 
 export const SIDEBAR_VIEW_TYPE = 'hi-words-sidebar';
 
@@ -345,7 +345,7 @@ export class HiWordsSidebarView extends ItemView {
         const studyItems = vocabularyManager.getStudyItems();
         const progress = settings.studyProgress || {};
 
-        return getTodayTotalTaskCount(studyItems, progress, enabledCanvasBooks);
+        return getTodayDueReviewCount(studyItems, progress, enabledCanvasBooks);
     }
 
     private createTabNavigation(container: HTMLElement, learningCount: number, masteredCount: number) {

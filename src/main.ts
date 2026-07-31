@@ -9,6 +9,7 @@ import { registerReadingModeHighlighter } from "./hiwords/ui/reading-mode-highli
 import { HiWordsSidebarView, SIDEBAR_VIEW_TYPE } from "./hiwords/ui/sidebar-view";
 import { DefinitionPopover } from "./hiwords/ui/definition-popover";
 import { ExportVocabularyModal } from "./hiwords/ui/export-vocabulary-modal";
+import { FlashcardBookPickerModal } from "./hiwords/ui/flashcard-book-picker-modal";
 import { shouldHighlightFile } from "./hiwords/utils/highlight-utils";
 import type { HiWordsSettings, VocabularyBookDisplaySettings, WordDefinition } from "./hiwords/utils/types";
 
@@ -43,6 +44,16 @@ const DEFAULT_HIWORDS_SETTINGS: HiWordsSettings = {
   autoLayoutEnabled: true,
   cardWidth: 260,
   cardHeight: 120,
+  flashcard: {
+    defaultMode: 'word-to-definition',
+    newWordSteps: 2,
+    masteredThreshold: { reps: 3, minEf: 2.5 },
+    dailyNewWordLimit: 20,
+    dailyReviewLimit: 50,
+    studyOrder: 'review-first',
+    syncMasteredToCanvas: true,
+    enableAnimation: true,
+  },
   highlightMode: 'all',
   highlightPaths: '',
   fileNodeParseMode: 'filename-with-alias',
@@ -145,6 +156,15 @@ export default class NoteBarPlugin extends Plugin {
       name: '导出单词本为 Excel',
       callback: () => {
         new ExportVocabularyModal(this.app, this.hiwordsSettings).open();
+      }
+    });
+
+    // 命令：开始闪卡复习
+    this.addCommand({
+      id: 'note-bar-start-flashcard-review',
+      name: '开始闪卡复习',
+      callback: () => {
+        new FlashcardBookPickerModal(this.app, this).open();
       }
     });
 
@@ -598,6 +618,120 @@ class NoteBarSettingTab extends PluginSettingTab {
         cls: 'setting-item-description'
       });
     }
+
+    // 闪卡复习设置
+    containerEl.createEl('h3', { text: '闪卡复习' });
+
+    const flashcard = this.plugin.hiwordsSettings.flashcard ?? {
+      defaultMode: 'word-to-definition',
+      newWordSteps: 2,
+      masteredThreshold: { reps: 3, minEf: 2.5 },
+      dailyNewWordLimit: 20,
+      dailyReviewLimit: 50,
+      studyOrder: 'review-first',
+      syncMasteredToCanvas: true,
+      enableAnimation: true,
+    };
+    this.plugin.hiwordsSettings.flashcard = flashcard;
+
+    new Setting(containerEl)
+      .setName('默认复习模式')
+      .setDesc('打开复习弹窗时默认正面显示的内容')
+      .addDropdown(dropdown => dropdown
+        .addOption('word-to-definition', '英→中')
+        .addOption('definition-to-word', '中→英')
+        .setValue(flashcard.defaultMode)
+        .onChange(async (value) => {
+          flashcard.defaultMode = value as 'word-to-definition' | 'definition-to-word';
+          await this.plugin.saveHiWordsSettings();
+        }));
+
+    new Setting(containerEl)
+      .setName('每日新词上限')
+      .setDesc('每轮复习最多出现几个新词')
+      .addText(text => text
+        .setValue(String(flashcard.dailyNewWordLimit))
+        .onChange(async (value) => {
+          const num = parseInt(value, 10);
+          flashcard.dailyNewWordLimit = isNaN(num) ? 20 : Math.max(0, num);
+          await this.plugin.saveHiWordsSettings();
+        }));
+
+    new Setting(containerEl)
+      .setName('每日复习上限')
+      .setDesc('每轮复习最多出现几个到期复习词')
+      .addText(text => text
+        .setValue(String(flashcard.dailyReviewLimit))
+        .onChange(async (value) => {
+          const num = parseInt(value, 10);
+          flashcard.dailyReviewLimit = isNaN(num) ? 50 : Math.max(0, num);
+          await this.plugin.saveHiWordsSettings();
+        }));
+
+    new Setting(containerEl)
+      .setName('学习顺序')
+      .setDesc('复习词与新词的出现顺序')
+      .addDropdown(dropdown => dropdown
+        .addOption('review-first', '先复习再学习新词')
+        .addOption('new-first', '先学习新词再复习')
+        .setValue(flashcard.studyOrder)
+        .onChange(async (value) => {
+          flashcard.studyOrder = value as 'review-first' | 'new-first';
+          await this.plugin.saveHiWordsSettings();
+        }));
+
+    new Setting(containerEl)
+      .setName('新词学习步数')
+      .setDesc('新词需要连续认识/太简单几次才进入复习阶段')
+      .addText(text => text
+        .setValue(String(flashcard.newWordSteps))
+        .onChange(async (value) => {
+          const num = parseInt(value, 10);
+          flashcard.newWordSteps = isNaN(num) ? 2 : Math.max(1, num);
+          await this.plugin.saveHiWordsSettings();
+        }));
+
+    new Setting(containerEl)
+      .setName('掌握阈值 - 连续成功次数')
+      .setDesc('reps 达到多少时判定为已掌握')
+      .addText(text => text
+        .setValue(String(flashcard.masteredThreshold.reps))
+        .onChange(async (value) => {
+          const num = parseInt(value, 10);
+          flashcard.masteredThreshold.reps = isNaN(num) ? 3 : Math.max(1, num);
+          await this.plugin.saveHiWordsSettings();
+        }));
+
+    new Setting(containerEl)
+      .setName('掌握阈值 - 最低 EF')
+      .setDesc('熟练度因子最低值')
+      .addText(text => text
+        .setValue(String(flashcard.masteredThreshold.minEf))
+        .onChange(async (value) => {
+          const num = parseFloat(value);
+          flashcard.masteredThreshold.minEf = isNaN(num) ? 2.5 : Math.max(1.3, num);
+          await this.plugin.saveHiWordsSettings();
+        }));
+
+    new Setting(containerEl)
+      .setName('自动同步已掌握到 Canvas')
+      .setDesc('达到掌握阈值后自动移动到 Canvas 的 Mastered 分组')
+      .addToggle(toggle => toggle
+        .setValue(flashcard.syncMasteredToCanvas)
+        .onChange(async (value) => {
+          flashcard.syncMasteredToCanvas = value;
+          await this.plugin.saveHiWordsSettings();
+        }));
+
+    new Setting(containerEl)
+      .setName('启用动画')
+      .setDesc('翻转与切题动画开关')
+      .addToggle(toggle => toggle
+        .setValue(flashcard.enableAnimation)
+        .onChange(async (value) => {
+          flashcard.enableAnimation = value;
+          await this.plugin.saveHiWordsSettings();
+        }));
 
     // 显示设置
     containerEl.createEl('h3', { text: '显示设置' });

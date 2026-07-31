@@ -219,15 +219,40 @@ export interface SelectionTranslateSettings {
 
 export type LearningItemType = 'word' | 'phrase' | 'concept' | 'term';
 
+export interface ReviewRecord {
+    date: string;
+    quality: 'again' | 'hard' | 'good' | 'easy';
+}
+
 export interface StudyProgressItem {
-    status: 'mastered';
+    status: 'new' | 'learning' | 'review' | 'mastered';
+    stage?: number;
+    reps?: number;
+    ef?: number;
+    interval?: number;
+    dueDate?: string;
+    lastReview?: string;
+    history?: ReviewRecord[];
+    // 兼容旧数据
     masteredAt?: string;
-    updatedAt: string;
+    updatedAt?: string;
+}
+
+export interface FlashcardSettings {
+    defaultMode: 'word-to-definition' | 'definition-to-word';
+    newWordSteps: number;
+    masteredThreshold: { reps: number; minEf: number };
+    dailyNewWordLimit: number;
+    dailyReviewLimit: number;
+    studyOrder: 'review-first' | 'new-first';
+    syncMasteredToCanvas: boolean;
+    enableAnimation: boolean;
 }
 
 export interface HiWordsSettings {
     vocabularyBooks: VocabularyBook[];
     studyProgress?: Record<string, StudyProgressItem>;
+    flashcard?: FlashcardSettings;
     showDefinitionOnHover: boolean;
     enableAutoHighlight: boolean;
     highlightStyle: HighlightStyle;

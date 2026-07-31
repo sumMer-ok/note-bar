@@ -4,6 +4,8 @@ import { WordDefinition, mapCanvasColorToCSSVar, getColorWithOpacity } from '../
 import { playWordTTS, Trie } from '../utils';
 import { findPatternMatches } from '../utils/pattern-matcher';
 import { renderWordCard } from './word-card-renderer';
+import { FlashcardBookPickerModal } from './flashcard-book-picker-modal';
+import { getTodayTotalTaskCount } from '../core/flashcard-queue';
 
 export const SIDEBAR_VIEW_TYPE = 'hi-words-sidebar';
 
@@ -292,9 +294,11 @@ export class HiWordsSidebarView extends ItemView {
 
         container.empty();
         this.bindDelegatedHandlers(container as HTMLElement);
+        this.renderReviewHeader(container as HTMLElement);
 
         if (this.currentWords.length === 0) {
-            this.showEmptyState('当前文档中没有生词');
+            const emptyState = (container as HTMLElement).createEl('div', { cls: 'hi-words-empty-state' });
+            emptyState.createEl('div', { text: '当前文档中没有生词', cls: 'hi-words-empty-text' });
             return;
         }
 
@@ -308,6 +312,40 @@ export class HiWordsSidebarView extends ItemView {
 
         this.createTabNavigation(container as HTMLElement, unmasteredWords.length, masteredWords.length);
         await this.createTabContent(container as HTMLElement, unmasteredWords, masteredWords);
+    }
+
+    private renderReviewHeader(container: HTMLElement) {
+        const header = container.createDiv({ cls: 'hi-words-review-header' });
+        header.createDiv({ cls: 'hi-words-review-title', text: 'HiWords 生词本' });
+
+        const dueCount = this.getTodayReviewCount();
+        const reviewBtn = header.createEl('button', {
+            cls: 'hi-words-review-button',
+            text: `今日待复习 ${dueCount}`
+        });
+        reviewBtn.onclick = () => {
+            new FlashcardBookPickerModal(this.app, this.plugin).open();
+        };
+    }
+
+    private getTodayReviewCount(): number {
+        const vocabularyManager = this.plugin.vocabularyManager;
+        if (!vocabularyManager) return 0;
+
+        const settings = this.plugin.hiwordsSettings;
+        const flashcard = settings.flashcard;
+        if (!flashcard) return 0;
+
+        const enabledCanvasBooks = settings.vocabularyBooks
+            .filter(b => b.enabled && b.path.endsWith('.canvas'))
+            .map(b => b.path);
+
+        if (enabledCanvasBooks.length === 0) return 0;
+
+        const studyItems = vocabularyManager.getStudyItems();
+        const progress = settings.studyProgress || {};
+
+        return getTodayTotalTaskCount(studyItems, progress, flashcard, enabledCanvasBooks);
     }
 
     private createTabNavigation(container: HTMLElement, learningCount: number, masteredCount: number) {

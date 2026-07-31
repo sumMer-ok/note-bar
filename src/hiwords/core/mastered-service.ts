@@ -249,16 +249,27 @@ export class MasteredService {
             this.plugin.hiwordsSettings.studyProgress = {};
         }
 
+        const existing = this.plugin.hiwordsSettings.studyProgress[wordDef.studyKey];
+        const now = new Date().toISOString();
+
         if (!mastered) {
-            delete this.plugin.hiwordsSettings.studyProgress[wordDef.studyKey];
+            if (existing) {
+                this.plugin.hiwordsSettings.studyProgress[wordDef.studyKey] = {
+                    ...existing,
+                    status: 'review',
+                    updatedAt: now,
+                };
+            } else {
+                delete this.plugin.hiwordsSettings.studyProgress[wordDef.studyKey];
+            }
             await this.plugin.saveHiWordsSettings();
             return;
         }
 
-        const now = new Date().toISOString();
         this.plugin.hiwordsSettings.studyProgress[wordDef.studyKey] = {
+            ...(existing || {}),
             status: 'mastered',
-            masteredAt: this.plugin.hiwordsSettings.studyProgress[wordDef.studyKey]?.masteredAt || now,
+            masteredAt: existing?.masteredAt || now,
             updatedAt: now,
         };
         await this.plugin.saveHiWordsSettings();

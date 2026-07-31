@@ -127,12 +127,11 @@ export function buildFlashcardQueue(
 export function getTodayTotalTaskCount(
     studyItems: StudyItem[],
     studyProgress: Record<string, StudyProgressItem>,
-    settings: FlashcardSettings,
     bookPaths?: string[],
     today: Date = new Date()
 ): number {
     const todayStr = toISODate(today);
-    const limit = settings.dailyReviewLimit + settings.dailyNewWordLimit;
+    const seen = new Set<string>();
     let count = 0;
 
     const bookSet = bookPaths && bookPaths.length > 0 ? new Set(bookPaths) : null;
@@ -141,6 +140,8 @@ export function getTodayTotalTaskCount(
         const isCanvas = item.sources.some(s => s.source.endsWith('.canvas'));
         if (!isCanvas) continue;
         if (bookSet && !item.sources.some(s => bookSet.has(s.source))) continue;
+        if (seen.has(item.studyKey)) continue;
+        seen.add(item.studyKey);
 
         const progress = studyProgress[item.studyKey];
         if (!progress) {
@@ -151,7 +152,6 @@ export function getTodayTotalTaskCount(
                 count++;
             }
         }
-        if (count >= limit) break;
     }
 
     return count;

@@ -345,7 +345,7 @@ export class HiWordsSidebarView extends ItemView {
         const studyItems = vocabularyManager.getStudyItems();
         const progress = settings.studyProgress || {};
 
-        return getTodayTotalTaskCount(studyItems, progress, flashcard, enabledCanvasBooks);
+        return getTodayTotalTaskCount(studyItems, progress, enabledCanvasBooks);
     }
 
     private createTabNavigation(container: HTMLElement, learningCount: number, masteredCount: number) {

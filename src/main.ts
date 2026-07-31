@@ -351,6 +351,7 @@ export default class NoteBarPlugin extends Plugin {
     this.toolbarManager?.updateHiWordsSettings(this.hiwordsSettings);
     this.vocabularyManager?.updateSettings(this.hiwordsSettings);
     this.masteredService?.updateSettings();
+    this.app.workspace.trigger('hi-words:settings-changed');
   }
 
   private registerSelectionChangeListener(): void {

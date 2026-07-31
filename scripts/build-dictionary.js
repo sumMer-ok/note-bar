@@ -5,6 +5,17 @@ const { execFileSync } = require('child_process');
 const DB_PATH = path.join(__dirname, '..', 'src', 'hiwords', 'data', 'AutoCompleteData.db');
 const OUT_DIR = path.join(__dirname, '..', 'src', 'hiwords', 'data');
 
+const args = process.argv.slice(2);
+function getArg(name, fallback) {
+    const idx = args.indexOf(name);
+    return idx >= 0 && args[idx + 1] ? args[idx + 1] : fallback;
+}
+
+// --mode common: 仅柯林斯星级 / 牛津3000 标记的常用词；--mode full: 全量
+const mode = getArg('--mode', 'full');
+const outFile = getArg('--out', 'dictionary.json');
+const isCommon = mode === 'common';
+
 function buildDictionary(rows) {
     const dictionary = {};
 
@@ -60,9 +71,11 @@ function main() {
 
     console.log('Querying dictionary database...');
 
+    const where = isCommon ? 'WHERE (collins > 0 OR oxford = 1)' : '';
     const sql = `
         SELECT word, phonetic, translation, exchange
         FROM stardict
+        ${where}
         ORDER BY word
     `;
 
@@ -78,7 +91,7 @@ function main() {
     const uniqueCount = Object.keys(dictionary).length;
     console.log(`Unique words in dictionary: ${uniqueCount}`);
 
-    const outPath = path.join(OUT_DIR, 'dictionary.json');
+    const outPath = path.join(OUT_DIR, outFile);
     fs.writeFileSync(outPath, JSON.stringify(dictionary));
     const stats = fs.statSync(outPath);
     console.log(`Output file size: ${(stats.size / 1024 / 1024).toFixed(2)} MB`);

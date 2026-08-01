@@ -318,21 +318,13 @@ export class HiWordsSidebarView extends ItemView {
         const header = container.createDiv({ cls: 'hi-words-review-header' });
         header.createDiv({ cls: 'hi-words-review-title', text: 'HiWords 生词本' });
 
-        const learnBtn = header.createEl('button', {
-            cls: 'hi-words-review-button',
-            text: '开始学习'
-        });
-        learnBtn.onclick = () => {
-            new FlashcardBookPickerModal(this.app, this.plugin, 'new').open();
-        };
-
         const dueCount = this.getTodayReviewCount();
         const reviewBtn = header.createEl('button', {
             cls: 'hi-words-review-button',
             text: `今日待复习 ${dueCount}`
         });
         reviewBtn.onclick = () => {
-            new FlashcardBookPickerModal(this.app, this.plugin, 'review').open();
+            new FlashcardBookPickerModal(this.app, this.plugin).open();
         };
     }
 

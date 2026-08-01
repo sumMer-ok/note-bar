@@ -5,27 +5,21 @@ import { FlashcardReviewModal } from './flashcard-review-modal';
 
 export class FlashcardBookPickerModal extends Modal {
     private plugin: NoteBarPlugin;
-    private sessionMode: FlashcardSessionMode;
     private selectedPaths: string[] = [];
     private domEventComponent: Component;
 
-    constructor(app: App, plugin: NoteBarPlugin, sessionMode: FlashcardSessionMode = 'all') {
+    constructor(app: App, plugin: NoteBarPlugin) {
         super(app);
         this.plugin = plugin;
-        this.sessionMode = sessionMode;
         this.domEventComponent = new Component();
         this.domEventComponent.load();
-    }
-
-    private get isLearnSession(): boolean {
-        return this.sessionMode === 'new';
     }
 
     onOpen() {
         const { contentEl } = this;
         contentEl.empty();
         contentEl.addClass('flashcard-book-picker-content');
-        contentEl.createEl('h2', { text: this.isLearnSession ? '选择本次学习的单词本' : '选择本次复习的单词本' });
+        contentEl.createEl('h2', { text: '选择单词本' });
 
         const enabledCanvasBooks = this.plugin.hiwordsSettings.vocabularyBooks
             .filter(b => b.enabled && b.path.endsWith('.canvas'));
@@ -68,33 +62,34 @@ export class FlashcardBookPickerModal extends Modal {
 
             const info = row.createDiv({ cls: 'flashcard-book-info' });
             info.createDiv({ cls: 'flashcard-book-name', text: book.name });
-            if (this.isLearnSession) {
-                info.createDiv({
-                    cls: 'flashcard-book-meta',
-                    text: `新词 ${stats.newCount}`
-                });
-            } else {
-                info.createDiv({
-                    cls: 'flashcard-book-meta',
-                    text: `共 ${stats.total} 词 · 今日到期 ${stats.dueToday} · 新词 ${stats.newCount}`
-                });
-            }
+            info.createDiv({
+                cls: 'flashcard-book-meta',
+                text: `共 ${stats.total} 词 · 今日到期 ${stats.dueToday} · 新词 ${stats.newCount}`
+            });
         }
 
         const buttonContainer = contentEl.createDiv({ cls: 'flashcard-button-container' });
 
-        const startBtn = buttonContainer.createEl('button', {
-            cls: 'mod-cta',
-            text: this.isLearnSession ? '开始学习' : '开始复习'
-        });
-        this.registerDomEvent(startBtn, 'click', () => {
+        const startSession = (mode: FlashcardSessionMode) => {
             if (this.selectedPaths.length === 0) {
                 new Notice('请至少选择一个单词本');
                 return;
             }
             this.close();
-            new FlashcardReviewModal(this.app, this.plugin, this.selectedPaths, this.sessionMode).open();
+            new FlashcardReviewModal(this.app, this.plugin, this.selectedPaths, mode).open();
+        };
+
+        const learnBtn = buttonContainer.createEl('button', {
+            cls: 'mod-cta',
+            text: '开始学习'
         });
+        this.registerDomEvent(learnBtn, 'click', () => startSession('new'));
+
+        const reviewBtn = buttonContainer.createEl('button', {
+            cls: 'mod-cta',
+            text: '开始复习'
+        });
+        this.registerDomEvent(reviewBtn, 'click', () => startSession('review'));
 
         const cancelBtn = buttonContainer.createEl('button', { text: '取消' });
         this.registerDomEvent(cancelBtn, 'click', () => this.close());

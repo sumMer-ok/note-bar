@@ -8,6 +8,9 @@ export interface FlashcardQueueItem {
     isNew: boolean;
 }
 
+// 学习会话类型：'new' 仅新词，'review' 仅到期复习词，'all' 按学习顺序混合
+export type FlashcardSessionMode = 'new' | 'review' | 'all';
+
 function startOfDay(date: Date): Date {
     const d = new Date(date);
     d.setHours(0, 0, 0, 0);
@@ -77,6 +80,7 @@ export function buildFlashcardQueue(
     selectedBookPaths: string[],
     studyProgress: Record<string, StudyProgressItem>,
     settings: FlashcardSettings,
+    sessionMode: FlashcardSessionMode = 'all',
     today: Date = new Date()
 ): FlashcardQueueItem[] {
     const todayStr = toISODate(today);
@@ -119,6 +123,12 @@ export function buildFlashcardQueue(
     const limitedReview = reviewPool.slice(0, settings.dailyReviewLimit);
     const limitedNew = newPool.slice(0, settings.dailyNewWordLimit);
 
+    if (sessionMode === 'new') {
+        return limitedNew;
+    }
+    if (sessionMode === 'review') {
+        return limitedReview;
+    }
     return settings.studyOrder === 'review-first'
         ? [...limitedReview, ...limitedNew]
         : [...limitedNew, ...limitedReview];

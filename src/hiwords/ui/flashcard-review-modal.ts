@@ -2,7 +2,7 @@ import { App, Modal, MarkdownRenderer, MarkdownView, setIcon } from 'obsidian';
 import type NoteBarPlugin from '../../main';
 import type { StudyProgressItem, FlashcardSettings, WordDefinition } from '../utils';
 import { playWordTTS } from '../utils';
-import { buildFlashcardQueue, type FlashcardQueueItem } from '../core/flashcard-queue';
+import { buildFlashcardQueue, type FlashcardQueueItem, type FlashcardSessionMode } from '../core/flashcard-queue';
 import { applyReviewRating, type FlashcardRating } from '../core/flashcard-algorithm';
 
 export type FlashcardMode = 'word-to-definition' | 'definition-to-word';
@@ -28,6 +28,7 @@ export class FlashcardReviewModal extends Modal {
     private mode: FlashcardMode;
     private queue: FlashcardQueueItem[];
     private selectedBookPaths: string[];
+    private sessionMode: FlashcardSessionMode;
     private currentIndex = 0;
     private flipped = false;
     private animating = false;
@@ -51,18 +52,19 @@ export class FlashcardReviewModal extends Modal {
     private slideTimeout: number | null = null;
     private toastTimeout: number | null = null;
 
-    constructor(app: App, plugin: NoteBarPlugin, selectedBookPaths: string[]) {
+    constructor(app: App, plugin: NoteBarPlugin, selectedBookPaths: string[], sessionMode: FlashcardSessionMode = 'all') {
         super(app);
         this.plugin = plugin;
         this.settings = { ...DEFAULT_FLASHCARD_SETTINGS, ...plugin.hiwordsSettings.flashcard };
         this.mode = this.settings.defaultMode;
 
         this.selectedBookPaths = selectedBookPaths;
+        this.sessionMode = sessionMode;
 
         const vocabularyManager = plugin.vocabularyManager;
         const studyItems = vocabularyManager?.getStudyItems() || [];
         const progress = plugin.hiwordsSettings.studyProgress || {};
-        this.queue = buildFlashcardQueue(studyItems, selectedBookPaths, progress, this.settings);
+        this.queue = buildFlashcardQueue(studyItems, selectedBookPaths, progress, this.settings, sessionMode);
     }
 
     onOpen() {
@@ -451,7 +453,7 @@ export class FlashcardReviewModal extends Modal {
         const vocabularyManager = this.plugin.vocabularyManager;
         const studyItems = vocabularyManager?.getStudyItems() || [];
         const progress = this.plugin.hiwordsSettings.studyProgress || {};
-        this.queue = buildFlashcardQueue(studyItems, this.selectedBookPaths, progress, this.settings);
+        this.queue = buildFlashcardQueue(studyItems, this.selectedBookPaths, progress, this.settings, this.sessionMode);
 
         this.currentIndex = 0;
         this.flipped = false;

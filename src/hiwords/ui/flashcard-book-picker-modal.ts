@@ -1,25 +1,31 @@
 import { App, Component, Modal, Notice } from 'obsidian';
 import type NoteBarPlugin from '../../main';
-import { getBookReviewStats } from '../core/flashcard-queue';
+import { getBookReviewStats, type FlashcardSessionMode } from '../core/flashcard-queue';
 import { FlashcardReviewModal } from './flashcard-review-modal';
 
 export class FlashcardBookPickerModal extends Modal {
     private plugin: NoteBarPlugin;
+    private sessionMode: FlashcardSessionMode;
     private selectedPaths: string[] = [];
     private domEventComponent: Component;
 
-    constructor(app: App, plugin: NoteBarPlugin) {
+    constructor(app: App, plugin: NoteBarPlugin, sessionMode: FlashcardSessionMode = 'all') {
         super(app);
         this.plugin = plugin;
+        this.sessionMode = sessionMode;
         this.domEventComponent = new Component();
         this.domEventComponent.load();
+    }
+
+    private get isLearnSession(): boolean {
+        return this.sessionMode === 'new';
     }
 
     onOpen() {
         const { contentEl } = this;
         contentEl.empty();
         contentEl.addClass('flashcard-book-picker-content');
-        contentEl.createEl('h2', { text: '选择本次复习的单词本' });
+        contentEl.createEl('h2', { text: this.isLearnSession ? '选择本次学习的单词本' : '选择本次复习的单词本' });
 
         const enabledCanvasBooks = this.plugin.hiwordsSettings.vocabularyBooks
             .filter(b => b.enabled && b.path.endsWith('.canvas'));
@@ -62,17 +68,24 @@ export class FlashcardBookPickerModal extends Modal {
 
             const info = row.createDiv({ cls: 'flashcard-book-info' });
             info.createDiv({ cls: 'flashcard-book-name', text: book.name });
-            info.createDiv({
-                cls: 'flashcard-book-meta',
-                text: `共 ${stats.total} 词 · 今日到期 ${stats.dueToday} · 新词 ${stats.newCount}`
-            });
+            if (this.isLearnSession) {
+                info.createDiv({
+                    cls: 'flashcard-book-meta',
+                    text: `新词 ${stats.newCount}`
+                });
+            } else {
+                info.createDiv({
+                    cls: 'flashcard-book-meta',
+                    text: `共 ${stats.total} 词 · 今日到期 ${stats.dueToday} · 新词 ${stats.newCount}`
+                });
+            }
         }
 
         const buttonContainer = contentEl.createDiv({ cls: 'flashcard-button-container' });
 
         const startBtn = buttonContainer.createEl('button', {
             cls: 'mod-cta',
-            text: '开始复习'
+            text: this.isLearnSession ? '开始学习' : '开始复习'
         });
         this.registerDomEvent(startBtn, 'click', () => {
             if (this.selectedPaths.length === 0) {
@@ -80,7 +93,7 @@ export class FlashcardBookPickerModal extends Modal {
                 return;
             }
             this.close();
-            new FlashcardReviewModal(this.app, this.plugin, this.selectedPaths).open();
+            new FlashcardReviewModal(this.app, this.plugin, this.selectedPaths, this.sessionMode).open();
         });
 
         const cancelBtn = buttonContainer.createEl('button', { text: '取消' });

@@ -81,6 +81,7 @@ export function buildFlashcardQueue(
     studyProgress: Record<string, StudyProgressItem>,
     settings: FlashcardSettings,
     sessionMode: FlashcardSessionMode = 'all',
+    excludeKeys?: Set<string>,
     today: Date = new Date()
 ): FlashcardQueueItem[] {
     const todayStr = toISODate(today);
@@ -89,6 +90,7 @@ export function buildFlashcardQueue(
     const seen = new Set<string>();
 
     for (const item of studyItems) {
+        if (excludeKeys && excludeKeys.has(item.studyKey)) continue;
         const isCanvas = item.sources.some(s => s.source.endsWith('.canvas'));
         if (!isCanvas) continue;
         const inSelectedBooks = selectedBookPaths.length === 0 || item.sources.some(s => selectedBookPaths.includes(s.source));

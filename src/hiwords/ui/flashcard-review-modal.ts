@@ -1,4 +1,4 @@
-import { App, Modal, MarkdownRenderer, MarkdownView, setIcon } from 'obsidian';
+import { App, Modal, MarkdownRenderer, MarkdownView, Notice, setIcon } from 'obsidian';
 import type NoteBarPlugin from '../../main';
 import type { StudyProgressItem, FlashcardSettings, WordDefinition } from '../utils';
 import { playWordTTS } from '../utils';
@@ -29,6 +29,7 @@ export class FlashcardReviewModal extends Modal {
     private queue: FlashcardQueueItem[];
     private selectedBookPaths: string[];
     private sessionMode: FlashcardSessionMode;
+    private processedKeys = new Set<string>();
     private currentIndex = 0;
     private flipped = false;
     private animating = false;
@@ -47,6 +48,8 @@ export class FlashcardReviewModal extends Modal {
     private spellFeedback: HTMLElement;
     private progressEl: HTMLElement;
     private endScreenEl: HTMLElement;
+    private endTitleEl: HTMLElement;
+    private endNextBtn: HTMLButtonElement;
     private toastEl: HTMLElement;
     private boundKeyDown: (evt: KeyboardEvent) => void;
     private slideTimeout: number | null = null;
@@ -200,7 +203,7 @@ export class FlashcardReviewModal extends Modal {
 
     private renderEndScreen() {
         this.endScreenEl = this.bodyEl.createDiv({ cls: 'flashcard-end-screen' });
-        this.endScreenEl.createDiv({ cls: 'flashcard-end-title', text: '本轮复习完成' });
+        this.endTitleEl = this.endScreenEl.createDiv({ cls: 'flashcard-end-title', text: '本轮复习完成' });
 
         const stats = this.endScreenEl.createDiv({ cls: 'flashcard-end-stats' });
         stats.innerHTML = `
@@ -210,11 +213,11 @@ export class FlashcardReviewModal extends Modal {
         `;
 
         const actions = this.endScreenEl.createDiv({ cls: 'flashcard-end-actions' });
-        const restartBtn = actions.createEl('button', {
+        this.endNextBtn = actions.createEl('button', {
             cls: 'flashcard-primary-btn',
             text: '再复习一组'
         });
-        restartBtn.onclick = () => this.restart();
+        this.endNextBtn.onclick = () => this.restart();
 
         const finishBtn = actions.createEl('button', {
             cls: 'flashcard-secondary-btn',
@@ -369,6 +372,7 @@ export class FlashcardReviewModal extends Modal {
         const item = this.queue[this.currentIndex];
         const { progress, mastered } = applyReviewRating(item.progress, rating, this.settings);
         item.progress = progress;
+        this.processedKeys.add(item.studyKey);
 
         await this.saveProgress(item, rating);
 
@@ -446,14 +450,41 @@ export class FlashcardReviewModal extends Modal {
         if (newEl) newEl.setText(String(this.stats.new));
         if (masteredEl) masteredEl.setText(String(this.stats.mastered));
 
+        const isLearn = this.sessionMode === 'new';
+        const remaining = this.countRemaining();
+        this.endTitleEl.setText(isLearn ? '本轮学习完成' : '本轮复习完成');
+        this.endNextBtn.setText(isLearn ? '再学习一组' : '再复习一组');
+        this.endNextBtn.toggleClass('hidden', remaining === 0);
+
         this.animating = false;
+    }
+
+    private countRemaining(): number {
+        const vocabularyManager = this.plugin.vocabularyManager;
+        const studyItems = vocabularyManager?.getStudyItems() || [];
+        const progress = this.plugin.hiwordsSettings.studyProgress || {};
+        return buildFlashcardQueue(
+            studyItems,
+            this.selectedBookPaths,
+            progress,
+            this.settings,
+            this.sessionMode,
+            this.processedKeys
+        ).length;
     }
 
     private restart() {
         const vocabularyManager = this.plugin.vocabularyManager;
         const studyItems = vocabularyManager?.getStudyItems() || [];
         const progress = this.plugin.hiwordsSettings.studyProgress || {};
-        this.queue = buildFlashcardQueue(studyItems, this.selectedBookPaths, progress, this.settings, this.sessionMode);
+        this.queue = buildFlashcardQueue(
+            studyItems,
+            this.selectedBookPaths,
+            progress,
+            this.settings,
+            this.sessionMode,
+            this.processedKeys
+        );
 
         this.currentIndex = 0;
         this.flipped = false;
@@ -467,6 +498,7 @@ export class FlashcardReviewModal extends Modal {
         this.footerEl.removeClass('hide');
 
         if (this.queue.length === 0) {
+            new Notice('今天没有更多可学习/复习的单词了');
             this.showEnd();
             return;
         }

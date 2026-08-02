@@ -3687,6 +3687,10 @@
   margin-top: 12px;
 }
 
+.flashcard-end-actions .flashcard-primary-btn.hidden {
+  display: none;
+}
+
 .flashcard-primary-btn,
 .flashcard-secondary-btn {
   border: none;

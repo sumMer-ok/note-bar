@@ -343,6 +343,14 @@ export class FlashcardReviewModal extends Modal {
     // 根据文本长度动态调整正面单词字号，避免长短语/句子溢出
     private adjustWordFontSize(text: string): string {
         const len = text.length;
+        const wordCount = text.split(/\s+/).filter(Boolean).length;
+        // 多词短语需要更激进的缩小
+        if (wordCount >= 3) {
+            if (len > 40) return '20px';
+            if (len > 25) return '24px';
+            if (len > 15) return '28px';
+            return '32px';
+        }
         if (len > 60) return '24px';
         if (len > 40) return '30px';
         if (len > 25) return '36px';

@@ -2,6 +2,7 @@ import { App, Modal, MarkdownRenderer, MarkdownView, Notice, setIcon } from 'obs
 import type NoteBarPlugin from '../../main';
 import type { StudyProgressItem, FlashcardSettings, WordDefinition } from '../utils';
 import { playWordTTS } from '../utils';
+import { DictionaryService } from '../services/dictionary-service';
 import { buildFlashcardQueue, type FlashcardQueueItem, type FlashcardSessionMode } from '../core/flashcard-queue';
 import { applyReviewRating, type FlashcardRating } from '../core/flashcard-algorithm';
 
@@ -54,6 +55,7 @@ export class FlashcardReviewModal extends Modal {
     private boundKeyDown: (evt: KeyboardEvent) => void;
     private slideTimeout: number | null = null;
     private toastTimeout: number | null = null;
+    private aiSummaryCache = new Map<string, string>();
 
     constructor(app: App, plugin: NoteBarPlugin, selectedBookPaths: string[], sessionMode: FlashcardSessionMode = 'all') {
         super(app);
@@ -282,13 +284,31 @@ export class FlashcardReviewModal extends Modal {
         if (this.mode === 'word-to-definition') {
             this.frontWordEl.textContent = wordDef.word;
             this.frontWordEl.removeClass('flashcard-definition-front');
+            this.frontWordEl.style.fontSize = this.adjustWordFontSize(wordDef.word);
             this.frontPhoneticEl.style.display = 'block';
             this.frontPhoneticEl.textContent = phonetic;
         } else {
-            const raw = this.extractDefinition(wordDef.definition);
-            this.frontWordEl.textContent = this.maskWordInDefinition(raw, wordDef.word, wordDef.aliases);
+            // 中→英模式：优先显示中文含义（已有释义或 AI 摘录）
+            const zh = this.extractChineseMeaning(wordDef.definition)
+                || this.extractChineseMeaning(wordDef.rawDefinition || '');
+            if (zh) {
+                this.frontWordEl.textContent = zh;
+            } else {
+                const raw = this.extractDefinition(wordDef.definition);
+                this.frontWordEl.textContent = this.maskWordInDefinition(raw, wordDef.word, wordDef.aliases);
+            }
+            this.frontWordEl.style.fontSize = '';
             this.frontWordEl.addClass('flashcard-definition-front');
             this.frontPhoneticEl.style.display = 'none';
+
+            // 无现成中文且 AI 已配置时，异步摘录中文含义
+            if (!zh && this.isAiConfigured()) {
+                void this.fetchAiChinese(wordDef).then(summary => {
+                    if (summary && this.queue[this.currentIndex] === item) {
+                        this.frontWordEl.textContent = summary;
+                    }
+                });
+            }
         }
 
         this.backWordEl.textContent = wordDef.word;
@@ -318,6 +338,56 @@ export class FlashcardReviewModal extends Modal {
         if (match) return match[0].replace(/\*\*/g, '');
         const firstLine = definition.split('\n')[0];
         return firstLine || definition;
+    }
+
+    // 根据文本长度动态调整正面单词字号，避免长短语/句子溢出
+    private adjustWordFontSize(text: string): string {
+        const len = text.length;
+        if (len > 60) return '24px';
+        if (len > 40) return '30px';
+        if (len > 25) return '36px';
+        if (len > 15) return '44px';
+        return '';
+    }
+
+    // 从释义文本中提取中文含义片段
+    private extractChineseMeaning(text: string): string {
+        if (!text) return '';
+        const segments = text.match(/[\u4e00-\u9fff]+(?:[，。、；：""''（）·…\s][\u4e00-\u9fff]+)*/g) || [];
+        let best = '';
+        for (const seg of segments) {
+            const cleaned = seg.replace(/\s+/g, ' ').trim();
+            if (cleaned.length > best.length) best = cleaned;
+        }
+        return best;
+    }
+
+    private isAiConfigured(): boolean {
+        const settings = this.plugin.hiwordsSettings;
+        return !!settings.aiDefinition?.enabled
+            && !!settings.aiService?.apiUrl?.trim()
+            && !!settings.aiService?.apiKey?.trim()
+            && !!settings.aiService?.model?.trim();
+    }
+
+    // 调用 AI 摘录单词的中文含义
+    private async fetchAiChinese(wordDef: WordDefinition): Promise<string | null> {
+        const cached = this.aiSummaryCache.get(wordDef.word);
+        if (cached) return cached;
+        const settings = this.plugin.hiwordsSettings;
+        try {
+            const service = new DictionaryService({
+                service: settings.aiService,
+                prompt: '请用 1-2 句简洁的中文解释单词 "{{word}}" 的常见含义，只输出中文释义本身，不要输出 JSON、音标或其他任何内容。'
+            });
+            const { definition } = await service.fetchDefinition(wordDef.word);
+            const summary = this.extractChineseMeaning(definition) || definition.trim();
+            this.aiSummaryCache.set(wordDef.word, summary);
+            return summary;
+        } catch (error) {
+            console.error('AI 摘录中文含义失败:', error);
+            return null;
+        }
     }
 
     private maskWordInDefinition(definition: string, word: string, aliases: string[] = []): string {

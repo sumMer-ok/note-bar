@@ -3376,6 +3376,10 @@
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   line-height: 1.2;
+  max-height: 220px;
+  overflow-y: auto;
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 .flashcard-definition-front {

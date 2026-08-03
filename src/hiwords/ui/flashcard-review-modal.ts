@@ -354,7 +354,7 @@ export class FlashcardReviewModal extends Modal {
         if (len > 60) return '24px';
         if (len > 40) return '30px';
         if (len > 25) return '36px';
-        if (len > 15) return '44px';
+        if (len > 12) return '44px';
         return '';
     }
 

@@ -3375,7 +3375,7 @@
   background: linear-gradient(135deg, var(--text-normal) 0%, var(--interactive-accent-hover) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
-  line-height: 1.25;
+  line-height: 1.35;
   max-height: 220px;
   overflow-y: auto;
   overflow-wrap: break-word;
@@ -3383,7 +3383,7 @@
   white-space: normal;
   text-align: center;
   width: 100%;
-  padding: 0 16px;
+  padding: 8px 16px 12px;
   box-sizing: border-box;
 }
 

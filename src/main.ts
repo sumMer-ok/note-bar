@@ -11,6 +11,7 @@ import { DefinitionPopover } from "./hiwords/ui/definition-popover";
 import { ExportVocabularyModal } from "./hiwords/ui/export-vocabulary-modal";
 import { FlashcardBookPickerModal } from "./hiwords/ui/flashcard-book-picker-modal";
 import { shouldHighlightFile } from "./hiwords/utils/highlight-utils";
+import { LocalDictionaryService, getLocalDictionaryService } from "./hiwords/services/local-dictionary-service";
 import type { HiWordsSettings, VocabularyBookDisplaySettings, WordDefinition } from "./hiwords/utils/types";
 
 const DEFAULT_AI_DEFINITION_PROMPT = '请为单词 "{{word}}" 提供释义和常见词形变化，上下文句子：{{sentence}}\n\n如果 "{{word}}" 是某个单词的变形（如动词的 -ing / -ed 形式、名词复数、形容词或副词的比较级/最高级），请务必在 aliases 中返回其原形（lemma），且 aliases 不能为空。例如：suing 应返回 ["sue", "sued", "sues"]；went 应返回 ["go", "goes", "going", "gone"]；better 应返回 ["good"]。\n\n请严格按照以下 JSON 格式输出，不要加入任何其他内容（如 markdown 代码块）：\n{\n  "aliases": ["原形", "其他常见变形1", "其他常见变形2"],\n  "definition": "1）音标\\n2）中文含义\\n3）英文释义\\n4）例句"\n}\n\n示例输出：\n{\n  "aliases": ["sustain", "sustained", "sustaining", "sustains"],\n  "definition": "1）英/ sə\'steɪn / 美/ sə\'steɪn /\\n2）v. 维持，保持；遭受，经受；支持，支撑\\nn. （乐）延音\\n3）to cause or allow something to continue for a period of time\\n4）The economy looks set to sustain its growth into next year."\n}';
@@ -66,6 +67,14 @@ const DEFAULT_HIWORDS_SETTINGS: HiWordsSettings = {
   },
   hideDefinitions: false,
   defaultVocabularyBookPaths: [],
+  chineseDictionary: {
+    enabled: true,
+    path: '.obsidian/plugins/note-bar/data/dictionary.json',
+  },
+  legalDictionary: {
+    enabled: false,
+    path: '.obsidian/plugins/note-bar/data/legal-dictionary.json',
+  },
 };
 
 interface HiWordsRefreshHooks {
@@ -122,6 +131,17 @@ export default class NoteBarPlugin extends Plugin {
       void (async () => {
         await this.vocabularyManager!.loadAllVocabularyBooks();
         this.refreshHighlighter();
+
+        // 初始化词典服务路径（不立即加载，首次查词时懒加载）
+        const dictService = getLocalDictionaryService(this.app);
+        const cnConfig = this.hiwordsSettings.chineseDictionary;
+        if (cnConfig?.enabled && cnConfig?.path) {
+          dictService.setCnDictionaryPath(cnConfig.path);
+        }
+        const legalConfig = this.hiwordsSettings.legalDictionary;
+        if (legalConfig?.enabled && legalConfig?.path) {
+          dictService.setLegalDictionaryPath(legalConfig.path);
+        }
       })().catch(error => {
         console.error('Note Bar: failed to load vocabulary books:', error);
       });
@@ -619,6 +639,112 @@ class NoteBarSettingTab extends PluginSettingTab {
         cls: 'setting-item-description'
       });
     }
+
+    // 中文词典设置
+    containerEl.createEl('h3', { text: '中文词典（离线英汉词典）' });
+    const cnConfig = this.plugin.hiwordsSettings.chineseDictionary ?? { enabled: true, path: '' };
+    this.plugin.hiwordsSettings.chineseDictionary = cnConfig;
+
+    new Setting(containerEl)
+      .setName('启用中文词典')
+      .setDesc('启用后，添加单词时可自动查询离线英汉词典填充中文释义')
+      .addToggle(toggle => toggle
+        .setValue(cnConfig.enabled)
+        .onChange(async (value) => {
+          cnConfig.enabled = value;
+          await this.plugin.saveHiWordsSettings();
+          this.display();
+        }));
+
+    new Setting(containerEl)
+      .setName('词典文件路径')
+      .setDesc('dictionary.json 在 vault 中的路径')
+      .addText(text => text
+        .setPlaceholder('.obsidian/plugins/note-bar/data/dictionary.json')
+        .setValue(cnConfig.path)
+        .onChange(async (value) => {
+          cnConfig.path = value.trim();
+          await this.plugin.saveHiWordsSettings();
+        }));
+
+    const cnStatus = new Setting(containerEl)
+      .setName('词典状态')
+      .setDesc('点击加载中文词典到内存')
+      .addButton(btn => btn
+        .setButtonText('加载词典')
+        .onClick(async () => {
+          if (!cnConfig.path) {
+            new Notice('请先设置词典文件路径');
+            return;
+          }
+          btn.setButtonText('加载中...');
+          btn.setDisabled(true);
+          try {
+            const service = getLocalDictionaryService(this.app);
+            await service.loadChineseDictionary(cnConfig.path);
+            const count = service.getCnDictionaryWordCount();
+            new Notice(`中文词典加载成功，共 ${count} 个词条`);
+            cnStatus.setDesc(`已加载：${count} 个词条`);
+          } catch (err) {
+            new Notice(`加载失败: ${err instanceof Error ? err.message : String(err)}`);
+          } finally {
+            btn.setButtonText('重新加载');
+            btn.setDisabled(false);
+          }
+        }));
+
+    // 法律词典设置
+    containerEl.createEl('h3', { text: '法律词典（Black\'s Law Dictionary）' });
+    const legalConfig = this.plugin.hiwordsSettings.legalDictionary ?? { enabled: false, path: '' };
+    this.plugin.hiwordsSettings.legalDictionary = legalConfig;
+
+    new Setting(containerEl)
+      .setName('启用法律词典')
+      .setDesc('启用后，添加单词时可同时查询 Black\'s Law Dictionary 英文释义')
+      .addToggle(toggle => toggle
+        .setValue(legalConfig.enabled)
+        .onChange(async (value) => {
+          legalConfig.enabled = value;
+          await this.plugin.saveHiWordsSettings();
+          this.display();
+        }));
+
+    new Setting(containerEl)
+      .setName('词典文件路径')
+      .setDesc('legal-dictionary.json 在 vault 中的路径')
+      .addText(text => text
+        .setPlaceholder('.obsidian/plugins/note-bar/data/legal-dictionary.json')
+        .setValue(legalConfig.path)
+        .onChange(async (value) => {
+          legalConfig.path = value.trim();
+          await this.plugin.saveHiWordsSettings();
+        }));
+
+    const legalStatus = new Setting(containerEl)
+      .setName('词典状态')
+      .setDesc('点击加载法律词典到内存')
+      .addButton(btn => btn
+        .setButtonText('加载词典')
+        .onClick(async () => {
+          if (!legalConfig.path) {
+            new Notice('请先设置词典文件路径');
+            return;
+          }
+          btn.setButtonText('加载中...');
+          btn.setDisabled(true);
+          try {
+            const service = getLocalDictionaryService(this.app);
+            await service.loadLegalDictionary(legalConfig.path);
+            const count = service.getLegalDictionaryWordCount();
+            new Notice(`法律词典加载成功，共 ${count} 个词条`);
+            legalStatus.setDesc(`已加载：${count} 个词条`);
+          } catch (err) {
+            new Notice(`加载失败: ${err instanceof Error ? err.message : String(err)}`);
+          } finally {
+            btn.setButtonText('重新加载');
+            btn.setDisabled(false);
+          }
+        }));
 
     // 闪卡复习设置
     containerEl.createEl('h3', { text: '闪卡复习' });

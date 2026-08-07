@@ -2,7 +2,7 @@ import { App, Modal, Notice, setIcon } from 'obsidian';
 import type { WordDefinition, HiWordsSettings } from '../utils';
 import { VocabularyManager } from '../core/vocabulary-manager';
 import { DictionaryService } from '../services/dictionary-service';
-import { LocalDictionaryService } from '../services/local-dictionary-service';
+import { LocalDictionaryService, getLocalDictionaryService } from '../services/local-dictionary-service';
 
 /**
  * 添加或编辑词汇的模态框
@@ -40,7 +40,7 @@ export class AddWordModal extends Modal {
         this.isEditMode = isEditMode;
         this.prefilledDefinition = prefilledDefinition;
         this.onWordAdded = onWordAdded;
-        this.localDictionary = new LocalDictionaryService();
+        this.localDictionary = getLocalDictionaryService(app);
 
         if (isEditMode) {
             this.definition = definition || this.vocabularyManager.getDefinition(word) || null;
@@ -180,13 +180,13 @@ export class AddWordModal extends Modal {
         setIcon(localDictIcon, 'book-open');
         localDictBtn.setAttribute('aria-label', '从本地词库自动填充');
 
-        localDictBtn.addEventListener('click', () => {
+        localDictBtn.addEventListener('click', async () => {
             const queryWord = this.isEditMode ? this.word : (wordInput?.value.trim() || '');
             if (!queryWord) {
                 new Notice('请先输入单词');
                 return;
             }
-            const found = this.autoFillFromDictionary(queryWord, aliasesInput, definitionInput, true);
+            const found = await this.autoFillFromDictionary(queryWord, aliasesInput, definitionInput, true);
             if (!found) {
                 new Notice('本地词库中未找到该单词');
             }
@@ -217,7 +217,12 @@ export class AddWordModal extends Modal {
                         prompt: this.settings.aiDefinition.prompt
                     });
                     const { definition: aiDefinition, aliases: aiAliases } = await dictionaryService.fetchDefinition(queryWord, this.sentence);
-                    const localResult = this.localDictionary.lookup(queryWord);
+                    // 确保中文词典已加载（如启用）
+                    const cnCfg = this.settings.chineseDictionary;
+                    if (cnCfg?.enabled && cnCfg?.path && !this.localDictionary.isCnDictionaryLoaded()) {
+                        try { await this.localDictionary.loadChineseDictionary(cnCfg.path); } catch (e) { console.warn(e); }
+                    }
+                    const localResult = this.localDictionary.lookupSync(queryWord);
                     const currentDefinition = definitionInput.value.trim();
                     const currentAliases = aliasesInput.value.trim();
 
@@ -234,7 +239,7 @@ export class AddWordModal extends Modal {
                     } else {
                         definitionInput.value = aiDefinition;
                         if (!currentAliases) {
-                            const aliasesToFill = aiAliases.length > 0 ? aiAliases : this.deriveAliases(queryWord);
+                            const aliasesToFill = aiAliases.length > 0 ? aiAliases : await this.deriveAliases(queryWord);
                             if (aliasesToFill.length > 0) {
                                 aliasesInput.value = aliasesToFill.join(', ');
                             }
@@ -269,13 +274,13 @@ export class AddWordModal extends Modal {
         if (!this.isEditMode && wordInput) {
             const inputEl = wordInput;
             inputEl.addEventListener('blur', () => {
-                this.autoFillFromDictionary(inputEl.value.trim(), aliasesInput, definitionInput, false);
+                void this.autoFillFromDictionary(inputEl.value.trim(), aliasesInput, definitionInput, false);
             });
 
             // Auto-fill immediately if word is pre-filled
             if (this.word) {
                 activeWindow.setTimeout(() => {
-                    this.autoFillFromDictionary(this.word, aliasesInput, definitionInput, false);
+                    void this.autoFillFromDictionary(this.word, aliasesInput, definitionInput, false);
                 }, 100);
             }
         }
@@ -403,27 +408,77 @@ export class AddWordModal extends Modal {
         };
     }
 
-    private autoFillFromDictionary(
+    private async autoFillFromDictionary(
         queryWord: string,
         aliasesInput: HTMLInputElement,
         definitionInput: HTMLTextAreaElement,
         showNotice = true
-    ): boolean {
-        const result = this.localDictionary.lookup(queryWord);
-        if (!result) return false;
+    ): Promise<boolean> {
+        const cnConfig = this.settings.chineseDictionary;
+        const legalConfig = this.settings.legalDictionary;
+        const cnEnabled = cnConfig?.enabled && !!cnConfig?.path;
+        const legalEnabled = legalConfig?.enabled && !!legalConfig?.path;
+
+        // 两个词典都未启用
+        if (!cnEnabled && !legalEnabled) return false;
+
+        // 确保法律词典已加载（如启用）
+        if (legalEnabled && !this.localDictionary.isLegalDictionaryLoaded()) {
+            try {
+                await this.localDictionary.loadLegalDictionary(legalConfig.path);
+            } catch (err) {
+                console.warn('法律词典加载失败:', err);
+            }
+        }
+
+        // 确保中文词典已加载（如启用）
+        if (cnEnabled && !this.localDictionary.isCnDictionaryLoaded()) {
+            try {
+                await this.localDictionary.loadChineseDictionary(cnConfig.path);
+            } catch (err) {
+                console.warn('中文词典加载失败:', err);
+            }
+        }
+
+        const result = await this.localDictionary.lookupAll(queryWord);
+        if (!result || (
+            result.definitions.length === 0 &&
+            !(result.legalDefinitions && result.legalDefinitions.length > 0) &&
+            result.aliases.length === 0
+        )) return false;
 
         if (result.aliases.length > 0 && !aliasesInput.value.trim()) {
             aliasesInput.value = result.aliases.join(', ');
         }
 
-        if (result.definitions.length > 0 && !definitionInput.value.trim()) {
-            definitionInput.value = this.formatDefinitions(result.definitions);
+        if (!definitionInput.value.trim()) {
+            const parts: string[] = [];
+            if (result.definitions.length > 0) {
+                parts.push(this.formatDefinitions(result.definitions));
+            }
+            if (result.legalDefinitions && result.legalDefinitions.length > 0) {
+                parts.push(this.formatLegalDefinitions(result.legalDefinitions, result.legalPos, result.legalYear));
+            }
+            if (parts.length > 0) {
+                definitionInput.value = parts.join('\n\n');
+            }
         }
 
         if (showNotice) {
             new Notice('已从本地词库自动填充');
         }
         return true;
+    }
+
+    private formatLegalDefinitions(definitions: string[], pos?: string, year?: string): string {
+        const header = '--- Black\'s Law Dictionary ---';
+        const meta: string[] = [];
+        if (pos) meta.push(pos);
+        if (year) meta.push(`(${year})`);
+        const metaStr = meta.length > 0 ? ` ${meta.join(' ')}` : '';
+        return header + metaStr + '\n' + definitions
+            .map((def, idx) => `${idx + 1}. ${def}`)
+            .join('\n');
     }
 
     private formatDefinitions(definitions: string[]): string {
@@ -435,7 +490,7 @@ export class AddWordModal extends Modal {
     /**
      * 当 AI 没有返回别名时，根据常见词形变化规则从本地词库推导可能的原形。
      */
-    private deriveAliases(word: string): string[] {
+    private async deriveAliases(word: string): Promise<string[]> {
         const lower = word.trim().toLowerCase();
         if (!lower) return [];
 
@@ -498,7 +553,7 @@ export class AddWordModal extends Modal {
 
         // Only keep candidates that exist in the local dictionary and are not the word itself.
         return Array.from(candidates)
-            .filter(candidate => candidate !== lower && this.localDictionary.lookup(candidate))
+            .filter(candidate => candidate !== lower && this.localDictionary.lookupSync(candidate))
             .sort();
     }
 

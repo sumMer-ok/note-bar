@@ -276,6 +276,18 @@ export interface HiWordsSettings {
     selectionTranslate: SelectionTranslateSettings;
     hideDefinitions?: boolean;
     defaultVocabularyBookPaths?: string[];
+    /** 中文词典配置（离线英汉词典） */
+    chineseDictionary?: {
+        enabled: boolean;
+        /** 词典文件路径（vault 内相对路径或绝对路径） */
+        path: string;
+    };
+    /** 法律词典配置（Black's Law Dictionary） */
+    legalDictionary?: {
+        enabled: boolean;
+        /** 词典文件路径（vault 内相对路径或绝对路径） */
+        path: string;
+    };
 }
 
 export interface WordMatch {

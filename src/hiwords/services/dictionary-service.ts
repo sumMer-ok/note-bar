@@ -186,33 +186,116 @@ export class DictionaryService {
     }
 
     private parseDefinitionResponse(content: string): { definition: string; aliases: string[] } {
-        // 尝试提取 ```json ... ``` 代码块，或文本中的第一个 JSON 对象
-        const codeBlockMatch = content.match(/```json\s*([\s\S]*?)\s*```/);
+        // 1) 尝试提取 ```json ... ``` 或 ``` ... ``` 代码块
+        const codeBlockMatch = content.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
         let textToParse = codeBlockMatch ? codeBlockMatch[1].trim() : content.trim();
 
+        // 2) 提取文本中的第一个 JSON 对象，尝试严格解析
         const jsonMatch = textToParse.match(/\{[\s\S]*\}/);
         if (jsonMatch) {
-            try {
-                const parsed = JSON.parse(jsonMatch[0]) as unknown;
-                if (parsed && typeof parsed === 'object') {
-                    const data = parsed as Record<string, unknown>;
-                    const definition = typeof data.definition === 'string' ? data.definition.trim() : '';
-                    let aliases: string[] = [];
-                    if (Array.isArray(data.aliases)) {
-                        aliases = data.aliases
-                            .filter((item): item is string => typeof item === 'string')
-                            .map(alias => alias.trim().toLowerCase())
-                            .filter(alias => alias.length > 0);
-                    }
-                    if (definition) {
-                        return { definition, aliases };
-                    }
+            const raw = jsonMatch[0];
+            const strict = this.tryParseJson(raw);
+            if (strict) return strict;
+
+            // 3) 修复常见错误格式后重试（尾随逗号、字符串内未转义换行等）
+            const repaired = this.tryParseJson(this.repairJson(raw));
+            if (repaired) return repaired;
+
+            // 4) JSON 整体解析失败时，按字段提取 definition / aliases
+            const fieldExtracted = this.extractFieldsFromBrokenJson(raw);
+            if (fieldExtracted) return fieldExtracted;
+        }
+
+        // 5) 完全无法解析时，将整个内容作为释义文本（如纯文本释义场景）
+        return { definition: textToParse, aliases: [] };
+    }
+
+    private tryParseJson(raw: string): { definition: string; aliases: string[] } | null {
+        try {
+            const parsed = JSON.parse(raw) as unknown;
+            if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+                const data = parsed as Record<string, unknown>;
+                const definition = typeof data.definition === 'string' ? data.definition.trim() : '';
+                let aliases: string[] = [];
+                if (Array.isArray(data.aliases)) {
+                    aliases = data.aliases
+                        .filter((item): item is string => typeof item === 'string')
+                        .map(alias => alias.trim().toLowerCase())
+                        .filter(alias => alias.length > 0);
                 }
-            } catch {
-                // fall through to treat entire content as definition
+                if (definition || aliases.length > 0) {
+                    return { definition, aliases };
+                }
+            }
+        } catch {
+            // ignore，交由上层做修复重试
+        }
+        return null;
+    }
+
+    /** 修复 AI 返回 JSON 的常见错误：尾随逗号、字符串内未转义的字面换行 */
+    private repairJson(raw: string): string {
+        let repaired = raw;
+        // 移除对象/数组内的尾随逗号
+        repaired = repaired.replace(/,\s*([}\]])/g, '$1');
+        // 将字符串字面量内部的真实换行转义为 \n
+        repaired = this.escapeNewlinesInStrings(repaired);
+        return repaired;
+    }
+
+    private escapeNewlinesInStrings(json: string): string {
+        let result = '';
+        let inString = false;
+        for (let i = 0; i < json.length; i++) {
+            const ch = json[i];
+            if (inString) {
+                if (ch === '\\' && i + 1 < json.length) {
+                    result += ch + json[i + 1];
+                    i++;
+                    continue;
+                }
+                if (ch === '"') {
+                    inString = false;
+                    result += ch;
+                } else if (ch === '\n') {
+                    result += '\\n';
+                } else {
+                    result += ch;
+                }
+            } else {
+                if (ch === '"') inString = true;
+                result += ch;
             }
         }
-        return { definition: textToParse, aliases: [] };
+        return result;
+    }
+
+    /** JSON 整体解析失败时，按字段正则提取 definition 与 aliases */
+    private extractFieldsFromBrokenJson(raw: string): { definition: string; aliases: string[] } | null {
+        const definitionMatch = raw.match(/"definition"\s*:\s*"([\s\S]*?)(?<!\\)"/);
+        const definition = definitionMatch
+            ? this.unescapeJsonString(definitionMatch[1]).trim()
+            : '';
+        let aliases: string[] = [];
+        const aliasesMatch = raw.match(/"aliases"\s*:\s*\[([\s\S]*?)\]/);
+        if (aliasesMatch) {
+            const items = aliasesMatch[1].match(/"([^"]*)"/g) || [];
+            aliases = items
+                .map(s => s.slice(1, -1))
+                .map(s => s.trim().toLowerCase())
+                .filter(s => s.length > 0);
+        }
+        if (definition || aliases.length > 0) {
+            return { definition, aliases };
+        }
+        return null;
+    }
+
+    private unescapeJsonString(s: string): string {
+        return s
+            .replace(/\\n/g, '\n')
+            .replace(/\\"/g, '"')
+            .replace(/\\\\/g, '\\');
     }
 
     private async makeRequestWithRetry(url: string, headers: Record<string, string>, body: JsonObject): Promise<unknown> {

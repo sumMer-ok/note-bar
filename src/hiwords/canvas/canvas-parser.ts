@@ -66,6 +66,10 @@ export class CanvasParser {
             const masteredGroup = detectionMode === 'group'
                 ? canvasData.nodes.find(node => node.type === 'group' && (node.label === 'Mastered' || node.label === '已掌握'))
                 : undefined;
+            // 按添加日期分组（label 为 YYYY-MM-DD 的 group）
+            const dateGroups = canvasData.nodes.filter(
+                node => node.type === 'group' && /^\d{4}-\d{2}-\d{2}$/.test(node.label || '')
+            );
             const definitions: WordDefinition[] = [];
             for (const node of canvasData.nodes) {
                 if (node.type === 'text' && node.text) {
@@ -76,6 +80,13 @@ export class CanvasParser {
                         } else if (detectionMode === 'color' && node.color === '4') {
                             wordDef.mastered = true;
                         }
+                        // 提取添加日期
+                        for (const g of dateGroups) {
+                            if (this.isNodeInGroup(node, g)) {
+                                wordDef.addedDate = g.label;
+                                break;
+                            }
+                        }
                         definitions.push(wordDef);
                     }
                 } else if (node.type === 'file' && node.file) {
@@ -85,6 +96,13 @@ export class CanvasParser {
                             wordDef.mastered = true;
                         } else if (detectionMode === 'color' && node.color === '4') {
                             wordDef.mastered = true;
+                        }
+                        // 提取添加日期
+                        for (const g of dateGroups) {
+                            if (this.isNodeInGroup(node, g)) {
+                                wordDef.addedDate = g.label;
+                                break;
+                            }
                         }
                         definitions.push(wordDef);
                     }

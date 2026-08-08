@@ -231,10 +231,11 @@ export class AddWordModal extends Modal {
                             aliasesInput.value = localResult.aliases.join(', ');
                         }
                         const localDefinition = this.formatDefinitions(localResult.definitions);
+                        // AI 释义显示在词典释义之前
                         if (currentDefinition) {
-                            definitionInput.value = `${currentDefinition}\n\n--- AI 释义 ---\n${aiDefinition}`;
+                            definitionInput.value = `${aiDefinition}\n\n--- 已有释义 ---\n${currentDefinition}`;
                         } else {
-                            definitionInput.value = `${localDefinition}\n\n--- AI 释义 ---\n${aiDefinition}`;
+                            definitionInput.value = `${aiDefinition}\n\n--- 词典释义 ---\n${localDefinition}`;
                         }
                     } else {
                         definitionInput.value = aiDefinition;

@@ -3784,6 +3784,29 @@
   margin-top: 16px;
 }
 
+/* 听写日期筛选 */
+.spelling-date-filter-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--background-primary-alt);
+  border: 1px solid var(--background-modifier-border);
+}
+
+.spelling-date-filter-label {
+  font-size: 13px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.spelling-date-filter-select {
+  flex: 1;
+  max-width: 220px;
+}
+
 /* Sidebar review header */
 .hi-words-review-header {
   display: flex;
@@ -3813,3 +3836,365 @@
 .hi-words-review-button:hover {
   background: var(--interactive-accent-hover);
 }
+
+/* ========== 拼写练习 ========== */
+.spelling-modal {
+  width: var(--dialog-width, 520px);
+  max-width: 90vw;
+}
+
+.spelling-modal-content {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 8px 0;
+}
+
+/* 头部 */
+.spelling-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.spelling-title {
+  font-size: 16px;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.spelling-close-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  cursor: pointer;
+  color: var(--text-muted);
+  flex-shrink: 0;
+  transition: background 0.15s, color 0.15s;
+}
+
+.spelling-close-btn:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+/* 统计 */
+.spelling-stats {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.spelling-progress-text {
+  font-weight: 600;
+  color: var(--text-normal);
+}
+
+.spelling-accuracy {
+  font-variant-numeric: tabular-nums;
+}
+
+.spelling-progress-bar-wrap {
+  width: 100%;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--background-modifier-border);
+  overflow: hidden;
+}
+
+.spelling-progress-bar {
+  height: 100%;
+  width: 0;
+  border-radius: 3px;
+  background: linear-gradient(90deg, var(--interactive-accent), var(--interactive-accent-hover));
+  transition: width 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* 卡片 */
+.spelling-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  padding: 32px 28px;
+  border-radius: 16px;
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  min-height: 280px;
+  justify-content: center;
+}
+
+.spelling-card.reveal {
+  animation: spelling-card-reveal 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes spelling-card-reveal {
+  from {
+    transform: scale(0.97);
+    opacity: 0.6;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* 释义 */
+.spelling-definition-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  text-align: center;
+  max-width: 100%;
+}
+
+.spelling-definition {
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--text-normal);
+  max-height: 120px;
+  overflow-y: auto;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  padding: 0 8px;
+}
+
+.spelling-phonetic {
+  font-size: 14px;
+  color: var(--text-muted);
+  font-family: var(--font-monospace);
+}
+
+/* 提交后展开的完整释义 */
+.spelling-definition-detail {
+  width: 100%;
+  max-width: 100%;
+  margin-top: 12px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--text-normal);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 240px;
+  overflow-y: auto;
+  text-align: left;
+}
+
+.spelling-definition-detail:empty {
+  display: none;
+}
+
+/* 发音按钮 */
+.spelling-speak-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  cursor: pointer;
+  color: var(--interactive-accent);
+  background: color-mix(in srgb, var(--interactive-accent) 10%, transparent);
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.15s;
+}
+
+.spelling-speak-btn:hover {
+  transform: scale(1.1);
+  background: color-mix(in srgb, var(--interactive-accent) 18%, transparent);
+}
+
+.spelling-speak-btn:active {
+  transform: scale(0.95);
+}
+
+.spelling-speak-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.spelling-speak-icon svg {
+  width: 22px;
+  height: 22px;
+}
+
+/* 输入 */
+.spelling-input-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  max-width: 320px;
+}
+
+.spelling-input {
+  width: 100%;
+  padding: 12px 16px;
+  border-radius: 12px;
+  border: 2px solid var(--background-modifier-border);
+  background: var(--background-primary);
+  color: var(--text-normal);
+  font-size: 20px;
+  font-weight: 600;
+  text-align: center;
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  /* 禁用输入法，避免中文 IME 消耗回车键导致需要按两次回车 */
+  ime-mode: disabled;
+}
+
+.spelling-input:focus {
+  border-color: var(--interactive-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--interactive-accent) 20%, transparent);
+}
+
+.spelling-input.correct {
+  border-color: var(--color-green);
+  color: var(--color-green);
+  background: color-mix(in srgb, var(--color-green) 8%, transparent);
+}
+
+.spelling-input.wrong {
+  border-color: var(--color-red);
+  color: var(--color-red);
+  background: color-mix(in srgb, var(--color-red) 8%, transparent);
+}
+
+.spelling-feedback {
+  font-size: 14px;
+  min-height: 20px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.spelling-feedback.correct {
+  color: var(--color-green);
+}
+
+.spelling-feedback.wrong {
+  color: var(--color-red);
+}
+
+.spelling-next-btn {
+  border: none;
+  border-radius: 10px;
+  padding: 8px 24px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  transition: background 0.15s, transform 0.1s;
+}
+
+.spelling-next-btn:hover {
+  background: var(--interactive-accent-hover);
+}
+
+.spelling-next-btn:active {
+  transform: scale(0.97);
+}
+
+/* 结束界面 */
+.spelling-result {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  text-align: center;
+}
+
+.spelling-result-title {
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.spelling-result-stats {
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+.spelling-result-accuracy {
+  font-size: 56px;
+  font-weight: 800;
+  background: linear-gradient(135deg, var(--interactive-accent) 0%, var(--interactive-accent-hover) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  line-height: 1.1;
+}
+
+.spelling-result-accuracy-label {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.spelling-wrong-section {
+  width: 100%;
+  margin-top: 8px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--color-red) 6%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-red) 20%, transparent);
+}
+
+.spelling-wrong-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-red);
+  margin-bottom: 8px;
+}
+
+.spelling-wrong-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-height: 120px;
+  overflow-y: auto;
+}
+
+.spelling-wrong-item {
+  font-size: 13px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+}
+
+.spelling-retry-btn {
+  margin-top: 8px;
+}
+
+.spelling-close-btn-bottom {
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 10px;
+  padding: 8px 28px;
+  font-size: 14px;
+  cursor: pointer;
+  background: transparent;
+  color: var(--text-muted);
+  transition: background 0.15s, color 0.15s;
+}
+
+.spelling-close-btn-bottom:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+

@@ -2,11 +2,16 @@ import { App, Component, Modal, Notice } from 'obsidian';
 import type NoteBarPlugin from '../../main';
 import { getBookReviewStats, type FlashcardSessionMode } from '../core/flashcard-queue';
 import { FlashcardReviewModal } from './flashcard-review-modal';
+import { SpellingPracticeModal } from './spelling-practice-modal';
+import type { StudyItem } from '../utils';
 
 export class FlashcardBookPickerModal extends Modal {
     private plugin: NoteBarPlugin;
     private selectedPaths: string[] = [];
     private domEventComponent: Component;
+    private dateFilterRow!: HTMLElement;
+    private dateFilterSelect!: HTMLSelectElement;
+    private studyItems: StudyItem[] = [];
 
     constructor(app: App, plugin: NoteBarPlugin) {
         super(app);
@@ -36,6 +41,7 @@ export class FlashcardBookPickerModal extends Modal {
 
         const vocabularyManager = this.plugin.vocabularyManager;
         const studyItems = vocabularyManager?.getStudyItems() || [];
+        this.studyItems = studyItems;
         const progress = this.plugin.hiwordsSettings.studyProgress || {};
 
         const listContainer = contentEl.createDiv({ cls: 'flashcard-book-list' });
@@ -58,6 +64,7 @@ export class FlashcardBookPickerModal extends Modal {
                 } else {
                     this.selectedPaths = this.selectedPaths.filter(p => p !== book.path);
                 }
+                this.updateDateFilterOptions();
             });
 
             const info = row.createDiv({ cls: 'flashcard-book-info' });
@@ -68,6 +75,13 @@ export class FlashcardBookPickerModal extends Modal {
             });
         }
 
+        // 听写日期筛选（选择单词本后显示）
+        this.dateFilterRow = contentEl.createDiv({ cls: 'spelling-date-filter-row' });
+        this.dateFilterRow.createSpan({ cls: 'spelling-date-filter-label', text: '听写日期：' });
+        this.dateFilterSelect = this.dateFilterRow.createEl('select', { cls: 'dropdown spelling-date-filter-select' });
+        this.dateFilterRow.style.display = 'none';
+        this.updateDateFilterOptions();
+
         const buttonContainer = contentEl.createDiv({ cls: 'flashcard-button-container' });
 
         const startSession = (mode: FlashcardSessionMode) => {
@@ -77,6 +91,37 @@ export class FlashcardBookPickerModal extends Modal {
             }
             this.close();
             new FlashcardReviewModal(this.app, this.plugin, this.selectedPaths, mode).open();
+        };
+
+        // 听写练习：使用已选单词本的单词
+        const startDictation = () => {
+            if (this.selectedPaths.length === 0) {
+                new Notice('请至少选择一个单词本');
+                return;
+            }
+            const selectedDate = this.dateFilterSelect.value; // '' = 全部日期
+            const words = studyItems
+                .filter(item => item.sources.some(s => this.selectedPaths.includes(s.source)))
+                .filter(item => !selectedDate || item.primary.addedDate === selectedDate)
+                .map(item => item.primary);
+            // 同一单词可能出现在多个单词本，按单词去重
+            const seen = new Set<string>();
+            const unique = words.filter(w => {
+                const key = w.word.toLowerCase();
+                if (seen.has(key)) return false;
+                seen.add(key);
+                return true;
+            });
+            if (unique.length === 0) {
+                new Notice('所选单词本暂无单词');
+                return;
+            }
+            const bookName = this.selectedPaths.length === 1
+                ? (enabledCanvasBooks.find(b => b.path === this.selectedPaths[0])?.name || '已选单词本')
+                : `已选 ${this.selectedPaths.length} 个单词本`;
+            const maxPerSession = this.plugin.hiwordsSettings.spellingPractice?.maxPerSession || 0;
+            this.close();
+            new SpellingPracticeModal(this.app, this.plugin, bookName, unique, maxPerSession).open();
         };
 
         const learnBtn = buttonContainer.createEl('button', {
@@ -91,8 +136,41 @@ export class FlashcardBookPickerModal extends Modal {
         });
         this.registerDomEvent(reviewBtn, 'click', () => startSession('review'));
 
+        const dictationBtn = buttonContainer.createEl('button', {
+            cls: 'mod-cta',
+            text: '开始听写'
+        });
+        this.registerDomEvent(dictationBtn, 'click', () => startDictation());
+
         const cancelBtn = buttonContainer.createEl('button', { text: '取消' });
         this.registerDomEvent(cancelBtn, 'click', () => this.close());
+    }
+
+    /** 根据已选单词本刷新听写日期筛选选项 */
+    private updateDateFilterOptions() {
+        if (!this.dateFilterRow || !this.dateFilterSelect) return;
+
+        // 收集已选单词本中单词的添加日期（去重、降序）
+        const dates = new Set<string>();
+        for (const item of this.studyItems) {
+            if (item.sources.some(s => this.selectedPaths.includes(s.source)) && item.primary.addedDate) {
+                dates.add(item.primary.addedDate);
+            }
+        }
+        const sortedDates = Array.from(dates).sort().reverse();
+
+        // 重建选项
+        const prev = this.dateFilterSelect.value;
+        this.dateFilterSelect.empty();
+        const allOption = this.dateFilterSelect.createEl('option', { text: '全部日期', value: '' });
+        if (!prev) allOption.selected = true;
+        for (const d of sortedDates) {
+            const opt = this.dateFilterSelect.createEl('option', { text: d, value: d });
+            if (prev === d) opt.selected = true;
+        }
+
+        // 有选中单词本且有日期时才显示
+        this.dateFilterRow.style.display = (this.selectedPaths.length > 0 && sortedDates.length > 0) ? '' : 'none';
     }
 
     registerDomEvent<K extends keyof WindowEventMap>(el: Window, type: K, callback: (this: HTMLElement, ev: WindowEventMap[K]) => any, options?: boolean | AddEventListenerOptions): void;

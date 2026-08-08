@@ -173,6 +173,8 @@ export interface WordDefinition {
     isPattern?: boolean;
     patternParts?: string[];
     card?: WordCard;
+    /** 添加日期（YYYY-MM-DD，来自 Canvas 日期分组） */
+    addedDate?: string;
 }
 
 export interface StudyItem {
@@ -287,6 +289,11 @@ export interface HiWordsSettings {
         enabled: boolean;
         /** 词典文件路径（vault 内相对路径或绝对路径） */
         path: string;
+    };
+    /** 拼写/听写练习配置 */
+    spellingPractice?: {
+        /** 每次听写最多单词数 */
+        maxPerSession: number;
     };
 }
 

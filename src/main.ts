@@ -14,7 +14,7 @@ import { shouldHighlightFile } from "./hiwords/utils/highlight-utils";
 import { LocalDictionaryService, getLocalDictionaryService } from "./hiwords/services/local-dictionary-service";
 import type { HiWordsSettings, VocabularyBookDisplaySettings, WordDefinition } from "./hiwords/utils/types";
 
-const DEFAULT_AI_DEFINITION_PROMPT = '请为单词 "{{word}}" 提供释义和常见词形变化，上下文句子：{{sentence}}\n\n如果 "{{word}}" 是某个单词的变形（如动词的 -ing / -ed 形式、名词复数、形容词或副词的比较级/最高级），请务必在 aliases 中返回其原形（lemma），且 aliases 不能为空。例如：suing 应返回 ["sue", "sued", "sues"]；went 应返回 ["go", "goes", "going", "gone"]；better 应返回 ["good"]。\n\n请严格按照以下 JSON 格式输出，不要加入任何其他内容（如 markdown 代码块）：\n{\n  "aliases": ["原形", "其他常见变形1", "其他常见变形2"],\n  "definition": "1）音标\\n2）中文含义\\n3）英文释义\\n4）例句"\n}\n\n示例输出：\n{\n  "aliases": ["sustain", "sustained", "sustaining", "sustains"],\n  "definition": "1）英/ sə\'steɪn / 美/ sə\'steɪn /\\n2）v. 维持，保持；遭受，经受；支持，支撑\\nn. （乐）延音\\n3）to cause or allow something to continue for a period of time\\n4）The economy looks set to sustain its growth into next year."\n}';
+const DEFAULT_AI_DEFINITION_PROMPT = '你是一个英汉词典编纂助手。请为单词 "{{word}}" 生成词条（上下文句子，可能为空：{{sentence}}）。\n\n输出要求（必须严格遵守）：\n1. 只输出一个 JSON 对象，不要输出任何其他内容：不要 markdown 代码块、不要 ```json 标记、不要注释、不要解释性文字、不要前后缀说明。\n2. JSON 只包含两个字段：\n   - "aliases"：字符串数组。如果该单词是词形变化（-ing / -ed / -s / -es / -ies / -er / -est 等），必须包含其原形（lemma）及常见变形；如果本身就是原形，可返回常见变形或空数组。例如 suing 返回 ["sue", "sued", "sues"]；went 返回 ["go", "goes", "going", "gone"]；better 返回 ["good"]；books 返回 ["book"]。\n   - "definition"：字符串，内容依次为：\n     1）音标（英式/美式）\\n2）中文释义（含词性标注）\\n3）英文释义\\n4）例句\n     其中序号之间的换行使用 JSON 转义符 \\n，不要使用 markdown 列表符号。\n3. 必须是合法 JSON：键和字符串值使用英文双引号；不要有尾随逗号；字符串内部不要有未转义的换行；不要使用单引号。\n\n只输出下面格式的 JSON 对象本身（不要包含任何其他文字）：\n{"aliases": ["sustain", "sustained", "sustaining", "sustains"], "definition": "1）英/ sə\'steɪn / 美/ sə\'steɪn /\\n2）v. 维持，保持；遭受，经受；支持，支撑\\nn. （乐）延音\\n3）to cause or allow something to continue for a period of time\\n4）The economy looks set to sustain its growth into next year."}';
 
 const DEFAULT_TRANSLATE_PROMPT = 'Translate the following text to {{to}}. Only return the translation, no explanation.\n\nText: {{text}}';
 
@@ -74,6 +74,9 @@ const DEFAULT_HIWORDS_SETTINGS: HiWordsSettings = {
   legalDictionary: {
     enabled: false,
     path: '.obsidian/plugins/note-bar/data/legal-dictionary.json',
+  },
+  spellingPractice: {
+    maxPerSession: 20,
   },
 };
 
@@ -364,6 +367,18 @@ export default class NoteBarPlugin extends Plugin {
   async loadHiWordsSettings() {
     const savedData = await this.loadData();
     this.hiwordsSettings = Object.assign({}, DEFAULT_HIWORDS_SETTINGS, savedData || {});
+    // 升级旧版默认 AI 释义提示词：旧版本未明确 JSON 格式，易导致模型返回错误格式
+    const aiDef = this.hiwordsSettings.aiDefinition;
+    if (aiDef) {
+      const aiPrompt = aiDef.prompt;
+      const isOldDefault = aiPrompt
+        && aiPrompt.includes('请严格按照以下 JSON 格式输出')
+        && !aiPrompt.includes('只输出一个 JSON 对象');
+      if (!aiPrompt || isOldDefault) {
+        aiDef.prompt = DEFAULT_AI_DEFINITION_PROMPT;
+        await this.saveData(this.hiwordsSettings);
+      }
+    }
   }
 
   async saveHiWordsSettings() {
@@ -857,6 +872,23 @@ class NoteBarSettingTab extends PluginSettingTab {
         .setValue(flashcard.enableAnimation)
         .onChange(async (value) => {
           flashcard.enableAnimation = value;
+          await this.plugin.saveHiWordsSettings();
+        }));
+
+    // 听写练习设置
+    const spelling = this.plugin.hiwordsSettings.spellingPractice ?? {
+      maxPerSession: 20,
+    };
+    this.plugin.hiwordsSettings.spellingPractice = spelling;
+
+    new Setting(containerEl)
+      .setName('每次听写最大单词数')
+      .setDesc('每次听写练习最多抽取多少个单词（0 表示不限）')
+      .addText(text => text
+        .setValue(String(spelling.maxPerSession))
+        .onChange(async (value) => {
+          const num = parseInt(value, 10);
+          spelling.maxPerSession = isNaN(num) ? 20 : Math.max(0, num);
           await this.plugin.saveHiWordsSettings();
         }));
 

@@ -4,6 +4,19 @@ import { Trie, mapCanvasColorToCSSVar } from '../utils';
 import type { VocabularyManager } from '../core/vocabulary-manager';
 import { isElementVisible, buildTrieFromVocabulary, clearHighlights, isInMainEditor } from '../utils/highlight-utils';
 
+/**
+ * 计算高亮渐隐透明度（返回 CSS 百分比字符串），与 word-highlighter 保持同一公式：
+ * alpha = 1 - (s / (s + 20)) * (1 - fadeFloor)；新词（无 s）或关闭渐隐时全强度。
+ */
+function calcFadeAlpha(settings: HiWordsSettings, definition: WordDefinition | null | undefined): string {
+    if (settings.enableFadeHighlight === false) return '100%';
+    const s = definition?.fsrsS;
+    if (typeof s !== 'number' || !isFinite(s) || s <= 0) return '100%';
+    const fadeFloor = Math.min(Math.max(settings.fadeFloor ?? 0.25, 0), 1);
+    const alpha = 1 - (s / (s + 20)) * (1 - fadeFloor);
+    return `${Math.round(alpha * 100)}%`;
+}
+
 export function registerReadingModeHighlighter(plugin: {
   settings: HiWordsSettings;
   vocabularyManager: VocabularyManager;
@@ -79,13 +92,16 @@ export function registerReadingModeHighlighter(plugin: {
         if (m.from > last) frag.appendChild(document.createTextNode(text.slice(last, m.from)));
         const def = m.payload;
         const color = mapCanvasColorToCSSVar(def?.color, 'var(--color-base-60)');
+        // 渐隐：与编辑器高亮一致，将 FSRS stability 折算为透明度传给样式
+        const alpha = calcFadeAlpha(plugin.settings, def);
+        const alphaAttr = alpha !== '100%' ? `--word-highlight-alpha: ${alpha};` : '';
         const span = document.createElement('span');
         span.className = 'hi-words-highlight';
         span.setAttribute('data-word', m.word);
         if (def?.definition) span.setAttribute('data-definition', def.definition);
         if (color) span.setAttribute('data-color', color);
         span.setAttribute('data-style', highlightStyle);
-        if (color) span.setAttribute('style', `--word-highlight-color: ${color}`);
+        if (color) span.setAttribute('style', `--word-highlight-color: ${color};${alphaAttr}`);
         span.textContent = text.slice(m.from, m.to);
         frag.appendChild(span);
         last = m.to;

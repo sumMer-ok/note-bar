@@ -257,6 +257,7 @@ export class MasteredService {
                 this.plugin.hiwordsSettings.studyProgress[wordDef.studyKey] = {
                     ...existing,
                     status: 'review',
+                    lifecycle: 'active',
                     updatedAt: now,
                 };
             } else {
@@ -269,6 +270,7 @@ export class MasteredService {
         this.plugin.hiwordsSettings.studyProgress[wordDef.studyKey] = {
             ...(existing || {}),
             status: 'mastered',
+            lifecycle: 'graduated',
             masteredAt: existing?.masteredAt || now,
             updatedAt: now,
         };
@@ -302,5 +304,78 @@ export class MasteredService {
         } catch (error) {
             console.error('同步已掌握状态失败:', error);
         }
+    }
+
+    // ===== 生命周期操作 =====
+
+    /** 归档词条：退出高亮与复习，保留悬停查询，节点移入已归档分组 */
+    async archiveWord(bookPath: string, nodeId: string, word: string): Promise<boolean> {
+        try {
+            const wordDef = await this.vocabularyManager.getWordDefinitionByNodeId(bookPath, nodeId);
+            if (!wordDef?.studyKey) return false;
+
+            this.vocabularyManager.updateLifecycleStatus(wordDef.studyKey, 'archived');
+            await this.plugin.saveHiWordsSettings();
+
+            if (!bookPath.endsWith('.hiwords')) {
+                await this.masteredGroupManager.moveNodeToArchivedGroup(bookPath, nodeId);
+            }
+
+            this.plugin.refreshHighlighter();
+            this.plugin.app.workspace.trigger('hi-words:mastered-changed');
+            new Notice(`"${word}" 已归档`);
+            return true;
+        } catch (error) {
+            console.error('归档词条失败:', error);
+            return false;
+        }
+    }
+
+    /** 淘汰词条：从匹配中彻底剔除，节点移入已归档分组 */
+    async retireWord(bookPath: string, nodeId: string, word: string): Promise<boolean> {
+        try {
+            const wordDef = await this.vocabularyManager.getWordDefinitionByNodeId(bookPath, nodeId);
+            if (!wordDef?.studyKey) return false;
+
+            this.vocabularyManager.updateLifecycleStatus(wordDef.studyKey, 'retired');
+            await this.plugin.saveHiWordsSettings();
+
+            if (!bookPath.endsWith('.hiwords')) {
+                await this.masteredGroupManager.moveNodeToArchivedGroup(bookPath, nodeId);
+            }
+
+            this.plugin.refreshHighlighter();
+            this.plugin.app.workspace.trigger('hi-words:mastered-changed');
+            new Notice(`"${word}" 已淘汰`);
+            return true;
+        } catch (error) {
+            console.error('淘汰词条失败:', error);
+            return false;
+        }
+    }
+
+    /** 恢复词条为活跃状态 */
+    async restoreWord(bookPath: string, nodeId: string, word: string): Promise<boolean> {
+        try {
+            const wordDef = await this.vocabularyManager.getWordDefinitionByNodeId(bookPath, nodeId);
+            if (!wordDef?.studyKey) return false;
+
+            this.vocabularyManager.updateLifecycleStatus(wordDef.studyKey, 'active');
+            await this.plugin.saveHiWordsSettings();
+
+            this.plugin.refreshHighlighter();
+            this.plugin.app.workspace.trigger('hi-words:mastered-changed');
+            new Notice(`"${word}" 已恢复`);
+            return true;
+        } catch (error) {
+            console.error('恢复词条失败:', error);
+            return false;
+        }
+    }
+
+    /** 标记/取消常驻 */
+    async togglePinned(studyKey: string, pinned: boolean): Promise<void> {
+        this.vocabularyManager.updatePinnedStatus(studyKey, pinned);
+        await this.plugin.saveHiWordsSettings();
     }
 }

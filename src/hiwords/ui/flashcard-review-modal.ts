@@ -5,6 +5,17 @@ import { playWordTTS } from '../utils';
 import { DictionaryService } from '../services/dictionary-service';
 import { buildFlashcardQueue, type FlashcardQueueItem, type FlashcardSessionMode } from '../core/flashcard-queue';
 import { applyReviewRating, type FlashcardRating } from '../core/flashcard-algorithm';
+// FSRS-5 纯函数：仅用于评分按钮的间隔预览（预估，不写入任何进度数据）
+import {
+    initStability,
+    initDifficulty,
+    nextRecallStability,
+    nextForgetStability,
+    retrievability,
+    nextInterval,
+    humanInterval,
+    type FSRSGrade,
+} from '../core/fsrs';
 
 export type FlashcardMode = 'word-to-definition' | 'definition-to-word';
 
@@ -55,6 +66,10 @@ export class FlashcardReviewModal extends Modal {
     private boundKeyDown: (evt: KeyboardEvent) => void;
     private slideTimeout: number | null = null;
     private toastTimeout: number | null = null;
+    private againBtn: HTMLElement;
+    private hardBtn: HTMLElement;
+    private goodBtn: HTMLElement;
+    private easyBtn: HTMLElement;
     private aiSummaryCache = new Map<string, string>();
 
     constructor(app: App, plugin: NoteBarPlugin, selectedBookPaths: string[], sessionMode: FlashcardSessionMode = 'all') {
@@ -233,32 +248,32 @@ export class FlashcardReviewModal extends Modal {
 
         const ratingRow = this.footerEl.createDiv({ cls: 'flashcard-rating-row' });
 
-        const againBtn = ratingRow.createEl('button', {
+        this.againBtn = ratingRow.createEl('button', {
             cls: 'flashcard-rating-btn flashcard-rating-btn-again',
             text: '不认识',
             attr: { 'data-key': 's' }
         });
-        againBtn.onclick = () => this.rate('again');
+        this.againBtn.onclick = () => this.rate('again');
 
-        const hardBtn = ratingRow.createEl('button', {
+        this.hardBtn = ratingRow.createEl('button', {
             cls: 'flashcard-rating-btn flashcard-rating-btn-hard',
             text: '模糊',
             attr: { 'data-key': 'd' }
         });
-        hardBtn.onclick = () => this.rate('hard');
+        this.hardBtn.onclick = () => this.rate('hard');
 
-        const goodBtn = ratingRow.createEl('button', {
+        this.goodBtn = ratingRow.createEl('button', {
             cls: 'flashcard-rating-btn flashcard-rating-btn-good',
             text: '认识',
             attr: { 'data-key': 'f' }
         });
-        goodBtn.onclick = () => this.rate('good');
+        this.goodBtn.onclick = () => this.rate('good');
 
-        const easyBtn = this.footerEl.createEl('button', {
+        this.easyBtn = this.footerEl.createEl('button', {
             cls: 'flashcard-super-easy-btn',
             text: '太简单'
         });
-        easyBtn.onclick = () => this.rate('easy');
+        this.easyBtn.onclick = () => this.rate('easy');
 
         const hint = this.footerEl.createDiv({ cls: 'flashcard-hint' });
         hint.innerHTML = `
@@ -327,6 +342,7 @@ export class FlashcardReviewModal extends Modal {
         }
 
         this.updateProgress();
+        this.updateIntervalPreviews();
     }
 
     private updateProgress() {
@@ -448,7 +464,10 @@ export class FlashcardReviewModal extends Modal {
         this.animating = true;
 
         const item = this.queue[this.currentIndex];
-        const { progress, mastered } = applyReviewRating(item.progress, rating, this.settings);
+        const { progress, mastered } = applyReviewRating(
+            item.progress, rating, this.settings,
+            this.plugin.hiwordsSettings.graduatedStabilityThreshold
+        );
         item.progress = progress;
         this.processedKeys.add(item.studyKey);
 
@@ -599,6 +618,53 @@ export class FlashcardReviewModal extends Modal {
             case 'good': return '认识';
             case 'easy': return '太简单';
         }
+    }
+
+    // 评分 → FSRS 等级（again=1, hard=2, good=3, easy=4）
+    private ratingToGrade(rating: FlashcardRating): FSRSGrade {
+        switch (rating) {
+            case 'again': return 1;
+            case 'hard': return 2;
+            case 'good': return 3;
+            case 'easy': return 4;
+        }
+    }
+
+    // 更新各评分按钮的悬停提示：显示该评分将产生的下次复习间隔（仅预览，不写入进度）
+    private updateIntervalPreviews() {
+        const buttons: Array<{ btn: HTMLElement; rating: FlashcardRating }> = [
+            { btn: this.againBtn, rating: 'again' },
+            { btn: this.hardBtn, rating: 'hard' },
+            { btn: this.goodBtn, rating: 'good' },
+            { btn: this.easyBtn, rating: 'easy' },
+        ];
+        for (const { btn, rating } of buttons) {
+            btn.title = `下次间隔：${this.previewNextInterval(rating)}`;
+        }
+    }
+
+    // 用 FSRS-5 纯函数预估某评分后的下次间隔（模拟一次评分，不改动任何进度数据）
+    private previewNextInterval(rating: FlashcardRating): string {
+        const item = this.queue[this.currentIndex];
+        if (!item) return '—';
+        // 兼容 s/d 字段尚未加入 StudyProgressItem 类型时也能预览（FSRS-5 新字段）
+        const progress = item.progress as StudyProgressItem & { s?: number; d?: number; lapses?: number };
+        const grade = this.ratingToGrade(rating);
+
+        // 当前稳定性/难度：无 s/d 时用该评分的初始值（首次学习时的预估）
+        let s = progress.s ?? initStability(grade);
+        const d = progress.d ?? initDifficulty(grade);
+
+        // 距上次复习的天数，用于计算当前记忆保留率
+        const elapsed = progress.lastReview
+            ? Math.max(0, (Date.now() - new Date(progress.lastReview).getTime()) / 86400000)
+            : 0;
+        const r = retrievability(elapsed, s);
+
+        // 模拟一次评分后的新稳定性（again 走遗忘分支，其余走回忆成功分支）
+        s = grade === 1 ? nextForgetStability(d, s, r) : nextRecallStability(d, s, r, grade);
+
+        return humanInterval(nextInterval(s));
     }
 
     private onKeyDown(evt: KeyboardEvent) {

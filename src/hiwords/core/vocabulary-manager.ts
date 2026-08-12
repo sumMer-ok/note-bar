@@ -1,5 +1,5 @@
 import { App, TFile } from 'obsidian';
-import type { StudyItem, WordDefinition, VocabularyBook, HiWordsSettings, CanvasData, CanvasNode } from '../utils';
+import type { StudyItem, WordDefinition, VocabularyBook, HiWordsSettings, CanvasData, CanvasNode, WordLifecycle, RetirementCandidate, EncounterData } from '../utils';
 import { CanvasParser } from '../canvas/canvas-parser';
 import { CanvasEditor } from '../canvas/canvas-editor';
 import { HiWordsParser } from '../card';
@@ -81,12 +81,13 @@ export class VocabularyManager {
             }
         }
         for (const definitions of this.definitions.values()) {
-            const foundByMainWord = definitions.find(def => def.word === normalizedWord);
+            // retired 词从悬停查词中彻底剔除（与 rebuildCache 的过滤保持一致）
+            const foundByMainWord = definitions.find(def => def.word === normalizedWord && def.status !== 'retired');
             if (foundByMainWord) {
                 this.wordDefinitionCache.set(normalizedWord, foundByMainWord);
                 return foundByMainWord;
             }
-            const foundByAlias = definitions.find(def => def.aliases && def.aliases.includes(normalizedWord));
+            const foundByAlias = definitions.find(def => def.aliases && def.aliases.includes(normalizedWord) && def.status !== 'retired');
             if (foundByAlias) {
                 this.wordDefinitionCache.set(normalizedWord, foundByAlias);
                 return foundByAlias;
@@ -124,10 +125,28 @@ export class VocabularyManager {
         return [...this.studyItemCache.values()];
     }
 
+    /**
+     * 提供高亮引擎使用的词条定义。
+     * - retired 词从匹配中彻底剔除（不返回）；
+     * - archived 词退出高亮（不返回）；
+     * - graduated 词退出高亮（不返回），但悬停仍可查（getDefinition 不受此限制）；
+     * - active 词正常返回，由高亮引擎按 FSRS stability 渐隐。
+     */
     getStudyDefinitionsForHighlight(): WordDefinition[] {
+        const progress = this.settings.studyProgress || {};
         return this.getStudyItems()
-            .filter(item => !this.settings.enableMasteredFeature || !item.mastered)
-            .map(item => item.primary);
+            .filter(item => {
+                const status = progress[item.studyKey]?.lifecycle
+                    ?? (progress[item.studyKey]?.status === 'mastered' ? 'graduated' : 'active');
+                return status === 'active';
+            })
+            .map(item => {
+                const progressItem = progress[item.studyKey];
+                const s = progressItem?.s;
+                item.primary.fsrsS =
+                    typeof s === 'number' && isFinite(s) && s > 0 ? s : undefined;
+                return item.primary;
+            });
     }
 
     getStudyDefinitions(): WordDefinition[] {
@@ -209,6 +228,144 @@ export class VocabularyManager {
         }
 
         this.cacheValid = false;
+    }
+
+    /** 更新词条生命周期状态（只叠加，不修改 s/d/due） */
+    updateLifecycleStatus(studyKey: string, lifecycle: WordLifecycle): void {
+        if (!this.settings.studyProgress) this.settings.studyProgress = {};
+        const progress = this.settings.studyProgress[studyKey];
+        if (progress) {
+            progress.lifecycle = lifecycle;
+        } else {
+            this.settings.studyProgress[studyKey] = { status: 'new', stage: 0, lifecycle };
+        }
+
+        for (const definitions of this.definitions.values()) {
+            definitions.forEach((definition) => {
+                if (definition.studyKey === studyKey) {
+                    definition.status = lifecycle;
+                    if (lifecycle === 'graduated') definition.mastered = true;
+                }
+            });
+        }
+
+        for (const definitions of this.memoryOnlyWords.values()) {
+            definitions.forEach((definition) => {
+                if (definition.studyKey === studyKey) {
+                    definition.status = lifecycle;
+                    if (lifecycle === 'graduated') definition.mastered = true;
+                }
+            });
+        }
+
+        this.cacheValid = false;
+    }
+
+    /** 更新词条常驻标记 */
+    updatePinnedStatus(studyKey: string, pinned: boolean): void {
+        if (!this.settings.studyProgress) this.settings.studyProgress = {};
+        const progress = this.settings.studyProgress[studyKey];
+        if (progress) {
+            progress.pinned = pinned;
+        } else {
+            this.settings.studyProgress[studyKey] = { status: 'new', stage: 0, pinned };
+        }
+
+        for (const definitions of this.definitions.values()) {
+            definitions.forEach((definition) => {
+                if (definition.studyKey === studyKey) {
+                    definition.pinned = pinned;
+                }
+            });
+        }
+
+        for (const definitions of this.memoryOnlyWords.values()) {
+            definitions.forEach((definition) => {
+                if (definition.studyKey === studyKey) {
+                    definition.pinned = pinned;
+                }
+            });
+        }
+
+        this.cacheValid = false;
+    }
+
+    /** 获取词条生命周期状态（从 studyProgress 读取，无记录视为 active） */
+    getLifecycleStatus(studyKey: string): WordLifecycle {
+        const progress = this.settings.studyProgress?.[studyKey];
+        if (progress?.lifecycle) return progress.lifecycle;
+        if (progress?.status === 'mastered') return 'graduated';
+        return 'active';
+    }
+
+    /**
+     * 计算淘汰候选列表。
+     * 硬条件：非 pinned + active 状态 + 入库 ≥ N 天 + 距上次相遇 ≥ N 天（未相遇用入库日期）。
+     * @param encounterData 相遇数据（从 EncounterTracker 获取）
+     * @param thresholdDays 天数阈值 N（默认取 settings.retireCandidateDays，再默认 90）
+     */
+    getRetirementCandidates(
+        encounterData: Record<string, EncounterData>,
+        thresholdDays?: number
+    ): RetirementCandidate[] {
+        const N = thresholdDays ?? this.settings.retireCandidateDays ?? 90;
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const todayMs = today.getTime();
+        const progress = this.settings.studyProgress || {};
+        const candidates: RetirementCandidate[] = [];
+
+        for (const item of this.getStudyItems()) {
+            // 仅 Canvas 词库
+            if (!item.sources.some(s => s.source.endsWith('.canvas'))) continue;
+
+            const prog = progress[item.studyKey];
+            // 仅 active 词可进入候选
+            const lifecycle = prog?.lifecycle
+                ?? (prog?.status === 'mastered' ? 'graduated' : 'active');
+            if (lifecycle !== 'active') continue;
+            // pinned 永不进入候选
+            if (prog?.pinned || item.primary.pinned) continue;
+
+            const primary = item.primary;
+            const addedDate = primary.addedDate;
+            if (!addedDate) continue; // 无入库日期的不进入候选
+
+            const addedMs = this.parseDateMs(addedDate);
+            if (!addedMs) continue;
+            const daysSinceAdded = Math.floor((todayMs - addedMs) / 86400000);
+            if (daysSinceAdded < N) continue;
+
+            const encounter = encounterData[item.studyKey] || encounterData[item.word.toLowerCase()];
+            const lastEncounter = encounter?.lastEncounter;
+            const encounterMs = lastEncounter ? (this.parseDateMs(lastEncounter) ?? addedMs) : addedMs;
+            const daysSinceEncounter = Math.floor((todayMs - encounterMs) / 86400000);
+            if (daysSinceEncounter < N) continue;
+
+            candidates.push({
+                studyKey: item.studyKey,
+                word: item.word,
+                source: primary.source,
+                nodeId: primary.nodeId,
+                addedDate,
+                lastEncounter,
+                hoverCount: encounter?.hoverCount ?? 0,
+                encounterCount: encounter?.encounterCount ?? 0,
+                daysSinceAdded,
+                daysSinceEncounter,
+            });
+        }
+
+        // 按入库日期升序（最久未碰的排前面）
+        candidates.sort((a, b) => (a.addedDate || '').localeCompare(b.addedDate || ''));
+        return candidates;
+    }
+
+    /** 解析 "YYYY-MM-DD" 为毫秒时间戳（本地时区 00:00） */
+    private parseDateMs(s: string): number | null {
+        const parts = s.slice(0, 10).split('-').map(Number);
+        if (parts.length < 3 || !parts[0]) return null;
+        return new Date(parts[0], (parts[1] || 1) - 1, parts[2] || 1).getTime();
     }
 
     async getAllWordDefinitions(): Promise<WordDefinition[]> {
@@ -496,7 +653,12 @@ export class VocabularyManager {
             ...Array.from(this.memoryOnlyWords.values()).flat(),
         ];
         this.studyItemCache = this.buildStudyItemCache(sourceDefinitions);
+        const progress = this.settings.studyProgress || {};
         for (const item of this.studyItemCache.values()) {
+            // retired 词从匹配中彻底剔除（不进 cache、不进 allWords）
+            const lifecycle = progress[item.studyKey]?.lifecycle;
+            if (lifecycle === 'retired') continue;
+
             const normalizedWord = item.word.toLowerCase().trim();
             if (!normalizedWord) continue;
             this.wordDefinitionCache.set(normalizedWord, item.primary);
@@ -515,11 +677,15 @@ export class VocabularyManager {
         for (const [bookPath, definitions] of this.definitions.entries()) {
             const bookWords = new Set<string>();
             for (const def of definitions) {
+                const defProgress = def.studyKey ? progress[def.studyKey] : undefined;
+                if (defProgress?.lifecycle === 'retired') continue;
                 const normalizedWord = def.word.toLowerCase().trim();
                 if (!normalizedWord) continue;
                 bookWords.add(normalizedWord);
             }
             for (const def of definitions) {
+                const defProgress = def.studyKey ? progress[def.studyKey] : undefined;
+                if (defProgress?.lifecycle === 'retired') continue;
                 if (def.aliases && def.aliases.length > 0) {
                     for (const alias of def.aliases) {
                         const normalizedAlias = alias.toLowerCase().trim();
@@ -598,6 +764,16 @@ export class VocabularyManager {
             if (!definition.studyKey) continue;
             const progress = this.settings.studyProgress?.[definition.studyKey];
             if (progress?.status === 'mastered') definition.mastered = true;
+            // 同步生命周期状态（只叠加，不修改 FSRS 字段）
+            if (progress?.lifecycle) {
+                definition.status = progress.lifecycle;
+            } else if (progress?.status === 'mastered') {
+                // 旧数据兼容：已掌握但无 lifecycle 的视为 graduated
+                definition.status = 'graduated';
+            } else {
+                definition.status = 'active';
+            }
+            if (progress?.pinned) definition.pinned = true;
         }
     }
 

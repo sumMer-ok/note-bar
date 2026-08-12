@@ -4,6 +4,7 @@ import type { VocabularyManager } from '../core/vocabulary-manager';
 import type { MasteredService } from '../core/mastered-service';
 import { playWordTTS, WordDefinition } from '../utils';
 import { renderWordCard } from './word-card-renderer';
+import { getEncounterTracker, formatYYYYMMDD } from '../core/encounter-tracker';
 
 interface HoverLinkWorkspace {
     trigger(name: 'hover-link', payload: {
@@ -237,6 +238,8 @@ export class DefinitionPopover extends Component {
         const tooltip = document.createElement('div');
         tooltip.className = 'hi-words-tooltip';
         const wordDef = this.vocabularyManager?.getDefinition(word);
+        // 相遇记账（hover）+ hover 回流：弹窗实际显示时触发
+        this.trackHoverEncounter(wordDef, word);
         if (wordDef?.card) {
             tooltip.classList.add('hi-words-tooltip-structured');
         }
@@ -392,6 +395,35 @@ export class DefinitionPopover extends Component {
         });
 
         this.activeTooltip = tooltip;
+    }
+
+    /**
+     * 弹窗显示时触发：
+     * 1) 记录一次悬停相遇（hover 记 hoverCount + encounterCount，冷却 60 秒去重）；
+     * 2) hover 回流：若开启且词条未掌握、到期日远于 today + N 天，则把 dueDate 提前到今天。
+     *    红线：只修改 dueDate，绝不改动 s/d/lapses/reps，也不写入复习日志。
+     */
+    private trackHoverEncounter(wordDef: WordDefinition | null | undefined, word: string) {
+        const studyKey = wordDef?.studyKey || word.toLowerCase();
+        getEncounterTracker()?.record(studyKey, 'hover');
+
+        const feedback = this.plugin.hiwordsSettings.hoverFeedback;
+        if (!feedback?.enabled || !wordDef?.studyKey) return;
+        const progress = this.plugin.hiwordsSettings.studyProgress?.[wordDef.studyKey];
+        if (!progress) return;
+        if (progress.status === 'mastered' || !progress.dueDate) return;
+
+        const days = feedback.days ?? 3;
+        const thresholdDate = new Date();
+        thresholdDate.setDate(thresholdDate.getDate() + days);
+        const threshold = formatYYYYMMDD(thresholdDate);
+        // dueDate 可能是完整 ISO 或 YYYY-MM-DD，统一截取前 10 位做字符串比较
+        if (progress.dueDate.slice(0, 10) > threshold) {
+            progress.dueDate = formatYYYYMMDD(new Date());
+            void this.plugin.saveHiWordsSettings().catch((error) => {
+                console.error('Note Bar: 保存 hover 回流后的复习进度失败:', error);
+            });
+        }
     }
 
     private removeTooltip() {

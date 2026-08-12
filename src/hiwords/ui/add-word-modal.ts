@@ -3,6 +3,7 @@ import type { WordDefinition, HiWordsSettings } from '../utils';
 import { VocabularyManager } from '../core/vocabulary-manager';
 import { DictionaryService } from '../services/dictionary-service';
 import { LocalDictionaryService, getLocalDictionaryService } from '../services/local-dictionary-service';
+import { getEncounterTracker } from '../core/encounter-tracker';
 
 /**
  * 添加或编辑词汇的模态框
@@ -377,6 +378,9 @@ export class AddWordModal extends Modal {
                     loadingNotice.hide();
                     if (success) {
                         new Notice(`词汇 "${finalWord}" 已成功更新`);
+                        // 相遇记账：编辑保存成功也算一次相遇（优先用词条 studyKey）
+                        const editKey = this.definition?.studyKey || finalWord.toLowerCase();
+                        getEncounterTracker()?.record(editKey, 'add');
                         if (this.onWordAdded) this.onWordAdded();
                         this.close();
                     } else {
@@ -395,6 +399,8 @@ export class AddWordModal extends Modal {
                         AddWordModal.lastSelectedColorValue = colorSelect.value || '';
                         AddWordModal.lastSelectedBookPaths = selectedBooks;
                         new Notice(`词汇 "${finalWord}" 已成功添加到 ${selectedBooks.length} 个生词本`);
+                        // 相遇记账：新词添加成功（新词暂无 studyKey，用 word 小写）
+                        getEncounterTracker()?.record(finalWord.toLowerCase(), 'add');
                         if (this.onWordAdded) this.onWordAdded();
                         this.close();
                     } else {

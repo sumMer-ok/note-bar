@@ -157,6 +157,29 @@ export interface WordCard {
     images?: WordCardImage[];
 }
 
+/** 词条生命周期状态：只叠加在 FSRS 之上，不修改 s/d/due */
+export type WordLifecycle = 'active' | 'graduated' | 'archived' | 'retired';
+
+/** 淘汰候选条目：展示证据供用户判决 */
+export interface RetirementCandidate {
+    studyKey: string;
+    word: string;
+    source: string;
+    nodeId: string;
+    /** 入库日期（YYYY-MM-DD，来自 Canvas 日期分组） */
+    addedDate?: string;
+    /** 最近一次相遇日期（YYYY-MM-DD） */
+    lastEncounter?: string;
+    /** 悬停查看释义次数 */
+    hoverCount: number;
+    /** 总相遇次数 */
+    encounterCount: number;
+    /** 入库天数 */
+    daysSinceAdded: number;
+    /** 距上次相遇天数（未相遇则等于入库天数） */
+    daysSinceEncounter: number;
+}
+
 export interface WordDefinition {
     word: string;
     type?: LearningItemType;
@@ -175,6 +198,12 @@ export interface WordDefinition {
     card?: WordCard;
     /** 添加日期（YYYY-MM-DD，来自 Canvas 日期分组） */
     addedDate?: string;
+    /** FSRS stability（复习稳定度），由 VocabularyManager 从 studyProgress 填充，供高亮渐隐使用；undefined 视为新词（全强度） */
+    fsrsS?: number;
+    /** 生命周期状态：active=正常 | graduated=已毕业（退出高亮与复习，悬停可查） | archived=已归档（退出高亮与复习，悬停可查） | retired=已淘汰（从匹配中彻底剔除） */
+    status?: WordLifecycle;
+    /** 常驻标记：pinned 的词永不再进入淘汰候选 */
+    pinned?: boolean;
 }
 
 export interface StudyItem {
@@ -226,15 +255,42 @@ export interface ReviewRecord {
     quality: 'again' | 'hard' | 'good' | 'easy';
 }
 
+/** 相遇记录：同一单词在插件内的相遇次数统计（key 为 wordKey，即 studyKey 或 word 小写） */
+export interface EncounterData {
+    /** 悬停查看释义次数 */
+    hoverCount: number;
+    /** 总相遇次数（悬停 / 添加 / 打开均计入） */
+    encounterCount: number;
+    /** 最近一次相遇日期（YYYY-MM-DD） */
+    lastEncounter?: string;
+}
+
+/** 相遇类型：悬停查看释义 / 添加或编辑单词 / 侧边栏展开词条 */
+export type EncounterType = 'hover' | 'add' | 'open';
+
+/** hover 回流设置：悬停查看释义时把到期日较远的复习词提前到今天 */
+export interface HoverFeedbackSettings {
+    enabled: boolean;
+    /** 天数阈值 N：仅当 dueDate 在 today + N 之后才回流 */
+    days: number;
+}
+
 export interface StudyProgressItem {
     status: 'new' | 'learning' | 'review' | 'mastered';
     stage?: number;
     reps?: number;
     ef?: number;
     interval?: number;
+    s?: number;      // FSRS stability
+    d?: number;      // FSRS difficulty
+    lapses?: number; // 遗忘次数
     dueDate?: string;
     lastReview?: string;
     history?: ReviewRecord[];
+    /** 生命周期状态（独立于 FSRS 调度，只叠加不内改 s/d/due） */
+    lifecycle?: WordLifecycle;
+    /** 常驻标记：永不再进淘汰候选 */
+    pinned?: boolean;
     // 兼容旧数据
     masteredAt?: string;
     updatedAt?: string;
@@ -258,6 +314,10 @@ export interface HiWordsSettings {
     showDefinitionOnHover: boolean;
     enableAutoHighlight: boolean;
     highlightStyle: HighlightStyle;
+    /** 高亮渐隐开关：开启后复习稳定度高的词按 FSRS stability 渐隐（不消失），默认 true */
+    enableFadeHighlight?: boolean;
+    /** 渐隐透明度下限（0-1）：已掌握/高稳定度词的可见度下限，默认 0.25，可设为 0 完全淡出 */
+    fadeFloor?: number;
     enableMasteredFeature: boolean;
     showMasteredInSidebar: boolean;
     blurDefinitions: boolean;
@@ -295,6 +355,12 @@ export interface HiWordsSettings {
         /** 每次听写最多单词数 */
         maxPerSession: number;
     };
+    /** hover 回流配置：悬停查看释义时把到期日较远的复习词提前到今天 */
+    hoverFeedback?: HoverFeedbackSettings;
+    /** 淘汰候选天数阈值 N（默认 90）：入库天数与距上次相遇天数均 ≥ N 天的词条进入侧边栏「淘汰候选」列表 */
+    retireCandidateDays?: number;
+    /** 自动毕业稳定性阈值：FSRS stability s ≥ 此值时自动置 graduated（默认 30，约对应 1 个月间隔） */
+    graduatedStabilityThreshold?: number;
 }
 
 export interface WordMatch {

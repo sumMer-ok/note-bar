@@ -15,12 +15,27 @@ import {
 } from '@codemirror/view';
 import { editorInfoField } from 'obsidian';
 import { VocabularyManager } from './vocabulary-manager';
-import { WordMatch, WordDefinition, mapCanvasColorToCSSVar, Trie } from '../utils';
+import { WordMatch, WordDefinition, HiWordsSettings, mapCanvasColorToCSSVar, Trie } from '../utils';
 import { findPatternMatches } from '../utils/pattern-matcher';
 
 const DEBOUNCE_DELAY = 300;
 
 const forceUpdateEffect = StateEffect.define<boolean>();
+
+/**
+ * 计算高亮渐隐透明度（返回 CSS 百分比字符串，如 "62%"）。
+ * 公式：alpha = 1 - (s / (s + 20)) * (1 - fadeFloor)
+ * - s 为 FSRS stability；新词（无 s）或关闭渐隐开关时返回 100%（全强度）。
+ * - fadeFloor 默认 0.25，表示已掌握/高稳定度词淡至 25% 后不再继续变淡（可设为 0 完全淡出）。
+ */
+function calcFadeAlpha(settings: HiWordsSettings, definition: WordDefinition | undefined): string {
+    if (settings.enableFadeHighlight === false) return '100%';
+    const s = definition?.fsrsS;
+    if (typeof s !== 'number' || !isFinite(s) || s <= 0) return '100%';
+    const fadeFloor = Math.min(Math.max(settings.fadeFloor ?? 0.25, 0), 1);
+    const alpha = 1 - (s / (s + 20)) * (1 - fadeFloor);
+    return `${Math.round(alpha * 100)}%`;
+}
 
 class HighlighterManager {
     private static instance: HighlighterManager;
@@ -94,6 +109,13 @@ export class WordHighlighter implements PluginValue {
         highlighterManager.register(this);
     }
 
+    /**
+     * 构建单词 Trie 与模式词条列表。
+     * 说明：融合设计中的"词条笔记内不自我高亮"在本插件介质下天然不触发——
+     * 本插件词库以 .canvas 文件为介质，而高亮引擎只扫描 Markdown 文档/PDF
+     * （CodeMirror 编辑器 + 阅读模式后处理器），.canvas 是 JSON 结构且由
+     * Canvas 编辑器渲染，其文本内容不会进入本引擎的扫描输入，故无需实现排除逻辑。
+     */
     private buildWordTrie() {
         this.wordTrie.clear();
         this.patternDefinitions = [];
@@ -187,10 +209,14 @@ export class WordHighlighter implements PluginValue {
     }
 
     private applyDecorations(builder: RangeSetBuilder<Decoration>, matches: WordMatch[]) {
-        const highlightStyle = this.vocabularyManager.getSettings().highlightStyle || 'underline';
+        const settings = this.vocabularyManager.getSettings();
+        const highlightStyle = settings.highlightStyle || 'underline';
 
         matches.forEach(match => {
             const highlightColor = mapCanvasColorToCSSVar(match.definition.color, 'var(--color-base-60)');
+            // 渐隐：将 FSRS stability 折算为透明度百分比，通过 CSS 变量 --word-highlight-alpha 传给样式
+            const alpha = calcFadeAlpha(settings, match.definition);
+            const alphaAttr = alpha !== '100%' ? `--word-highlight-alpha: ${alpha};` : '';
 
             if (match.segments && match.segments.length > 0) {
                 match.segments.forEach(segment => {
@@ -204,7 +230,7 @@ export class WordHighlighter implements PluginValue {
                                 'data-definition': match.definition.definition,
                                 'data-color': highlightColor,
                                 'data-style': highlightStyle,
-                                'style': `--word-highlight-color: ${highlightColor};`
+                                'style': `--word-highlight-color: ${highlightColor};${alphaAttr}`
                             }
                         })
                     );
@@ -220,7 +246,7 @@ export class WordHighlighter implements PluginValue {
                             'data-definition': match.definition.definition,
                             'data-color': highlightColor,
                             'data-style': highlightStyle,
-                            'style': `--word-highlight-color: ${highlightColor};`
+                            'style': `--word-highlight-color: ${highlightColor};${alphaAttr}`
                         }
                     })
                 );
@@ -285,8 +311,30 @@ export class WordHighlighter implements PluginValue {
         return matches;
     }
 
+    /**
+     * 裁剪重叠匹配：
+     * - 按区间长度降序排序，优先保留较长匹配（完全覆盖短匹配时丢弃短匹配）；
+     * - 部分重叠的区间同样按长度优先级保留（与已保留区间重叠则跳过）；
+     * - 最终结果按起始位置升序返回，保证装饰器顺序稳定。
+     */
     private removeOverlaps(matches: WordMatch[]): WordMatch[] {
-        return matches;
+        if (matches.length <= 1) return matches;
+
+        const sorted = [...matches].sort((a, b) =>
+            (b.to - b.from) - (a.to - a.from) || a.from - b.from
+        );
+
+        const result: WordMatch[] = [];
+        for (const match of sorted) {
+            const overlaps = result.some(existing =>
+                match.from < existing.to && existing.from < match.to
+            );
+            if (!overlaps) result.push(match);
+        }
+
+        return result.sort((a, b) =>
+            a.from - b.from || (b.to - b.from) - (a.to - a.from)
+        );
     }
 
     destroy() {

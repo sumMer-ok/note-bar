@@ -1,4 +1,4 @@
-import type { StudyItem, StudyProgressItem, FlashcardSettings, WordDefinition } from '../utils';
+import type { StudyItem, StudyProgressItem, FlashcardSettings, WordDefinition, WordLifecycle } from '../utils';
 
 export interface FlashcardQueueItem {
     studyKey: string;
@@ -11,6 +11,18 @@ export interface FlashcardQueueItem {
 // 学习会话类型：'new' 仅新词，'review' 仅到期复习词，'all' 按学习顺序混合
 export type FlashcardSessionMode = 'new' | 'review' | 'all';
 
+/** 读取词条生命周期状态（无记录视为 active，旧 mastered 视为 graduated） */
+function getLifecycle(progress: StudyProgressItem | undefined): WordLifecycle {
+    if (progress?.lifecycle) return progress.lifecycle;
+    if (progress?.status === 'mastered') return 'graduated';
+    return 'active';
+}
+
+/** 判断词条是否可参与复习队列（仅 active 词可复习） */
+function isReviewable(progress: StudyProgressItem | undefined): boolean {
+    return getLifecycle(progress) === 'active';
+}
+
 function startOfDay(date: Date): Date {
     const d = new Date(date);
     d.setHours(0, 0, 0, 0);
@@ -18,7 +30,13 @@ function startOfDay(date: Date): Date {
 }
 
 function toISODate(date: Date): string {
-    return startOfDay(date).toISOString();
+    // 使用本地时区 YYYY-MM-DD 格式，与 encounter-tracker 的 formatYYYYMMDD 一致，
+    // 避免 UTC ISO 时间戳与本地日期字符串混合比较时因时区偏差导致到期日判定错误。
+    const d = startOfDay(date);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
 }
 
 function normalizeProgress(progress: StudyProgressItem): StudyProgressItem {
@@ -60,8 +78,10 @@ export function getBookReviewStats(
     for (const item of studyItems) {
         if (!item.sources.some(s => s.source.endsWith('.canvas'))) continue;
         if (!item.sources.some(s => s.source === bookPath)) continue;
-        total++;
         const progress = studyProgress[item.studyKey];
+        // graduated/archived/retired 词退出复习统计
+        if (!isReviewable(progress)) continue;
+        total++;
         if (!progress) {
             newCount++;
         } else {
@@ -99,6 +119,8 @@ export function buildFlashcardQueue(
         seen.add(item.studyKey);
 
         let progress = studyProgress[item.studyKey];
+        // graduated/archived/retired 词退出复习队列
+        if (!isReviewable(progress)) continue;
         if (!progress) {
             progress = createNewProgress();
             newPool.push({
@@ -122,6 +144,9 @@ export function buildFlashcardQueue(
         }
     }
 
+    // 复习队列按到期时间升序排列：到期最早的优先复习（FSRS-5 调度）
+    reviewPool.sort((a, b) => (a.progress.dueDate || '').localeCompare(b.progress.dueDate || ''));
+    // 新词队列保持添加顺序（先加入的先学）
     const limitedReview = reviewPool.slice(0, settings.dailyReviewLimit);
     const limitedNew = newPool.slice(0, settings.dailyNewWordLimit);
 
@@ -157,6 +182,7 @@ export function getTodayDueReviewCount(
 
         const progress = studyProgress[item.studyKey];
         if (!progress) continue;
+        if (!isReviewable(progress)) continue;
         const normalized = normalizeProgress(progress);
         if (normalized.status !== 'mastered' && (!normalized.dueDate || normalized.dueDate <= todayStr)) {
             count++;

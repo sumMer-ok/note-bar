@@ -33,8 +33,7 @@ function escapeRegExp(string: string): string {
 export function buildPatternRegex(parts: string[]): RegExp {
     if (parts.length === 0) return /(?!)/;
     if (parts.length === 1) {
-        const escaped = escapeRegExp(parts[0]);
-        return new RegExp(`\\b${escaped}\\b`, 'gi');
+        return new RegExp(buildBoundaryWrappedPattern(parts[0]), 'gi');
     }
 
     const sentenceBoundary = '[^.,!?;:\\n]*?';
@@ -42,6 +41,19 @@ export function buildPatternRegex(parts: string[]): RegExp {
     const pattern = escapedParts.join(sentenceBoundary);
 
     return new RegExp(pattern, 'gi');
+}
+
+/**
+ * 构建带词边界的匹配模式（语言无关）：
+ * - 词首/词尾是 CJK 字符（中文词条）时不加 \b 边界，保证中文词条在任意位置都能匹配
+ *   （JS 的 \b 只识别 ASCII \w，直接使用会导致中文词条两侧是汉字时无法匹配）；
+ * - 词首/词尾是 ASCII 字母/数字/下划线时才加 \b，避免英文词条匹配到更长单词内部
+ *   （如 "knowledge" 不匹配 "knowledgeable"）。
+ */
+function buildBoundaryWrappedPattern(part: string): string {
+    const startBoundary = isCJKChar(part[0]) ? '' : '\\b';
+    const endBoundary = isCJKChar(part[part.length - 1]) ? '' : '\\b';
+    return `${startBoundary}${escapeRegExp(part)}${endBoundary}`;
 }
 
 export function findPatternMatches(
@@ -64,7 +76,7 @@ export function findPatternMatches(
     if (parts.length === 0) return matches;
 
     if (parts.length === 1) {
-        const regex = new RegExp(`\\b${escapeRegExp(parts[0])}\\b`, 'gi');
+        const regex = new RegExp(buildBoundaryWrappedPattern(parts[0]), 'gi');
         let match;
         while ((match = regex.exec(text)) !== null) {
             matches.push({
@@ -163,18 +175,21 @@ function isWordBoundary(text: string, start: number, end: number): boolean {
     const before = start > 0 ? text[start - 1] : ' ';
     const after = end < text.length ? text[end] : ' ';
 
+    // 词字符仅限 ASCII 字母/数字/下划线；CJK 等一律视为边界（语言无关），
+    // 与 trie.ts 的边界规则保持一致
     const isWordChar = (char: string) => {
-        return /[a-z0-9\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/iu.test(char);
-    };
-
-    const isCJK = (char: string) => {
-        return /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u.test(char);
+        return /[a-z0-9_]/i.test(char);
     };
 
     const startChar = text[start];
     const endChar = text[end - 1];
-    const boundaryStart = isCJK(startChar) || !isWordChar(before);
-    const boundaryEnd = isCJK(endChar) || !isWordChar(after);
+    const boundaryStart = isCJKChar(startChar) || !isWordChar(before);
+    const boundaryEnd = isCJKChar(endChar) || !isWordChar(after);
 
     return boundaryStart && boundaryEnd;
+}
+
+/** CJK/日文假名/韩文视为无需词边界的字符 */
+function isCJKChar(char: string): boolean {
+    return /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u.test(char);
 }

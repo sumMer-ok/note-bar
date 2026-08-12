@@ -651,27 +651,30 @@
 .hi-words-highlight {
     cursor: pointer;
     transition: all 0.2s ease;
+    /* 渐隐后的高亮色：由行内变量 --word-highlight-alpha（默认 100%）控制透明度，
+       复习稳定度高的词由 JS 注入小于 100% 的 alpha，实现高亮渐隐 */
+    --word-highlight-faded: color-mix(in srgb, var(--word-highlight-color, var(--text-muted)) var(--word-highlight-alpha, 100%), transparent);
 }
 
 /* 下划线样式 */
 .hi-words-highlight[data-style="underline"] {
-    border-bottom: 2px dashed var(--word-highlight-color, var(--text-muted));
+    border-bottom: 2px dashed var(--word-highlight-faded);
 }
 
 .hi-words-highlight[data-style="underline"]:hover {
-    background-color: color-mix(in srgb, var(--word-highlight-color, var(--text-muted)) 15%, transparent);
-    border-bottom: 2px solid var(--word-highlight-color, var(--text-muted));
+    background-color: color-mix(in srgb, var(--word-highlight-faded) 15%, transparent);
+    border-bottom: 2px solid var(--word-highlight-faded);
 }
 
 /* 背景高亮样式 */
 .hi-words-highlight[data-style="background"] {
-    background-color: color-mix(in srgb, var(--word-highlight-color, var(--text-muted)) 25%, transparent);
+    background-color: color-mix(in srgb, var(--word-highlight-faded) 25%, transparent);
     border-radius: 3px;
     padding: 0 2px;
 }
 
 .hi-words-highlight[data-style="background"]:hover {
-    background-color: color-mix(in srgb, var(--word-highlight-color, var(--text-muted)) 35%, transparent);
+    background-color: color-mix(in srgb, var(--word-highlight-faded) 35%, transparent);
 }
 
 /* 暗色主题下背景高亮使用深色文字，确保对比度 */
@@ -683,34 +686,34 @@
     color: var(--color-base-00);
 }
 
-/* 粗体样式 */
+/* 粗体样式（透明度对粗体视觉影响不明显，保持原样） */
 .hi-words-highlight[data-style="bold"] {
     font-weight: 600;
     color: var(--word-highlight-color, var(--text-muted));
 }
 
 .hi-words-highlight[data-style="bold"]:hover {
-    background-color: color-mix(in srgb, var(--word-highlight-color, var(--text-muted)) 15%, transparent);
+    background-color: color-mix(in srgb, var(--word-highlight-faded) 15%, transparent);
 }
 
 /* 点状下划线样式 */
 .hi-words-highlight[data-style="dotted"] {
-    border-bottom: 2px dotted var(--word-highlight-color, var(--text-muted));
+    border-bottom: 2px dotted var(--word-highlight-faded);
 }
 
 .hi-words-highlight[data-style="dotted"]:hover {
-    background-color: color-mix(in srgb, var(--word-highlight-color, var(--text-muted)) 15%, transparent);
-    border-bottom: 2px solid var(--word-highlight-color, var(--text-muted));
+    background-color: color-mix(in srgb, var(--word-highlight-faded) 15%, transparent);
+    border-bottom: 2px solid var(--word-highlight-faded);
 }
 
 /* 波浪线样式 */
 .hi-words-highlight[data-style="wavy"] {
-    text-decoration: wavy underline var(--word-highlight-color, var(--text-muted));
+    text-decoration: wavy underline var(--word-highlight-faded);
     text-decoration-thickness: 1px;
 }
 
 .hi-words-highlight[data-style="wavy"]:hover {
-    background-color: color-mix(in srgb, var(--word-highlight-color, var(--text-muted)) 15%, transparent);
+    background-color: color-mix(in srgb, var(--word-highlight-faded) 15%, transparent);
 }
 
 /* 工具提示样式 */
@@ -4196,5 +4199,156 @@
 .spelling-close-btn-bottom:hover {
   background: var(--background-modifier-hover);
   color: var(--text-normal);
+}
+
+/* ===== 淘汰候选 ===== */
+
+.hi-words-tab-retire {
+  color: var(--color-orange);
+}
+
+.hi-words-tab-retire.active {
+  color: var(--color-orange);
+  border-color: var(--color-orange);
+}
+
+.hi-words-retire-batch-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  margin-bottom: 8px;
+  border-radius: 6px;
+  background: var(--background-secondary);
+}
+
+.hi-words-retire-select-all {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.hi-words-retire-batch-btns {
+  display: flex;
+  gap: 6px;
+}
+
+.hi-words-retire-batch-btns button {
+  padding: 3px 10px;
+  font-size: 12px;
+  border-radius: 4px;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-primary);
+  color: var(--text-normal);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.hi-words-retire-batch-btns button:hover {
+  background: var(--background-modifier-hover);
+}
+
+.hi-words-retire-btn,
+.hi-words-retire-action-btn.hi-words-retire-btn {
+  color: var(--color-red) !important;
+  border-color: var(--color-red) !important;
+}
+
+.hi-words-retire-btn:hover,
+.hi-words-retire-action-btn.hi-words-retire-btn:hover {
+  background: var(--color-red) !important;
+  color: var(--text-on-accent) !important;
+}
+
+.hi-words-retire-pin-btn,
+.hi-words-retire-action-btn.hi-words-retire-pin-btn {
+  color: var(--color-blue) !important;
+  border-color: var(--color-blue) !important;
+}
+
+.hi-words-retire-pin-btn:hover,
+.hi-words-retire-action-btn.hi-words-retire-pin-btn:hover {
+  background: var(--color-blue) !important;
+  color: var(--text-on-accent) !important;
+}
+
+.hi-words-retire-mastered-btn,
+.hi-words-retire-action-btn.hi-words-retire-mastered-btn {
+  color: var(--color-green) !important;
+  border-color: var(--color-green) !important;
+}
+
+.hi-words-retire-mastered-btn:hover,
+.hi-words-retire-action-btn.hi-words-retire-mastered-btn:hover {
+  background: var(--color-green) !important;
+  color: var(--text-on-accent) !important;
+}
+
+.hi-words-retire-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.hi-words-retire-card {
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-primary);
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.hi-words-retire-card.selected {
+  border-color: var(--interactive-accent);
+  background: var(--background-secondary-alt);
+}
+
+.hi-words-retire-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.hi-words-retire-checkbox {
+  margin: 0;
+  cursor: pointer;
+}
+
+.hi-words-retire-word {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text-normal);
+}
+
+.hi-words-retire-evidence {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin-bottom: 8px;
+}
+
+.hi-words-retire-evidence-item {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.hi-words-retire-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.hi-words-retire-action-btn {
+  padding: 3px 12px;
+  font-size: 12px;
+  border-radius: 4px;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-primary);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
 }
 

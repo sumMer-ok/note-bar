@@ -3,12 +3,24 @@ import { CanvasData, CanvasNode, HiWordsSettings } from '../utils';
 import { CanvasParser } from './canvas-parser';
 import { normalizeLayout, layoutGroupInner } from './layout';
 
+/**
+ * 分组管理器：负责把词条节点在 Canvas 的「分组」之间几何移动。
+ * 支持两类分组（几何移动模式沿用同一套坐标计算与排版逻辑）：
+ * - Mastered（已掌握 / Mastered）：由已掌握服务调用；
+ * - Archived（已归档 / Archived）：由淘汰候选流程调用（淘汰/归档词移入）。
+ * 对外保持原有 Mastered 相关 API 不变（mastered-service 依赖），
+ * 内部统一走通用的分组操作，避免重复实现。
+ */
 export class MasteredGroupManager {
     private app: App;
     private canvasParser: CanvasParser;
     private settings: HiWordsSettings | undefined;
     private readonly MASTERED_GROUP_LABEL = 'Mastered';
+    private readonly MASTERED_GROUP_ALT_LABEL = '已掌握';
     private readonly MASTERED_GROUP_COLOR = '4';
+    private readonly ARCHIVED_GROUP_LABEL = 'Archived';
+    private readonly ARCHIVED_GROUP_ALT_LABEL = '已归档';
+    private readonly ARCHIVED_GROUP_COLOR = '5';
 
     constructor(app: App, settings?: HiWordsSettings) {
         this.app = app;
@@ -26,111 +38,42 @@ export class MasteredGroupManager {
         return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
     }
 
-    async ensureMasteredGroup(bookPath: string): Promise<string | null> {
+    // ===== 通用分组操作 =====
+
+    /** 在 Canvas 数据中查找分组（兼容英文/中文 label） */
+    private findGroup(canvasData: CanvasData, label: string, altLabel?: string): CanvasNode | undefined {
+        return canvasData.nodes.find(
+            node => node.type === 'group' && (node.label === label || (altLabel && node.label === altLabel))
+        );
+    }
+
+    /**
+     * 确保分组存在（不存在则先创建），返回分组 id。
+     * 创建位置沿用原有 Mastered 分组的坐标计算逻辑（画布右侧/下方空白处）。
+     */
+    async ensureGroup(bookPath: string, label: string, altLabel: string | undefined, color: string): Promise<string | null> {
         try {
             const canvasData = await this.loadCanvas(bookPath);
             if (!canvasData) return null;
 
-            const masteredGroup = canvasData.nodes.find(
-                node => node.type === 'group' && node.label === this.MASTERED_GROUP_LABEL
-            );
+            const existing = this.findGroup(canvasData, label, altLabel);
+            if (existing) return existing.id;
 
-            if (!masteredGroup) {
-                const newGroupId = this.genHex16();
+            const newGroupId = this.genHex16();
+            await this.modifyCanvas(bookPath, (data) => {
+                const group = this.createGroup(data, label, color);
+                group.id = newGroupId;
+                data.nodes.push(group);
+            });
 
-                await this.modifyCanvas(bookPath, (data) => {
-                    const group = this.createMasteredGroup(data);
-                    group.id = newGroupId;
-                    data.nodes.push(group);
-                });
-
-                return newGroupId;
-            }
-
-            return masteredGroup.id;
+            return newGroupId;
         } catch (error) {
             return null;
         }
     }
 
-    async moveToMasteredGroup(bookPath: string, nodeId: string): Promise<boolean> {
-        try {
-            const masteredGroupId = await this.ensureMasteredGroup(bookPath);
-            if (!masteredGroupId) return false;
-
-            return await this.modifyCanvas(bookPath, (data) => {
-                const targetNode = data.nodes.find(node => node.id === nodeId);
-                const masteredGroup = data.nodes.find(node => node.id === masteredGroupId);
-
-                if (!targetNode || !masteredGroup) {
-                    return;
-                }
-
-                const success = this.moveNodeToGroupOptimizedSync(targetNode, masteredGroup, data);
-                if (!success) {
-                    return;
-                }
-
-                try {
-                    if (this.settings) {
-                        layoutGroupInner(data, masteredGroup, this.settings, this.canvasParser);
-                        normalizeLayout(data, this.settings, this.canvasParser);
-                    }
-                } catch {
-                    // Layout normalization is best-effort.
-                }
-            });
-        } catch (error) {
-            return false;
-        }
-    }
-
-    async removeFromMasteredGroup(bookPath: string, nodeId: string): Promise<boolean> {
-        try {
-            return await this.modifyCanvas(bookPath, (data) => {
-                const targetNode = data.nodes.find(node => node.id === nodeId);
-                if (!targetNode) return;
-
-                const masteredGroup = data.nodes.find(
-                    node => node.type === 'group' && node.label === this.MASTERED_GROUP_LABEL
-                );
-                if (!masteredGroup) return;
-
-                this.moveNodeOutOfGroupSync(targetNode, data);
-
-                try {
-                    if (this.settings) {
-                        normalizeLayout(data, this.settings, this.canvasParser);
-                    }
-                } catch {
-                    // Layout normalization is best-effort.
-                }
-            });
-        } catch (error) {
-            return false;
-        }
-    }
-
-    async isNodeInMasteredGroup(bookPath: string, nodeId: string): Promise<boolean> {
-        try {
-            const canvasData = await this.loadCanvas(bookPath);
-            if (!canvasData) return false;
-
-            const targetNode = canvasData.nodes.find(node => node.id === nodeId);
-            if (!targetNode) return false;
-
-            const masteredGroup = canvasData.nodes.find(
-                node => node.type === 'group' && node.label === this.MASTERED_GROUP_LABEL
-            );
-            if (!masteredGroup) return false;
-
-            return this.canvasParser.isNodeInGroup(targetNode, masteredGroup);
-        } catch (error) {
-            return false;
-        }
-    }
-
-    private createMasteredGroup(canvasData: CanvasData): CanvasNode {
+    /** 创建新分组节点（几何位置沿用原有计算逻辑） */
+    private createGroup(canvasData: CanvasData, label: string, color: string): CanvasNode {
         const groupId = this.genHex16();
         const { x, y } = this.calculateMasteredGroupPosition(canvasData);
         const initialWidth = 400;
@@ -143,10 +86,121 @@ export class MasteredGroupManager {
             y: y,
             width: initialWidth,
             height: initialHeight,
-            color: this.MASTERED_GROUP_COLOR,
-            label: this.MASTERED_GROUP_LABEL
+            color: color,
+            label: label
         };
     }
+
+    /**
+     * 把指定 nodeId 的节点几何移入指定分组（分组不存在则先创建）。
+     * 沿用 moveToMasteredGroup 的坐标计算与 layoutGroupInner/normalizeLayout 排版逻辑。
+     */
+    async moveNodeToGroup(bookPath: string, nodeId: string, label: string, altLabel: string | undefined, color: string): Promise<boolean> {
+        try {
+            const groupId = await this.ensureGroup(bookPath, label, altLabel, color);
+            if (!groupId) return false;
+
+            return await this.modifyCanvas(bookPath, (data) => {
+                const targetNode = data.nodes.find(node => node.id === nodeId);
+                const group = data.nodes.find(node => node.id === groupId);
+
+                if (!targetNode || !group) {
+                    return;
+                }
+
+                const success = this.moveNodeToGroupOptimizedSync(targetNode, group, data);
+                if (!success) {
+                    return;
+                }
+
+                try {
+                    if (this.settings) {
+                        layoutGroupInner(data, group, this.settings, this.canvasParser);
+                        normalizeLayout(data, this.settings, this.canvasParser);
+                    }
+                } catch {
+                    // 布局规范化尽力而为
+                }
+            });
+        } catch (error) {
+            return false;
+        }
+    }
+
+    /** 判断节点是否几何位于指定分组内 */
+    async isNodeInGroup(bookPath: string, nodeId: string, label: string, altLabel?: string): Promise<boolean> {
+        try {
+            const canvasData = await this.loadCanvas(bookPath);
+            if (!canvasData) return false;
+
+            const targetNode = canvasData.nodes.find(node => node.id === nodeId);
+            if (!targetNode) return false;
+
+            const group = this.findGroup(canvasData, label, altLabel);
+            if (!group) return false;
+
+            return this.canvasParser.isNodeInGroup(targetNode, group);
+        } catch (error) {
+            return false;
+        }
+    }
+
+    // ===== Mastered（已掌握）分组：保持原有 API 不变 =====
+
+    async ensureMasteredGroup(bookPath: string): Promise<string | null> {
+        return this.ensureGroup(bookPath, this.MASTERED_GROUP_LABEL, this.MASTERED_GROUP_ALT_LABEL, this.MASTERED_GROUP_COLOR);
+    }
+
+    async moveToMasteredGroup(bookPath: string, nodeId: string): Promise<boolean> {
+        return this.moveNodeToGroup(bookPath, nodeId, this.MASTERED_GROUP_LABEL, this.MASTERED_GROUP_ALT_LABEL, this.MASTERED_GROUP_COLOR);
+    }
+
+    async removeFromMasteredGroup(bookPath: string, nodeId: string): Promise<boolean> {
+        try {
+            return await this.modifyCanvas(bookPath, (data) => {
+                const targetNode = data.nodes.find(node => node.id === nodeId);
+                if (!targetNode) return;
+
+                const masteredGroup = this.findGroup(data, this.MASTERED_GROUP_LABEL, this.MASTERED_GROUP_ALT_LABEL);
+                if (!masteredGroup) return;
+
+                this.moveNodeOutOfGroupSync(targetNode, data, this.MASTERED_GROUP_LABEL, this.MASTERED_GROUP_ALT_LABEL);
+
+                try {
+                    if (this.settings) {
+                        normalizeLayout(data, this.settings, this.canvasParser);
+                    }
+                } catch {
+                    // 布局规范化尽力而为
+                }
+            });
+        } catch (error) {
+            return false;
+        }
+    }
+
+    async isNodeInMasteredGroup(bookPath: string, nodeId: string): Promise<boolean> {
+        return this.isNodeInGroup(bookPath, nodeId, this.MASTERED_GROUP_LABEL, this.MASTERED_GROUP_ALT_LABEL);
+    }
+
+    // ===== Archived（已归档）分组：淘汰候选流程使用 =====
+
+    /** 确保「已归档」分组存在（不存在则创建），返回分组 id */
+    async ensureArchivedGroup(bookPath: string): Promise<string | null> {
+        return this.ensureGroup(bookPath, this.ARCHIVED_GROUP_LABEL, this.ARCHIVED_GROUP_ALT_LABEL, this.ARCHIVED_GROUP_COLOR);
+    }
+
+    /** 把指定 nodeId 的节点几何移入「已归档」分组（沿用 Mastered 分组的坐标计算与排版逻辑） */
+    async moveNodeToArchivedGroup(bookPath: string, nodeId: string): Promise<boolean> {
+        return this.moveNodeToGroup(bookPath, nodeId, this.ARCHIVED_GROUP_LABEL, this.ARCHIVED_GROUP_ALT_LABEL, this.ARCHIVED_GROUP_COLOR);
+    }
+
+    /** 判断节点是否已位于「已归档」分组内 */
+    async isNodeInArchivedGroup(bookPath: string, nodeId: string): Promise<boolean> {
+        return this.isNodeInGroup(bookPath, nodeId, this.ARCHIVED_GROUP_LABEL, this.ARCHIVED_GROUP_ALT_LABEL);
+    }
+
+    // ===== 私有几何/排版逻辑（沿用原有实现） =====
 
     private calculateMasteredGroupPosition(canvasData: CanvasData): { x: number, y: number } {
         const allNodes = canvasData.nodes.filter(node => node.type === 'text' || node.type === 'group');
@@ -193,15 +247,14 @@ export class MasteredGroupManager {
         }
     }
 
-    private moveNodeOutOfGroupSync(node: CanvasNode, canvasData: CanvasData): void {
-        const masteredGroup = canvasData.nodes.find(
-            n => n.type === 'group' && n.label === this.MASTERED_GROUP_LABEL
-        );
+    /** 把节点从指定分组移出（放到分组下方空白区），沿用原 removeFromMasteredGroup 的实现 */
+    private moveNodeOutOfGroupSync(node: CanvasNode, canvasData: CanvasData, label: string, altLabel?: string): void {
+        const group = this.findGroup(canvasData, label, altLabel);
 
         const freeTextNodes = canvasData.nodes.filter(n => {
             if (n.type !== 'text' || n.id === node.id) return false;
-            if (!masteredGroup) return true;
-            return !this.canvasParser.isNodeInGroup(n, masteredGroup);
+            if (!group) return true;
+            return !this.canvasParser.isNodeInGroup(n, group);
         });
 
         const paddingX = 50;
@@ -219,8 +272,8 @@ export class MasteredGroupManager {
         node.x = minX;
         node.y = maxY + paddingY;
 
-        if (masteredGroup) {
-            const groupBottom = masteredGroup.y + masteredGroup.height;
+        if (group) {
+            const groupBottom = group.y + group.height;
             if (node.y < groupBottom + paddingY) {
                 node.y = groupBottom + paddingY;
             }

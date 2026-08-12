@@ -12,6 +12,7 @@ import { ExportVocabularyModal } from "./hiwords/ui/export-vocabulary-modal";
 import { FlashcardBookPickerModal } from "./hiwords/ui/flashcard-book-picker-modal";
 import { shouldHighlightFile } from "./hiwords/utils/highlight-utils";
 import { LocalDictionaryService, getLocalDictionaryService } from "./hiwords/services/local-dictionary-service";
+import { EncounterTracker, setEncounterTracker } from "./hiwords/core/encounter-tracker";
 import type { HiWordsSettings, VocabularyBookDisplaySettings, WordDefinition } from "./hiwords/utils/types";
 
 const DEFAULT_AI_DEFINITION_PROMPT = '你是一个英汉词典编纂助手。请为单词 "{{word}}" 生成词条（上下文句子，可能为空：{{sentence}}）。\n\n输出要求（必须严格遵守）：\n1. 只输出一个 JSON 对象，不要输出任何其他内容：不要 markdown 代码块、不要 ```json 标记、不要注释、不要解释性文字、不要前后缀说明。\n2. JSON 只包含两个字段：\n   - "aliases"：字符串数组。如果该单词是词形变化（-ing / -ed / -s / -es / -ies / -er / -est 等），必须包含其原形（lemma）及常见变形；如果本身就是原形，可返回常见变形或空数组。例如 suing 返回 ["sue", "sued", "sues"]；went 返回 ["go", "goes", "going", "gone"]；better 返回 ["good"]；books 返回 ["book"]。\n   - "definition"：字符串，内容依次为：\n     1）音标（英式/美式）\\n2）中文释义（含词性标注）\\n3）英文释义\\n4）例句\n     其中序号之间的换行使用 JSON 转义符 \\n，不要使用 markdown 列表符号。\n3. 必须是合法 JSON：键和字符串值使用英文双引号；不要有尾随逗号；字符串内部不要有未转义的换行；不要使用单引号。\n\n只输出下面格式的 JSON 对象本身（不要包含任何其他文字）：\n{"aliases": ["sustain", "sustained", "sustaining", "sustains"], "definition": "1）英/ sə\'steɪn / 美/ sə\'steɪn /\\n2）v. 维持，保持；遭受，经受；支持，支撑\\nn. （乐）延音\\n3）to cause or allow something to continue for a period of time\\n4）The economy looks set to sustain its growth into next year."}';
@@ -24,6 +25,8 @@ const DEFAULT_HIWORDS_SETTINGS: HiWordsSettings = {
   showDefinitionOnHover: true,
   enableAutoHighlight: true,
   highlightStyle: 'underline',
+  enableFadeHighlight: true,
+  fadeFloor: 0.25,
   enableMasteredFeature: true,
   showMasteredInSidebar: true,
   blurDefinitions: false,
@@ -78,6 +81,11 @@ const DEFAULT_HIWORDS_SETTINGS: HiWordsSettings = {
   spellingPractice: {
     maxPerSession: 20,
   },
+  hoverFeedback: {
+    enabled: true,
+    days: 3,
+  },
+  retireCandidateDays: 90,
 };
 
 interface HiWordsRefreshHooks {
@@ -90,6 +98,7 @@ export default class NoteBarPlugin extends Plugin {
   vocabularyManager: VocabularyManager | null = null;
   masteredService: MasteredService | null = null;
   definitionPopover: DefinitionPopover | null = null;
+  encounterTracker: EncounterTracker | null = null;
   private editorExtensions: Extension[] = [];
   private isSidebarInitialized = false;
 
@@ -110,6 +119,10 @@ export default class NoteBarPlugin extends Plugin {
     this.addChild(this.definitionPopover);
     this.definitionPopover.setVocabularyManager(this.vocabularyManager);
     this.definitionPopover.setMasteredService(this.masteredService);
+
+    // 初始化相遇记账模块（数据在 onLayoutReady 后异步加载）
+    this.encounterTracker = new EncounterTracker(this.app);
+    setEncounterTracker(this.encounterTracker);
 
     // 注册侧边栏视图
     this.registerView(
@@ -134,6 +147,9 @@ export default class NoteBarPlugin extends Plugin {
       void (async () => {
         await this.vocabularyManager!.loadAllVocabularyBooks();
         this.refreshHighlighter();
+
+        // 延迟加载相遇记录（与词库加载同一时机，避免阻塞启动）
+        await this.encounterTracker?.load();
 
         // 初始化词典服务路径（不立即加载，首次查词时懒加载）
         const dictService = getLocalDictionaryService(this.app);
@@ -434,6 +450,13 @@ export default class NoteBarPlugin extends Plugin {
 
   async onunload() {
     console.log("Note Bar plugin unloaded");
+
+    // 相遇记录立即落盘（防抖未触发的数据也会被写入）
+    if (this.encounterTracker) {
+      void this.encounterTracker.flush();
+      this.encounterTracker = null;
+      setEncounterTracker(null);
+    }
 
     if (this.toolbarManager) {
       this.toolbarManager.destroy();
@@ -875,6 +898,33 @@ class NoteBarSettingTab extends PluginSettingTab {
           await this.plugin.saveHiWordsSettings();
         }));
 
+    // 学习信号（悬停回流）设置
+    containerEl.createEl('h3', { text: '学习信号（悬停回流）' });
+
+    const hoverFeedback = this.plugin.hiwordsSettings.hoverFeedback ?? { enabled: true, days: 3 };
+    this.plugin.hiwordsSettings.hoverFeedback = hoverFeedback;
+
+    new Setting(containerEl)
+      .setName('悬停回流')
+      .setDesc('开启后，悬停查看某个复习词的释义时，若其到期日在 N 天之后，则把到期日提前到今天（仅修改 dueDate，不影响 FSRS 稳定性/难度/遗忘次数）')
+      .addToggle(toggle => toggle
+        .setValue(hoverFeedback.enabled)
+        .onChange(async (value) => {
+          hoverFeedback.enabled = value;
+          await this.plugin.saveHiWordsSettings();
+        }));
+
+    new Setting(containerEl)
+      .setName('回流天数阈值')
+      .setDesc('到期日在今天之后超过 N 天才触发回流（0 表示仅当到期日大于今天时立即回流）')
+      .addText(text => text
+        .setValue(String(hoverFeedback.days))
+        .onChange(async (value) => {
+          const num = parseInt(value, 10);
+          hoverFeedback.days = isNaN(num) ? 3 : Math.max(0, num);
+          await this.plugin.saveHiWordsSettings();
+        }));
+
     // 听写练习设置
     const spelling = this.plugin.hiwordsSettings.spellingPractice ?? {
       maxPerSession: 20,
@@ -930,6 +980,31 @@ class NoteBarSettingTab extends PluginSettingTab {
         .onChange(async (value) => {
           this.plugin.hiwordsSettings.hideDefinitions = value;
           await this.plugin.saveHiWordsSettings();
+        }));
+
+    // 高亮渐隐设置（替代原"已掌握词过滤"：已掌握词不再硬消失，而是按复习稳定度渐隐）
+    new Setting(containerEl)
+      .setName('渐隐高亮')
+      .setDesc('开启后，复习稳定度较高的单词在文档中逐渐变淡（仍可悬停查看释义），新词全强度显示')
+      .addToggle(toggle => toggle
+        .setValue(this.plugin.hiwordsSettings.enableFadeHighlight ?? true)
+        .onChange(async (value) => {
+          this.plugin.hiwordsSettings.enableFadeHighlight = value;
+          await this.plugin.saveHiWordsSettings();
+          this.plugin.refreshHighlighter();
+        }));
+
+    new Setting(containerEl)
+      .setName('渐隐下限')
+      .setDesc('高稳定度/已掌握单词的可见度下限（0-1）：0 表示可完全淡出，0.25 表示始终保留 25% 可见度')
+      .addSlider(slider => slider
+        .setLimits(0, 1, 0.05)
+        .setValue(this.plugin.hiwordsSettings.fadeFloor ?? 0.25)
+        .setDynamicTooltip()
+        .onChange(async (value) => {
+          this.plugin.hiwordsSettings.fadeFloor = value;
+          await this.plugin.saveHiWordsSettings();
+          this.plugin.refreshHighlighter();
         }));
   }
 }

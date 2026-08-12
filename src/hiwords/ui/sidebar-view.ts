@@ -1,11 +1,12 @@
 import { EventRef, ItemView, WorkspaceLeaf, TFile, MarkdownView, MarkdownRenderer, setIcon, Notice } from 'obsidian';
 import type NoteBarPlugin from '../../main';
-import { WordDefinition, mapCanvasColorToCSSVar, getColorWithOpacity } from '../utils';
+import { WordDefinition, mapCanvasColorToCSSVar, getColorWithOpacity, RetirementCandidate } from '../utils';
 import { playWordTTS, Trie } from '../utils';
 import { findPatternMatches } from '../utils/pattern-matcher';
 import { renderWordCard } from './word-card-renderer';
 import { FlashcardBookPickerModal } from './flashcard-book-picker-modal';
 import { getTodayDueReviewCount } from '../core/flashcard-queue';
+import { getEncounterTracker } from '../core/encounter-tracker';
 
 export const SIDEBAR_VIEW_TYPE = 'hi-words-sidebar';
 
@@ -33,7 +34,7 @@ interface SearchViewLike {
 export class HiWordsSidebarView extends ItemView {
     private plugin: NoteBarPlugin;
     private currentWords: WordDefinition[] = [];
-    private activeTab: 'learning' | 'mastered' = 'learning';
+    private activeTab: 'learning' | 'mastered' | 'retire' = 'learning';
     private currentFile: TFile | null = null;
     private firstLoadForFile = false;
     private updateTimer: number | null = null;
@@ -44,6 +45,8 @@ export class HiWordsSidebarView extends ItemView {
     private sectionTabStates: Map<string, number> = new Map();
     private expandedWordStates: Map<string, boolean> = new Map();
     private manualDetailMode = false;
+    private retireCandidatesCache: RetirementCandidate[] = [];
+    private selectedRetireKeys: Set<string> = new Set();
 
     constructor(leaf: WorkspaceLeaf, plugin: NoteBarPlugin) {
         super(leaf);
@@ -296,6 +299,17 @@ export class HiWordsSidebarView extends ItemView {
         this.bindDelegatedHandlers(container as HTMLElement);
         this.renderReviewHeader(container as HTMLElement);
 
+        // 淘汰候选标签：不依赖当前文档，直接从全局词库计算
+        if (this.activeTab === 'retire') {
+            this.retireCandidatesCache = this.computeRetireCandidates();
+            this.createTabNavigation(container as HTMLElement, 0, 0, this.retireCandidatesCache.length);
+            this.createRetireTabContent(container as HTMLElement);
+            return;
+        }
+
+        // 预计算淘汰候选数量，避免 createTabNavigation 中重复计算
+        const retireCount = this.computeRetireCandidateCount();
+
         if (this.currentWords.length === 0) {
             const emptyState = (container as HTMLElement).createEl('div', { cls: 'hi-words-empty-state' });
             emptyState.createEl('div', { text: '当前文档中没有生词', cls: 'hi-words-empty-text' });
@@ -310,7 +324,7 @@ export class HiWordsSidebarView extends ItemView {
         }
         this.firstLoadForFile = false;
 
-        this.createTabNavigation(container as HTMLElement, unmasteredWords.length, masteredWords.length);
+        this.createTabNavigation(container as HTMLElement, unmasteredWords.length, masteredWords.length, retireCount);
         await this.createTabContent(container as HTMLElement, unmasteredWords, masteredWords);
     }
 
@@ -348,7 +362,7 @@ export class HiWordsSidebarView extends ItemView {
         return getTodayDueReviewCount(studyItems, progress, enabledCanvasBooks);
     }
 
-    private createTabNavigation(container: HTMLElement, learningCount: number, masteredCount: number) {
+    private createTabNavigation(container: HTMLElement, learningCount: number, masteredCount: number, retireCount: number = 0) {
         const tabNav = container.createEl('div', { cls: 'hi-words-tab-nav' });
 
         const learningTab = tabNav.createEl('div', {
@@ -363,6 +377,14 @@ export class HiWordsSidebarView extends ItemView {
                 attr: { 'data-tab': 'mastered' }
             });
             masteredTab.createEl('span', { text: `已掌握 (${masteredCount})` });
+        }
+
+        if (retireCount > 0 || this.activeTab === 'retire') {
+            const retireTab = tabNav.createEl('div', {
+                cls: `hi-words-tab hi-words-tab-retire ${this.activeTab === 'retire' ? 'active' : ''}`,
+                attr: { 'data-tab': 'retire' }
+            });
+            retireTab.createEl('span', { text: `淘汰候选 (${retireCount})` });
         }
     }
 
@@ -382,10 +404,15 @@ export class HiWordsSidebarView extends ItemView {
         }
     }
 
-    private switchTab(tab: 'learning' | 'mastered') {
+    private switchTab(tab: 'learning' | 'mastered' | 'retire') {
         if (this.activeTab === tab) return;
 
         this.activeTab = tab;
+        if (tab === 'retire') {
+            this.manualDetailMode = true;
+        } else {
+            this.manualDetailMode = false;
+        }
         this.renderWordList();
     }
 
@@ -550,6 +577,135 @@ export class HiWordsSidebarView extends ItemView {
         emptyState.createEl('div', { text: message, cls: 'hi-words-empty-text' });
     }
 
+    // ===== 淘汰候选 =====
+
+    private computeRetireCandidates(): RetirementCandidate[] {
+        const vm = this.plugin.vocabularyManager;
+        if (!vm) return [];
+        const tracker = getEncounterTracker();
+        const encounterData = tracker?.getAll() || {};
+        return vm.getRetirementCandidates(encounterData);
+    }
+
+    private computeRetireCandidateCount(): number {
+        // 轻量计算：仅在需要时计算一次
+        if (this.retireCandidatesCache.length > 0) return this.retireCandidatesCache.length;
+        return this.computeRetireCandidates().length;
+    }
+
+    private createRetireTabContent(container: HTMLElement) {
+        if (this.retireCandidatesCache.length === 0) {
+            this.createEmptyState(container, '暂无淘汰候选');
+            return;
+        }
+
+        // 批量操作栏
+        const batchBar = container.createDiv({ cls: 'hi-words-retire-batch-bar' });
+        const selectAllLabel = batchBar.createEl('label', { cls: 'hi-words-retire-select-all' });
+        const selectAllCb = selectAllLabel.createEl('input', { type: 'checkbox' });
+        selectAllLabel.createEl('span', { text: '全选' });
+        selectAllCb.addEventListener('change', () => {
+            if (selectAllCb.checked) {
+                this.retireCandidatesCache.forEach(c => this.selectedRetireKeys.add(c.studyKey));
+            } else {
+                this.selectedRetireKeys.clear();
+            }
+            this.renderWordList();
+        });
+
+        const batchBtns = batchBar.createDiv({ cls: 'hi-words-retire-batch-btns' });
+        const batchRetireBtn = batchBtns.createEl('button', { cls: 'hi-words-retire-btn', text: '批量淘汰' });
+        batchRetireBtn.addEventListener('click', () => this.batchRetireAction('retire'));
+        const batchPinBtn = batchBtns.createEl('button', { cls: 'hi-words-retire-pin-btn', text: '批量留下' });
+        batchPinBtn.addEventListener('click', () => this.batchRetireAction('pin'));
+        const batchMasteredBtn = batchBtns.createEl('button', { cls: 'hi-words-retire-mastered-btn', text: '批量掌握' });
+        batchMasteredBtn.addEventListener('click', () => this.batchRetireAction('mastered'));
+
+        // 候选列表
+        const list = container.createEl('div', { cls: 'hi-words-retire-list' });
+        for (const candidate of this.retireCandidatesCache) {
+            this.createRetireCard(list, candidate);
+        }
+    }
+
+    private createRetireCard(container: HTMLElement, candidate: RetirementCandidate) {
+        const isSelected = this.selectedRetireKeys.has(candidate.studyKey);
+        const card = container.createEl('div', {
+            cls: `hi-words-retire-card ${isSelected ? 'selected' : ''}`,
+            attr: { 'data-study-key': candidate.studyKey }
+        });
+
+        // 选择框 + 单词
+        const header = card.createDiv({ cls: 'hi-words-retire-card-header' });
+        const cb = header.createEl('input', { type: 'checkbox', cls: 'hi-words-retire-checkbox' });
+        cb.checked = isSelected;
+        cb.addEventListener('change', () => {
+            if (cb.checked) this.selectedRetireKeys.add(candidate.studyKey);
+            else this.selectedRetireKeys.delete(candidate.studyKey);
+            card.toggleClass('selected', cb.checked);
+        });
+
+        header.createEl('span', { text: candidate.word, cls: 'hi-words-retire-word' });
+
+        // 证据信息
+        const evidence = card.createDiv({ cls: 'hi-words-retire-evidence' });
+        evidence.createEl('span', { text: `入库: ${candidate.addedDate} (${candidate.daysSinceAdded}天前)`, cls: 'hi-words-retire-evidence-item' });
+        evidence.createEl('span', { text: `上次相遇: ${candidate.lastEncounter || '从未'} (${candidate.daysSinceEncounter}天前)`, cls: 'hi-words-retire-evidence-item' });
+        evidence.createEl('span', { text: `悬停: ${candidate.hoverCount}次 · 总相遇: ${candidate.encounterCount}次`, cls: 'hi-words-retire-evidence-item' });
+
+        // 动作按钮
+        const actions = card.createDiv({ cls: 'hi-words-retire-actions' });
+        const retireBtn = actions.createEl('button', { cls: 'hi-words-retire-action-btn hi-words-retire-btn', text: '淘汰', attr: { 'data-action': 'retire', 'data-study-key': candidate.studyKey } });
+        const pinBtn = actions.createEl('button', { cls: 'hi-words-retire-action-btn hi-words-retire-pin-btn', text: '留下', attr: { 'data-action': 'pin', 'data-study-key': candidate.studyKey } });
+        const masteredBtn = actions.createEl('button', { cls: 'hi-words-retire-action-btn hi-words-retire-mastered-btn', text: '已掌握', attr: { 'data-action': 'mastered', 'data-study-key': candidate.studyKey } });
+
+        retireBtn.addEventListener('click', (e) => { e.stopPropagation(); void this.retireAction(candidate, 'retire'); });
+        pinBtn.addEventListener('click', (e) => { e.stopPropagation(); void this.retireAction(candidate, 'pin'); });
+        masteredBtn.addEventListener('click', (e) => { e.stopPropagation(); void this.retireAction(candidate, 'mastered'); });
+    }
+
+    private async retireAction(candidate: RetirementCandidate, action: 'retire' | 'pin' | 'mastered') {
+        const masteredService = this.plugin.masteredService;
+        if (!masteredService) return;
+
+        if (action === 'retire') {
+            await masteredService.retireWord(candidate.source, candidate.nodeId, candidate.word);
+        } else if (action === 'pin') {
+            await masteredService.togglePinned(candidate.studyKey, true);
+            new Notice(`"${candidate.word}" 已标记为常驻`);
+        } else if (action === 'mastered') {
+            await masteredService.markWordAsMastered(candidate.source, candidate.nodeId, candidate.word);
+        }
+
+        this.selectedRetireKeys.delete(candidate.studyKey);
+        void this.renderWordList();
+    }
+
+    private async batchRetireAction(action: 'retire' | 'pin' | 'mastered') {
+        if (this.selectedRetireKeys.size === 0) {
+            new Notice('请先选择候选词条');
+            return;
+        }
+
+        const selected = this.retireCandidatesCache.filter(c => this.selectedRetireKeys.has(c.studyKey));
+        const masteredService = this.plugin.masteredService;
+        if (!masteredService) return;
+
+        for (const candidate of selected) {
+            if (action === 'retire') {
+                await masteredService.retireWord(candidate.source, candidate.nodeId, candidate.word);
+            } else if (action === 'pin') {
+                await masteredService.togglePinned(candidate.studyKey, true);
+            } else if (action === 'mastered') {
+                await masteredService.markWordAsMastered(candidate.source, candidate.nodeId, candidate.word);
+            }
+        }
+
+        new Notice(`已批量处理 ${selected.length} 个词条`);
+        this.selectedRetireKeys.clear();
+        void this.renderWordList();
+    }
+
     private showEmptyState(message: string) {
         const container = this.containerEl.querySelector('.hi-words-sidebar');
         if (!container) return;
@@ -571,7 +727,7 @@ export class HiWordsSidebarView extends ItemView {
                 if (tabEl && root.contains(tabEl)) {
                     e.preventDefault();
                     e.stopPropagation();
-                    const tab = (tabEl.getAttr('data-tab') as 'learning' | 'mastered') || 'learning';
+                    const tab = (tabEl.getAttr('data-tab') as 'learning' | 'mastered' | 'retire') || 'learning';
                     if (tab !== this.activeTab) this.switchTab(tab);
                     return;
                 }
@@ -623,6 +779,18 @@ export class HiWordsSidebarView extends ItemView {
                     if (wordKey) {
                         const currentState = this.expandedWordStates.get(wordKey);
                         const isCurrentlyExpanded = currentState ?? this.getDefaultExpandedState();
+                        if (!isCurrentlyExpanded) {
+                            // 相遇记账（open）：用户点击展开词条释义时触发一次
+                            // 冷却去重避免同一词反复展开/收起重复计数
+                            const wordTextEl = card?.querySelector('.hi-words-word-text') as HTMLElement | null;
+                            const word = wordTextEl?.textContent?.trim();
+                            if (word) {
+                                const detail = this.currentWords.find(w => w.word === word);
+                                if (detail) {
+                                    getEncounterTracker()?.record(detail.studyKey || detail.word.toLowerCase(), 'open');
+                                }
+                            }
+                        }
                         this.expandedWordStates.set(wordKey, !isCurrentlyExpanded);
                         void this.renderWordList();
                     }

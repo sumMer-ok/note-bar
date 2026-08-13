@@ -280,7 +280,7 @@ App 直接读写镜像 Canvas（与插件同一 JSON 结构），并遵守以下
 ## 8. FSRS 与 studyKey 一致性保证
 
 - Swift 移植覆盖 `fsrs.ts` 全部常量与函数（`FSRS_W`、`FSRS_DECAY`、`FSRS_FACTOR`、`initStability`、`initDifficulty`、`nextDifficulty`、`retrievability`、`nextRecallStability`、`nextForgetStability`、`nextInterval`、`humanInterval`、`MAX_IVL`）。
-- studyKey 双规则两端同实现（4.3），`toLocaleLowerCase('en-US')` 固定 locale。
+- studyKey 双规则两端同实现（4.3），统一简单小写（JS `toLowerCase()` ↔ Swift `lowercased()`）并冻结含 i/İ/ı/全角/NFKC 的测试向量，规避语言环境差异。
 - 用 TS 端生成的一组固定测试向量（FSRS：s/d/间隔/评分序列 → 期望 s′/d′/due；studyKey：普通节点、卡片、中文 concept、短语、i/İ/ı/全角/NFKC）在两端对拍，作为回归基线。
 - 时区规则：dueDate 一律本地 `YYYY-MM-DD`；跨时区不换算日期。
 
@@ -325,7 +325,7 @@ App 直接读写镜像 Canvas（与插件同一 JSON 结构），并遵守以下
 1. 同步通道：iCloud Drive 文件同步（备选 CloudKit/自建服务，v1 不采用）。
 2. 存储拓扑：vault 内 Canvas 经 Mac 插件 mirrorer 双向镜像到 iCloud 同步目录；进度边车**只存 iCloud 同步目录**，不放 vault。
 3. 边车 schema 与 `StudyProgressItem` 逐字段一致；统计从每词 `history` 聚合，不设全局 log。
-4. studyKey 双规则：普通节点 `source:nodeId`，卡片节点 `buildStudyKey`；固定 en-US locale。
+4. studyKey 双规则：普通节点 `source:nodeId`，卡片节点 `buildStudyKey`；两端统一简单小写（`toLowerCase()`/`lowercased()`），不依赖运行环境 locale。
 5. iOS 文件访问：document picker + security-scoped bookmark + NSFileCoordinator + NSFilePresenter/轮询（不用 NSMetadataQuery）。
 6. 分发：付费开发者账号 + TestFlight。
 7. 复习交互：卡片翻转 + 四向滑动 + 三键评分 + 撤销；学习/复习分离；App 设置独立不同步。

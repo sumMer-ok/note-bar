@@ -25,7 +25,7 @@
 
 - 安卓、iPad 专属布局、Apple Watch。
 - CloudKit 推送（保留为后续升级路径）。
-- 手机端 AI 翻译/划词、本地离线词典打包（词典 363MB，释义已存于 Canvas，App 直接读取）。
+- 手机端 AI 翻译/划词、本地离线词典打包（dictionary.json 约 346MB，另有 1.1GB SQLite 自动补全库；释义已存于 Canvas，App 直接读取，不打包词典）。
 - App Store 上架（v1 走 TestFlight；付费开发者账号已确认）。
 - 词条关系（词根/近义词）与 cloze 卡面（改进报告 P5 的部分能力，留待后续）。
 - 桌面设置与手机设置的自动同步（App 设置独立，见 6.3）。
@@ -50,13 +50,13 @@ masteredAt?: string; updatedAt?: string
 ```
 
 - studyKey 是**双规则**：
-  - 卡片类节点（.hiwords）：`buildStudyKey()` 生成 `语言:类型:规范文本`（[study-key.ts](/Users/shengxia/Documents/projects/obisdian-plugin/note-bar/src/hiwords/utils/study-key.ts)，NFKC + trim + 空白折叠 + 去首尾标点 + `toLocaleLowerCase()`）；
+- `.hiwords` 文件中的卡片词条：`buildStudyKey()` 生成 `语言:类型:规范文本`（[study-key.ts](/Users/shengxia/Documents/projects/obisdian-plugin/note-bar/src/hiwords/utils/study-key.ts)，NFKC + trim + 空白折叠 + 去首尾标点 + `toLocaleLowerCase()`）；
   - Canvas 普通 text/file 节点：**不设 studyKey**，运行时回退为 `${definition.source}:${definition.nodeId}`（[vocabulary-manager.ts](/Users/shengxia/Documents/projects/obisdian-plugin/note-bar/src/hiwords/core/vocabulary-manager.ts) 的 `buildStudyItemCache`），`source` 是 Canvas 文件的 vault 相对路径，`nodeId` 是节点 JSON 的 16 位 hex id。
 - Canvas 节点文本模板（[canvas-parser.ts](/Users/shengxia/Documents/projects/obisdian-plugin/note-bar/src/hiwords/canvas/canvas-parser.ts) `parseFromText`）：首行单词；可选第二行别名 `*a, b*`（单个星号包裹）；空行后是释义。
 - 添加日期：来自 label 为 `YYYY-MM-DD` 的 group；新词由 `findOrCreateDateGroup` 创建「今天」组（[canvas-editor.ts](/Users/shengxia/Documents/projects/obisdian-plugin/note-bar/src/hiwords/canvas/canvas-editor.ts)）。`normalizeLayout` 只整理**未分组节点**的位置，**不会创建日期组**（[layout.ts](/Users/shengxia/Documents/projects/obisdian-plugin/note-bar/src/hiwords/canvas/layout.ts)）。
 - 已掌握检测：'Mastered'/'已掌握' 组，或节点 `color === '4'`；自动毕业阈值 `DEFAULT_GRADUATED_S = 30`（[flashcard-algorithm.ts](/Users/shengxia/Documents/projects/obisdian-plugin/note-bar/src/hiwords/core/flashcard-algorithm.ts)，`s >= 30` 时置 `lifecycle='graduated'`）。
-- 闪卡会话：learn-new 与 review-due 两类；评分四档 again/hard/good/easy；每次评分写 `history`（`slice(-50)` 保留最近 50 条，[flashcard-review-modal.ts](/Users/shengxia/Documents/projects/obisdian-plugin/note-bar/src/hiwords/ui/flashcard-review-modal.ts)）。
-- 发音：优先词条 `card.audio`（vault 内附件，`app://` 资源路径），否则有道 TTS `type=2`；[tts.ts](/Users/shengxia/Documents/projects/obisdian-plugin/note-bar/src/hiwords/utils/tts.ts)。
+- 闪卡会话模式：`'new'`（仅新词）/ `'review'`（仅到期）/ `'all'`（按 `studyOrder` 混合，[flashcard-queue.ts](/Users/shengxia/Documents/projects/obisdian-plugin/note-bar/src/hiwords/core/flashcard-queue.ts)）；评分四档 again/hard/good/easy；每次评分写 `history`（`slice(-50)` 保留最近 50 条，[flashcard-review-modal.ts](/Users/shengxia/Documents/projects/obisdian-plugin/note-bar/src/hiwords/ui/flashcard-review-modal.ts)）。
+- 发音：优先词条 `card.audio[variant] || card.audio.default`（`http(s)://`、`data:`、`app:` 直接使用，vault 内附件走 `getResourcePath`）；否则有道 TTS（`uk→type=1`、`us→type=2`，默认 `us`）；[tts.ts](/Users/shengxia/Documents/projects/obisdian-plugin/note-bar/src/hiwords/utils/tts.ts)。
 - 测试基建：仓库当前无测试框架、无 test script（TS 4.7.4、esbuild 0.28、@types/node 16）。
 
 ## 4. 数据与文件约定
@@ -117,7 +117,7 @@ iCloud Drive 同步目录（用户指定，如 iCloud Drive/NoteBar）
 ### 4.3 studyKey 双规则（关键修正）
 
 - **普通 Canvas text/file 节点**：`studyKey = <source>:<nodeId>`。`source` = Canvas 文件在**同步目录中的相对路径**（与 vault 相对路径一致），`nodeId` = 节点 JSON 的 `id`（16 位 hex）。
-- **卡片类节点**：`studyKey = buildStudyKey(language, type, normalizedText)`。规范化流程与 [study-key.ts](/Users/shengxia/Documents/projects/obisdian-plugin/note-bar/src/hiwords/utils/study-key.ts) 完全一致；移植时**固定 locale**（`toLocaleLowerCase('en-US')`），并把 i/İ、ı、全角、NFKC 等字符纳入冻结测试向量，规避 Swift `lowercased()` 与 JS `toLocaleLowerCase()` 的语言环境差异。
+- **`.hiwords` 卡片包词条（v1 不同步，仅作边界说明）**：`studyKey = buildStudyKey(language, type, normalizedText)`。规范化流程与 [study-key.ts](/Users/shengxia/Documents/projects/obisdian-plugin/note-bar/src/hiwords/utils/study-key.ts) 完全一致；注意 JS 侧源码用的是**无参 `toLocaleLowerCase()`**（随运行环境默认 locale 变化，并非 en-US），两端移植时统一用简单小写（JS `toLowerCase()` ↔ Swift `lowercased()`），并把 i/İ、ı、全角、NFKC 等字符纳入冻结测试向量，规避语言环境差异。
 - 已知行为（v1 如实保留并写入文档与 UI 提示）：
   - Canvas 文件改名/移动后 `source` 变化，旧进度键断裂（桌面现状，不迁移）；
   - 同一词删除后重加会得到新 `nodeId`，旧进度键成为孤儿、进度重置。
@@ -126,7 +126,7 @@ iCloud Drive 同步目录（用户指定，如 iCloud Drive/NoteBar）
 ### 4.4 冲突仲裁
 
 - 进度：同一词两端都复习过时，以 `lastReview` 更新者为准；`history` 按 4.2 规则合并。
-- 同一词出现在多个词库时共享同一 studyKey（桌面 `buildStudyItemCache` 合并 sources）：会同时写入多个边车；合并回桌面 `data.json`（全局单份）时按 `lastReview` 取最新一份即可。
+- v1 范围内（Canvas 词库）studyKey 为 `source:nodeId`，**同一单词出现在两个 Canvas 词库中是两条独立进度、不共享键**（`source` 不同）：App 不做跨词库按词去重。`.hiwords` 卡片包才按「语言:类型:规范文本」跨库共享，但不在 v1 同步范围。
 - 内容：以 Canvas 为准；两端**同时**编辑同一 Canvas 时，iCloud 会产生冲突副本，v1 不做自动合并，识别后提示人工处理（见 5.4）。
 - iCloud 冲突副本命名是 Apple 风格 `<name> 2.ext`（数字后缀），不是 Windows 风格 `(冲突副本)`；识别正则匹配 `<basename> <数字>.nb-sync.json`，比较 `updatedAt` 取新者，旧者改名归档、不静默丢弃。
 

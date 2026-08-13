@@ -5,3 +5,4 @@ main.js
 .superpowers/
 src/hiwords/data/
 release/
+.tests-dist/

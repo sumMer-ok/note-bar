@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "node esbuild.config.mjs",
     "build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
-    "build:dictionary": "node scripts/build-dictionary.js"
+    "build:dictionary": "node scripts/build-dictionary.js",
+    "test": "node scripts/build-tests.mjs"
   },
   "devDependencies": {
     "@types/node": "^16.11.6",

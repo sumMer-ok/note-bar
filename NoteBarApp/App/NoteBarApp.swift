@@ -8,8 +8,14 @@ struct NoteBarApp: App {
 
     init() {
         let schema = Schema([Entry.self])
-        container = try! ModelContainer(for: schema)
-        _appState = StateObject(wrappedValue: AppState(context: container.mainContext))
+        let resolvedContainer: ModelContainer
+        do {
+            resolvedContainer = try ModelContainer(for: schema)
+        } catch {
+            fatalError("Failed to create ModelContainer: \(error)")
+        }
+        container = resolvedContainer
+        _appState = StateObject(wrappedValue: AppState(context: resolvedContainer.mainContext))
     }
 
     var body: some Scene {

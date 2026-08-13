@@ -10,14 +10,17 @@ final class AppState: ObservableObject {
     @Published var syncStatus = "未连接"
     @Published var conflicts: [String] = []
 
-    let sync: SyncService
+    private let context: ModelContext
     private let speaker = Speaker()
-
-    init(context: ModelContext) {
-        settings = Settings.load()
-        sync = SyncService(store: DataStore(context: context)) { [weak self] message in
+    lazy var sync: SyncService = {
+        SyncService(store: DataStore(context: context)) { [weak self] message in
             Task { @MainActor in self?.conflicts.append(message) }
         }
+    }()
+
+    init(context: ModelContext) {
+        self.context = context
+        settings = Settings.load()
     }
 
     struct Settings: Codable, Equatable {

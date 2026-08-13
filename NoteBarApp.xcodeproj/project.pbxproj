@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		04404B06D1327568E8C527C6 /* sync-vectors.json in Resources */ = {isa = PBXBuildFile; fileRef = FCF34452238F3CC751BEE0BB /* sync-vectors.json */; };
 		05BABE97FECE8807438D816D /* BookmarkStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F86760B758C3990D8F0A448 /* BookmarkStore.swift */; };
 		0C092C2A7CF569D824914A87 /* NoteBarApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 764872AF56817AA494F1A796 /* NoteBarApp.swift */; };
 		251339A8572150809023C920 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 290F5A72B5720A88F9E92723 /* Theme.swift */; };
@@ -69,6 +70,7 @@
 		DCEE227A2751D1982A361C56 /* FSRS.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FSRS.swift; sourceTree = "<group>"; };
 		DFE82934AFC9D5A377C3ADD2 /* NoteBarAppTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = NoteBarAppTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		E0364B95EA71602AFF59D03E /* CanvasEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasEditor.swift; sourceTree = "<group>"; };
+		FCF34452238F3CC751BEE0BB /* sync-vectors.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "sync-vectors.json"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -99,6 +101,7 @@
 				4534080E3D49FB96A25396E1 /* FSRSTests.swift */,
 				80727E6A29540AE796D27DBE /* MergeTests.swift */,
 				744E431B3BDB9CD363258901 /* StudyKeyTests.swift */,
+				C71045152B9EE70B206FF915 /* Fixtures */,
 			);
 			path = NoteBarAppTests;
 			sourceTree = "<group>";
@@ -142,6 +145,14 @@
 				290F5A72B5720A88F9E92723 /* Theme.swift */,
 			);
 			path = Theme;
+			sourceTree = "<group>";
+		};
+		C71045152B9EE70B206FF915 /* Fixtures */ = {
+			isa = PBXGroup;
+			children = (
+				FCF34452238F3CC751BEE0BB /* sync-vectors.json */,
+			);
+			path = Fixtures;
 			sourceTree = "<group>";
 		};
 		CF2727BFFFEEAEDCA5453293 /* Views */ = {
@@ -209,6 +220,7 @@
 			buildConfigurationList = 269390D68B38678616CAD6FF /* Build configuration list for PBXNativeTarget "NoteBarAppTests" */;
 			buildPhases = (
 				ADB1BF186AC12D3228F1EF60 /* Sources */,
+				E43B816A06C3B3D81EBE2B47 /* Resources */,
 			);
 			buildRules = (
 			);
@@ -258,6 +270,17 @@
 			);
 		};
 /* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		E43B816A06C3B3D81EBE2B47 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				04404B06D1327568E8C527C6 /* sync-vectors.json in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		ADB1BF186AC12D3228F1EF60 /* Sources */ = {

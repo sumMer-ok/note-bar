@@ -3,9 +3,23 @@ import Foundation
 enum Merge {
     static let historyLimit = 50
 
+    private static let fractionalFormatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }()
+
+    private static let plainFormatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter
+    }()
+
     static func timeOf(_ value: String?) -> Double {
         guard let value else { return 0 }
-        return ISO8601DateFormatter().date(from: value)?.timeIntervalSince1970 ?? 0
+        if let date = fractionalFormatter.date(from: value) { return date.timeIntervalSince1970 }
+        if let date = plainFormatter.date(from: value) { return date.timeIntervalSince1970 }
+        return 0
     }
 
     static func history(a: [ReviewRecord]?, b: [ReviewRecord]?) -> [ReviewRecord]? {

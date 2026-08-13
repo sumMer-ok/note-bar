@@ -1,0 +1,120 @@
+{
+  "fsrs": [
+    {
+      "input": {
+        "s": null,
+        "d": null,
+        "elapsedDays": 0,
+        "grade": 1
+      },
+      "output": {
+        "s": 0.40255,
+        "d": 7.1949,
+        "interval": 1
+      }
+    },
+    {
+      "input": {
+        "s": null,
+        "d": null,
+        "elapsedDays": 0,
+        "grade": 3
+      },
+      "output": {
+        "s": 3.173,
+        "d": 5.282434422,
+        "interval": 3
+      }
+    },
+    {
+      "input": {
+        "s": 3,
+        "d": 5,
+        "elapsedDays": 1,
+        "grade": 3
+      },
+      "output": {
+        "s": 5.842576276,
+        "d": 4.991832707,
+        "interval": 6
+      }
+    },
+    {
+      "input": {
+        "s": 3,
+        "d": 5,
+        "elapsedDays": 30,
+        "grade": 1
+      },
+      "output": {
+        "s": 2.30686455,
+        "d": 6.607035107,
+        "interval": 2
+      }
+    },
+    {
+      "input": {
+        "s": 30,
+        "d": 5,
+        "elapsedDays": 60,
+        "grade": 4
+      },
+      "output": {
+        "s": 358.625661664,
+        "d": 4.184231507,
+        "interval": 359
+      }
+    },
+    {
+      "input": {
+        "s": 1.2,
+        "d": 8,
+        "elapsedDays": 2,
+        "grade": 2
+      },
+      "output": {
+        "s": 1.841554437,
+        "d": 8.301073187,
+        "interval": 2
+      }
+    }
+  ],
+  "studyKeys": [
+    {
+      "input": {
+        "word": "Hello,  World!",
+        "language": "en",
+        "type": "word"
+      },
+      "expected": "en:word:hello, world"
+    },
+    {
+      "input": {
+        "word": "合同",
+        "language": "zh-CN"
+      },
+      "expected": "zh-cn:concept:合同"
+    },
+    {
+      "input": {
+        "word": "İstanbul",
+        "language": "en"
+      },
+      "expected": "en:word:i̇stanbul"
+    },
+    {
+      "input": {
+        "word": "take off",
+        "language": "en"
+      },
+      "expected": "en:phrase:take off"
+    },
+    {
+      "input": {
+        "word": "ｆｕｌｌｗｉｄｔｈ",
+        "language": "en"
+      },
+      "expected": "en:word:fullwidth"
+    }
+  ]
+}

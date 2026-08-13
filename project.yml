@@ -35,5 +35,4 @@ targets:
     dependencies:
       - target: NoteBarApp
     resources:
-      - path: tests/fixtures/sync-vectors.json
-        buildPhase: resources
+      - NoteBarAppTests/Fixtures/sync-vectors.json

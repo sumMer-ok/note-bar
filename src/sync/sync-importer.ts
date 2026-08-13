@@ -23,32 +23,37 @@ export async function importSidecars(deps: ImporterDeps): Promise<SyncImportResu
     const base = book.path.replace(/\.canvas$/, "");
     const mainName = `${base}.nb-sync.json`;
     const mainPath = path.join(deps.syncDir, mainName);
+    const mainDir = path.dirname(mainPath);
+    const mainBase = path.basename(mainName);
     let selected: SidecarFile | null = await readSidecar(mainPath);
-    let selectedName = mainName;
+    let selectedName = mainBase;
 
-    const entries = await fs.readdir(deps.syncDir).catch(() => [] as string[]);
+    // 冲突副本与主文件同目录（可能是嵌套目录，不能只扫 syncDir 顶层）
+    const entries = await fs.readdir(mainDir).catch(() => [] as string[]);
     for (const entry of entries) {
-      if (conflictCopyBaseName(entry) !== mainName) continue;
-      const conflict = await readSidecar(path.join(deps.syncDir, entry));
+      if (conflictCopyBaseName(entry) !== mainBase) continue;
+      const conflict = await readSidecar(path.join(mainDir, entry));
       if (conflict && timeOf(conflict.updatedAt) > timeOf(selected?.updatedAt)) {
         selected = conflict;
         selectedName = entry;
       }
     }
 
-    if (selectedName !== mainName && selected) {
+    if (selectedName !== mainBase && selected) {
       const archive = `${mainPath}.conflict-${Date.now()}.bak`;
       await fs.rename(mainPath, archive).catch(() => undefined);
-      await fs.copyFile(path.join(deps.syncDir, selectedName), mainPath);
-      await fs.rename(path.join(deps.syncDir, selectedName), `${selectedName}.processed`).catch(() => undefined);
+      const selectedPath = path.join(mainDir, selectedName);
+      await fs.copyFile(selectedPath, mainPath);
+      await fs.rename(selectedPath, `${selectedPath}.processed`).catch(() => undefined);
       result.conflictsArchived.push(book.path);
     }
 
     if (!selected) continue;
     for (const [key, remote] of Object.entries(selected.words)) {
+      const before = progress[key] ? JSON.stringify(progress[key]) : null;
       const merged = mergeProgress(progress[key], remote);
       if (merged) progress[key] = merged;
-      result.mergedKeys++;
+      if (JSON.stringify(merged ?? null) !== before) result.mergedKeys++;
     }
   }
   return result;

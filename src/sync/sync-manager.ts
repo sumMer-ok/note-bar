@@ -1,4 +1,5 @@
 import { Notice } from "obsidian";
+import { watch, type FSWatcher } from "fs";
 import type NoteBarPlugin from "../main";
 import { Mirrorer } from "./mirrorer";
 import { exportProgressToSidecars } from "./sync-exporter";
@@ -9,6 +10,10 @@ import type { SyncExportResult, SyncImportResult } from "./types";
 export class SyncManager {
   private mirrorer: Mirrorer | null = null;
   private exportTimer: ReturnType<typeof setTimeout> | null = null;
+  private importTimer: ReturnType<typeof setTimeout> | null = null;
+  private importPollTimer: ReturnType<typeof setInterval> | null = null;
+  private sidecarWatcher: FSWatcher | null = null;
+  private exportResolve: (() => void) | null = null;
   private running = false;
   readonly conflicts: string[] = [];
 
@@ -44,6 +49,9 @@ export class SyncManager {
     this.mirrorer.start(cfg.pollIntervalSec || 15);
     this.running = true;
     await this.mirrorer.syncOnce();
+    this.startSidecarWatch(cfg.syncDir, cfg.pollIntervalSec || 15);
+    // 先导入手机进度，再把合并结果导出回边车
+    await this.importAll();
     await this.exportAll(true);
   }
 
@@ -54,6 +62,19 @@ export class SyncManager {
       clearTimeout(this.exportTimer);
       this.exportTimer = null;
     }
+    if (this.importTimer) {
+      clearTimeout(this.importTimer);
+      this.importTimer = null;
+    }
+    if (this.importPollTimer) {
+      clearInterval(this.importPollTimer);
+      this.importPollTimer = null;
+    }
+    this.sidecarWatcher?.close();
+    this.sidecarWatcher = null;
+    // 挂起中的防抖导出直接结束，避免 Promise 永不 settle
+    this.exportResolve?.();
+    this.exportResolve = null;
     this.running = false;
   }
 
@@ -67,15 +88,16 @@ export class SyncManager {
     if (!immediate) {
       if (this.exportTimer) clearTimeout(this.exportTimer);
       return await new Promise((resolve) => {
+        this.exportResolve = () => resolve(null);
         this.exportTimer = setTimeout(async () => {
           this.exportTimer = null;
-          resolve(
-            await exportProgressToSidecars({
-              settings: this.plugin.hiwordsSettings,
-              vocabularyManager: this.plugin.vocabularyManager!,
-              syncDir: cfg.syncDir,
-            })
-          );
+          this.exportResolve = null;
+          const result = await exportProgressToSidecars({
+            settings: this.plugin.hiwordsSettings,
+            vocabularyManager: this.plugin.vocabularyManager!,
+            syncDir: cfg.syncDir,
+          });
+          resolve(result);
         }, 500);
       });
     }
@@ -93,5 +115,35 @@ export class SyncManager {
     await this.plugin.saveHiWordsSettings();
     this.plugin.refreshHighlighter();
     return result;
+  }
+
+  /** 监听同步目录里边车文件变化（fs.watch + 轮询兜底），防抖后自动导入 */
+  private startSidecarWatch(syncDir: string, pollIntervalSec: number): void {
+    try {
+      this.sidecarWatcher = watch(syncDir, { recursive: true }, (_event, fileName) => {
+        if (fileName && fileName.toString().endsWith(".nb-sync.json")) {
+          this.scheduleImport();
+        }
+      });
+      this.sidecarWatcher.on("error", () => {
+        // fs.watch 对 iCloud 未物化文件不可靠，轮询兜底已覆盖
+      });
+    } catch {
+      // 轮询兜底已覆盖
+    }
+    this.importPollTimer = setInterval(() => {
+      this.scheduleImport();
+    }, Math.max(1, pollIntervalSec) * 1000);
+  }
+
+  private scheduleImport(): void {
+    if (!this.running) return;
+    if (this.importTimer) clearTimeout(this.importTimer);
+    this.importTimer = setTimeout(() => {
+      this.importTimer = null;
+      void this.importAll().catch((error) => {
+        console.warn("Note Bar 自动导入失败:", error);
+      });
+    }, 1500);
   }
 }

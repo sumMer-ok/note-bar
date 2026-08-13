@@ -351,7 +351,7 @@ export default class NoteBarPlugin extends Plugin {
           await this.vocabularyManager!.reloadVocabularyBook(file.path);
           this.refreshHighlighter();
 
-          // 同步目录里的旧镜像改名归档、新路径开始镜像
+          // 旧路径不再参与镜像；新路径开始镜像（iCloud 中旧副本如需清理请手动处理）
           this.syncManager?.scheduleMirror(oldPath);
           this.syncManager?.scheduleMirror(file.path);
 

@@ -49,11 +49,11 @@ export class Mirrorer {
 
   scheduleSync(bookPath: string, delayMs = 1500): void {
     if (!this.bookPaths.includes(bookPath)) return;
-    this.timers.push(
-      setTimeout(() => {
-        void this.syncBook(bookPath);
-      }, delayMs)
-    );
+    const timer = setTimeout(() => {
+      this.timers = this.timers.filter((t) => t !== timer);
+      void this.syncBook(bookPath);
+    }, delayMs);
+    this.timers.push(timer);
   }
 
   async syncOnce(): Promise<void> {

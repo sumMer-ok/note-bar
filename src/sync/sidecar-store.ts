@@ -23,6 +23,11 @@ export async function readSidecar(filePath: string): Promise<SidecarFile | null>
     ) {
       return null;
     }
+    for (const value of Object.values(data.words as Record<string, unknown>)) {
+      if (!value || typeof value !== "object" || Array.isArray(value)) {
+        return null;
+      }
+    }
     return {
       version: SIDECAR_VERSION,
       book: data.book,

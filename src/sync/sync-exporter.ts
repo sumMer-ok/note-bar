@@ -1,8 +1,9 @@
+import { promises as fs } from "fs";
 import type { VocabularyManager } from "../hiwords/core/vocabulary-manager";
 import type { HiWordsSettings, StudyProgressItem } from "../hiwords/utils";
 import { readSidecar, sidecarPathForBook, writeSidecarAtomic } from "./sidecar-store";
 import { deriveStudyKey } from "./study-key";
-import { SIDECAR_VERSION, type SyncExportResult } from "./types";
+import { SIDECAR_VERSION, type SidecarFile, type SyncExportResult } from "./types";
 
 export interface ExporterDeps {
   settings: HiWordsSettings;
@@ -30,7 +31,16 @@ export async function exportProgressToSidecars(deps: ExporterDeps): Promise<Sync
       }
 
       const filePath = sidecarPathForBook(deps.syncDir, book.path);
-      const existing = await readSidecar(filePath);
+      // 区分「文件不存在」与「文件已存在但解析失败」：后者不覆盖，避免绕过 lastReview 仲裁
+      let existing: SidecarFile | null = null;
+      const stat = await fs.stat(filePath).catch(() => null);
+      if (stat) {
+        existing = await readSidecar(filePath);
+        if (!existing) {
+          result.failed.push(book.path);
+          continue;
+        }
+      }
       if (existing && JSON.stringify(existing.words) === JSON.stringify(words)) {
         result.unchanged++;
         continue;

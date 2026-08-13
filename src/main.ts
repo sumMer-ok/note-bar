@@ -86,6 +86,11 @@ const DEFAULT_HIWORDS_SETTINGS: HiWordsSettings = {
     days: 3,
   },
   retireCandidateDays: 90,
+  mobileSync: {
+    enabled: false,
+    syncDir: '',
+    pollIntervalSec: 15,
+  },
 };
 
 interface HiWordsRefreshHooks {

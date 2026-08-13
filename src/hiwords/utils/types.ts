@@ -255,6 +255,15 @@ export interface ReviewRecord {
     quality: 'again' | 'hard' | 'good' | 'easy';
 }
 
+/** 手机同步设置（iOS App 经 iCloud Drive 目录同步） */
+export interface MobileSyncSettings {
+    enabled: boolean;
+    /** iCloud 同步目录绝对路径 */
+    syncDir: string;
+    /** 轮询间隔（秒），默认 15 */
+    pollIntervalSec: number;
+}
+
 /** 相遇记录：同一单词在插件内的相遇次数统计（key 为 wordKey，即 studyKey 或 word 小写） */
 export interface EncounterData {
     /** 悬停查看释义次数 */
@@ -310,6 +319,8 @@ export interface FlashcardSettings {
 export interface HiWordsSettings {
     vocabularyBooks: VocabularyBook[];
     studyProgress?: Record<string, StudyProgressItem>;
+    /** 手机同步（iOS App） */
+    mobileSync?: MobileSyncSettings;
     flashcard?: FlashcardSettings;
     showDefinitionOnHover: boolean;
     enableAutoHighlight: boolean;

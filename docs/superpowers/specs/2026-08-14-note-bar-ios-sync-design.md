@@ -1,6 +1,6 @@
 # Note Bar iOS 词汇同步 App 设计文档
 
-> 状态：已与用户逐节确认
+> 状态：已与用户逐节确认；2026-08-14 经独立子代理对照源码审查并修订（见 13）
 > 日期：2026-08-14
 > 关联仓库：`note-bar`（Obsidian 插件，`main` 分支）
 > 上游调研：`documents/lexis-note-bar-调研报告.md`、`documents/lexis-note-bar-改进报告.md`
@@ -32,7 +32,7 @@
 ## 3. 现状
 
 - 插件入口 [src/main.ts](/Users/shengxia/Documents/projects/obisdian-plugin/note-bar/src/main.ts)：加载 `HiWordsSettings`（含 `studyProgress`），初始化 `VocabularyManager`、`MasteredService`、`EncounterTracker`，注册侧边栏、高亮扩展、闪卡/拼写/导出等命令。
-- 进度模型：FSRS-5（[src/hiwords/core/fsrs.ts](/Users/shengxia/Documents/projects/obisdian-plugin/note-bar/src/hiwords/core/fsrs.ts)），进度字段 `{ s, d, due, lastReview, reps, lapses }` 存于 `data.json` 的 `studyProgress`，键为 study-key。
+- 进度模型：FSRS-5（[src/hiwords/core/fsrs.ts](/Users/shengxia/Documents/projects/obisdian-plugin/note-bar/src/hiwords/core/fsrs.ts)，19 个权重 w0–w18），进度存于 `data.json` 的 `studyProgress`，单条结构为 `StudyProgressItem`：`status('new'|'learning'|'review'|'mastered')`、`stage`、`reps`、`ef`、`interval`、`s`、`d`、`lapses`、`dueDate`（本地 `YYYY-MM-DD`）、`lastReview`（ISO 时间戳）、`history`（每词最近 50 条 `{date, quality}`）、`lifecycle('active'|'graduated'|'archived'|'retired')`、`pinned`、`masteredAt`、`updatedAt`；进度键由 4.3 的双规则决定，不是简单的「词 + 来源」。
 - 闪卡会话：[flashcard-queue.ts](/Users/shengxia/Documents/projects/obisdian-plugin/note-bar/src/hiwords/core/flashcard-queue.ts) 已支持 learn-new 与 review-due 两种会话；评分四档 again/hard/good/easy。
 - 拼写练习：[spelling-practice-modal.ts](/Users/shengxia/Documents/projects/obisdian-plugin/note-bar/src/hiwords/ui/spelling-practice-modal.ts)，`spellingPractice.maxPerSession` 默认 20。
 - Canvas 词库：词条以节点存储，插件有 `canvas-editor.ts`（增删改、按日期分组、`normalizeLayout` 排版）。
@@ -42,9 +42,20 @@
 
 ### 4.1 文件布局
 
-- 用户的 vault 位于 iCloud Drive；每个生词本 Canvas 原样同步。
-- 每个 Canvas 词库旁边放一个同名边车文件：`<词库>.canvas` → `<词库>.nb-sync.json`。Obsidian 不解析该文件，不会改动它。
-- 边车文件会出现在 Obsidian 文件列表中（vault 内的普通 JSON），可选加 CSS 隐藏，不影响功能。
+前提：用户的 vault **不在** iCloud Drive 内，只有词库 Canvas 需要进 iCloud。因此设置一个专用 **iCloud 同步目录**（如 `iCloud Drive/NoteBar/`），由用户在 App 端用文件夹选择器授权、在插件端配置同一路径（默认 `~/Library/Mobile Documents/com~apple~CloudDocs/NoteBar`）。
+
+目录内镜像 vault 的词库相对路径，保证两端 studyKey 的 `source` 一致：
+
+- `NoteBar/<vault 相对路径>/英语词库.canvas` —— 插件从 vault 镜像过来的内容副本；
+- `NoteBar/<vault 相对路径>/英语词库.nb-sync.json` —— 进度边车，**只存在于 iCloud 目录，不放入 vault**（Obsidian 完全不可见，无需 CSS 隐藏）。
+
+插件维护一条 **vault ⇄ iCloud 目录的双向镜像链路**（见 5.2）：
+
+- vault → iCloud：vault 副本比 iCloud 副本新（mtime）时复制过去；
+- iCloud → vault：vault 副本自上次导出后未变、且 iCloud 副本更新时复制回来；
+- 两端都变过：**桌面（vault）内容为准**，覆盖回 iCloud，并把冲突记录进日志供用户查看。
+
+v1 假设一个同步目录只服务一个 vault；多 vault 支持留待后续（边车加 `vaultId`）。
 
 ### 4.2 边车 schema（两端共用，version 1）
 
@@ -54,36 +65,65 @@
   "book": "英语词库.canvas",
   "words": {
     "<studyKey>": {
+      "status": "review",
+      "stage": 2,
+      "reps": 4,
+      "ef": 2.5,
+      "interval": 10,
       "s": 30.5,
       "d": 5.2,
-      "due": "2026-08-15",
-      "lastReview": "2026-08-12T09:00:00+08:00",
-      "reps": 4,
       "lapses": 0,
-      "status": "active",
-      "mastered": false
+      "dueDate": "2026-08-15",
+      "lastReview": "2026-08-12T09:00:00+08:00",
+      "history": [
+        { "date": "2026-08-12T09:00:00.000Z", "quality": "good" }
+      ],
+      "lifecycle": "active",
+      "pinned": false,
+      "masteredAt": null,
+      "updatedAt": "2026-08-12T09:00:00+08:00"
     }
   },
-  "log": [
-    { "t": "2026-08-12T09:00:00+08:00", "word": "<studyKey>", "grade": 3 }
-  ],
+  "settings": {
+    "newWordSteps": 2,
+    "masteredThreshold": { "reps": 3, "minEf": 2.5 },
+    "dailyNewWordLimit": 20,
+    "dailyReviewLimit": 50,
+    "studyOrder": "review-first",
+    "spellingPractice": { "maxPerSession": 20 }
+  },
   "updatedAt": "2026-08-12T09:00:00+08:00"
 }
 ```
 
-- 单词与释义**以 Canvas 为准**，边车只存进度与日志，避免两份内容打架。
-- `due` 为本地日期 `YYYY-MM-DD`（与 `flashcard-algorithm.ts` 的 `toISODate` 一致）；时间戳带时区 ISO 8601。
+- 字段与真实 `StudyProgressItem` 一一对应（`dueDate`、`status`、`stage`、`s/d/lapses/reps/ef/interval`、`lastReview`、`history`、`lifecycle`、`pinned`、`masteredAt`），不引入虚构字段；`status` 是学习阶段枚举，`lifecycle` 是生命周期枚举。
+- 单词与释义**以 Canvas 为准**，边车只存进度、history 与设置，避免两份内容打架。
+- `dueDate` 为本地日期 `YYYY-MM-DD`（与 `flashcard-algorithm.ts` 的 `toISODate` 一致）；`lastReview` 为带时区 ISO 8601；`history[].quality` 保留字符串枚举 `again|hard|good|easy`（与桌面 `ReviewRecord` 一致，映射为数字 1–4 时两端必须一致）。
+- `settings` 块承载桌面 flashcard/拼写设置，桌面为准（App 只读生效），解决 6.3/6.6 对桌面设置的依赖；App 自身偏好（主题/发音等）独立保存不进边车。
 
 ### 4.3 studyKey
 
-复用插件现有 study-key 生成逻辑（词 + 来源），保证两端识别同一个词。App 端移植同款函数并冻结测试向量。
+两端识别同一个词要用**双规则**（与桌面运行时逻辑一致）：
+
+- **卡片类节点**：`buildStudyKey()` 生成的 `language:type:text`（NFKC 归一化 → trim → 空白折叠 → 去首尾标点 → 小写）；
+- **普通 Canvas 节点**（占绝大多数）：`source:nodeId`，即 `<词库相对路径>:<节点 16 位随机 id>`。`source` 取词库相对同步目录根（等于 vault 相对路径），`nodeId` 取节点 JSON 的 `id`。
+
+App 端移植同款函数并冻结测试向量。已知边界行为（与桌面现状一致，v1 不修）：
+
+- Canvas 文件改名/移动后 `source:nodeId` 键全部断裂（桌面 rename 只更新书路径、不迁移进度键）；
+- 同一词删除后重加会拿到新节点 id → 旧进度键成为孤儿、进度重置。
+
+v1 同步对象仅为 **Canvas 词库节点**；笔记内卡片类条目的进度保持桌面本地，不进边车。
+
+大小写规范化的语言环境差异见第 8 节。
 
 ### 4.4 冲突仲裁
 
 - 同一词两端都复习过：以 `lastReview` 更新者为准。
-- 日志按「时间戳 + 词 + 评分」去重后追加，不删除。
-- 内容（增删改单词）：以 Canvas 为准；手机端内容操作见 6.9。
-- iCloud 产生冲突副本（`xxx.nb-sync.json` 与 `xxx (冲突副本).nb-sync.json`）时，比较 `updatedAt` 取新者，旧的冲突副本改名归档，不静默丢弃。
+- `lastReview` 完全相同时取 `reps` 更高者，仍相同按完整字段字典序取大，保证两端收敛到同一结果。
+- history 按 `date + quality` 去重后追加，每词保留最近 50 条（与桌面 `slice(-50)` 一致），不删除已有记录。
+- 内容（增删改单词）：**桌面 Canvas 为准**；镜像链路与手机端内容操作见 4.1 与 6.9。
+- iCloud 产生冲突副本时（Apple 命名风格为 `xxx 2.nb-sync.json`，非 Windows 的 `(冲突副本)`），比较 `updatedAt` 取新者，旧的改名归档，不静默丢弃。
 
 ## 5. 系统架构
 
@@ -91,21 +131,22 @@
 
 ```mermaid
 flowchart LR
-    subgraph Mac["Mac · Obsidian"]
+    subgraph Mac["Mac · Obsidian（vault 不在 iCloud）"]
         V[Canvas 词库文件]
         D[data.json<br/>studyProgress]
-        S[src/sync 模块<br/>导出/导入/合并]
+        S[src/sync 模块<br/>镜像/导出/导入/合并]
     end
-    subgraph Cloud["iCloud Drive"]
-        C[Canvas 词库]
+    subgraph Cloud["iCloud Drive · 同步目录 NoteBar/"]
+        C[Canvas 词库镜像]
         F[.nb-sync.json 边车]
     end
     subgraph Phone["iPhone · Note Bar App"]
-        T[SyncService<br/>文件监听/读写]
+        T[SyncService<br/>书签授权/文件监听/读写]
         L[SwiftData 本地缓存]
         Fs[FSRS-5 Swift 引擎]
         U[SwiftUI 界面]
     end
+    V <-->|双向镜像| C
     V --> S --> F
     D <--> S
     C <--> T
@@ -118,22 +159,23 @@ flowchart LR
 
 新增 `src/sync/`，不改 FSRS 引擎与 Canvas 编辑逻辑：
 
+- `sync-mirror.ts`：维护 vault ⇄ iCloud 同步目录的双向镜像（按 4.1 规则：mtime 比较、桌面内容优先、原子写、防抖 1.5s）。监听用 `fs.watch` + 周期性 `stat` 轮询双保险（macOS 对 iCloud 未物化文件的事件不可靠）；首次启用提示用户授予 Obsidian「完全磁盘访问权限」。
 - `sidecar-store.ts`：读写/解析/版本校验边车。
-- `sync-exporter.ts`：`studyProgress` → 边车（按词库、studyKey 映射），评分保存后触发。
-- `sync-importer.ts`：监听 vault 边车 `modify`（防抖 1.5s）→ 与 `data.json` 合并（lastReview 仲裁、log 追加去重）→ 写回 → 刷新 mastered 与 Canvas 颜色。
-- 设置页新增「手机同步」分区：总开关、iCloud 目录路径显示、立即导出/导入、冲突日志。
+- `sync-exporter.ts`：`studyProgress` → 边车（按词库、studyKey 双规则映射，显式落 `status/lifecycle/masteredAt`），评分保存后触发。
+- `sync-importer.ts`：监听 iCloud 目录内边车变化（防抖 1.5s）→ 与 `data.json` 合并（lastReview 仲裁、history 按 date+quality 去重追加且每词保留最近 50 条）→ 写回 → 刷新 mastered 与 Canvas 颜色。
+- 设置页新增「手机同步」分区：总开关、iCloud 目录路径、立即导出/导入、镜像与冲突日志。
 
 ### 5.3 iOS App 分层
 
-- **SyncService**：用户一次性授权 vault 目录（document picker + security-scoped bookmark），读写边车与 Canvas；`NSMetadataQuery` 监听变化。
-- **LocalStore**：SwiftData 缓存全部词条与进度，离线可用；评分本地立即生效后再写边车。
+- **SyncService**：用户通过 `UIDocumentPickerViewController(forOpeningContentTypes: [.folder])` 一次性授权 iCloud 同步目录，持久化 security-scoped bookmark；所有读写经 `NSFileCoordinator`。变化感知用 `NSFilePresenter` + 目录轮询（iOS 的 `NSMetadataQuery` 只能监视 App 自己的 iCloud 容器，**监视不了**用户授权的外部文件夹）；bookmark 失效时引导重新授权。
+- **LocalStore**：SwiftData 缓存全部词条与进度，离线可用；评分先本地生效 → 写边车前重读磁盘合并 → 临时文件 + rename 原子写。
 - **FSRS Engine**：`fsrs.ts` 的 Swift 逐行移植（19 参数表、init/next、retrievability、nextInterval、humanInterval）。
 - **UI**：SwiftUI。
 
 ### 5.4 同步时机与限制
 
 - App 前台/启动/手动下拉刷新时拉取并合并；评分后立即本地生效并写边车。
-- 插件端用 `fs.watch` + 防抖实时感知手机写入。
+- 插件端用 `fs.watch` + 轮询兜底 + 防抖实时感知手机写入（见 5.2）。
 - v1 不做后台秒级推送；升级路径为在同一套文件上叠加 CloudKit 变更通知，不动现有结构。
 
 ## 6. iOS App 设计
@@ -168,7 +210,8 @@ flowchart LR
 ### 6.3 学习与复习分离
 
 - 「开始复习」= due ≤ 今天的 active 词；「开始学习」= 无进度新词，受 `dailyNewWordLimit` 限制；默认复习优先。
-- 复用插件现有 learn/review 会话语义与 `flashcard` 设置（`newWordSteps`、`dailyReviewLimit`、`studyOrder`）。
+- 复用插件现有 learn/review 会话语义（new→learning→review 的 `newWordSteps` 步进、`stage` 推进）。
+- 行为参数（`newWordSteps`、`dailyNewWordLimit`、`dailyReviewLimit`、`studyOrder`）经边车 `settings` 块同步，桌面为准、App 只读生效。
 
 ### 6.4 词库浏览与熟练度分档
 
@@ -179,17 +222,20 @@ flowchart LR
 | 档位 | 判定 |
 |---|---|
 | 未开始 | 无进度记录 |
-| 新学 | `s < 2` |
+| 新学 | `s < 2` 或 `status ∈ {new, learning}` |
 | 巩固 | `2 ≤ s < 15` |
-| 熟悉 | `15 ≤ s < 60` |
-| 已掌握 | `s ≥ 60` 或 `mastered=true` 或 `status ∈ {graduated}` |
+| 熟悉 | `15 ≤ s < 30`（低于毕业阈值） |
+| 已掌握 | `s ≥ 30` 或 `lifecycle === 'graduated'` 或 `status === 'mastered'` |
+
+- 毕业阈值 `30` 来自桌面代码常量 `DEFAULT_GRADUATED_S`（约对应 1 个月间隔），两端对拍冻结，不做成可调设置，保证对同一词的判定一致。
 
 ### 6.5 统计
 
 - 顶部卡片：连续天数、今日复习量。
 - 日历视图（默认）：月份网格，有复习/学习的日期着色；点日期展开当天单词列表（含每词评分）；点单词进详情页可继续阅读或编辑。
 - 复习热力图（近 18 周）作为日历旁的第二视图，与日历可切换。
-- 数据源：边车 `log` 聚合的复习日志。
+- 数据源：边车各词条 `history`（`{date, quality}`）聚合，quality 为字符串枚举 `again|hard|good|easy`。
+- 如实说明：桌面每词只保留最近 50 条 history，且完整统计只能从**启用同步之日起累积**，启用前的历史不迁移进统计。
 
 ### 6.6 听写模式
 
@@ -205,17 +251,21 @@ flowchart LR
 ### 6.8 音频
 
 - 沿用有道 TTS URL 模板；无网络时降级 `AVSpeechSynthesizer`。
+- 桌面若有 vault 内音频附件（`card.audio` 生成 `app://` 资源路径），iOS 无法访问，自动回退有道 TTS / `AVSpeechSynthesizer`。
 - 「自动朗读」开关控制翻面/下一张时是否自动发音。
 
 ### 6.9 手机端内容编辑（Canvas 写回策略）
 
 - App 解析 Canvas JSON 读取词条；增删改时直接写 Canvas 节点（与插件同一结构）。
+- 新增词条必须遵循桌面解析的节点文本模板：第一行单词；第二行 `*别名1, 别名2*`（可选）；其后为释义；并在 Canvas JSON 中创建/复用「今天」的日期组（`findOrCreateDateGroup` 语义）把节点放进组内，否则按日期分组会失灵。
+- 写回必须保留不认识的 JSON 字段（Obsidian 版本演进会新增字段）；一律临时文件 + rename 原子写；读到解析失败的 JSON 时退避重试，不覆盖原文件。
 - v1 简化布局：手机端新词按简单网格落位，不移植完整 `normalizeLayout`；桌面插件打开该 Canvas 时用现有排版逻辑自动整理。
-- 手机编辑在桌面离线期间仅在 App 本地生效；桌面 Obsidian 运行时由既有 Canvas `modify` 监听自动重载。
+- 内容冲突时桌面（vault）为准（见 4.1/4.4）；手机编辑先经镜像回写 vault；桌面 Obsidian 运行时由既有 Canvas `modify` 监听自动重载。
 
 ## 7. 数据迁移
 
 - 首次开启同步：把 `data.json` 现有 `studyProgress` 一次性导出为首份边车；Canvas 内容零改动。
+- 导出时把 `status='mastered'` / `lifecycle='graduated'` / `masteredAt` 显式落入边车，保证存量「已掌握」状态不丢失。
 - App 首启：读边车初始化；无边车按全新词库处理。
 - 旧 `reps/ef/interval` 字段（若有历史数据）按插件现有兼容逻辑读取，不重新计算。
 
@@ -224,17 +274,22 @@ flowchart LR
 - Swift 移植覆盖 `fsrs.ts` 全部常量与函数（`FSRS_W`、`FSRS_DECAY`、`FSRS_FACTOR`、`initStability`、`initDifficulty`、`nextDifficulty`、`retrievability`、`nextRecallStability`、`nextForgetStability`、`nextInterval`、`humanInterval`、`MAX_IVL`）。
 - 用 TS 端生成的一组固定测试向量（给定 s/d/间隔天数/评分序列 → 期望 s′/d′/due）在两端对拍，作为回归基线。
 - 时区规则：due 一律本地 `YYYY-MM-DD`；跨时区不换算日期。
+- studyKey 规范化冻结：桌面 `normalizeStudyText` 用 `toLocaleLowerCase()`（宿主语言环境相关），App 端用 Unicode 默认小写（等价 JS `toLowerCase()`）。对英文字汇两者一致；测试向量必须覆盖 `I/i/İ/ı` 等大小写边界字符。若用户 Mac 为土耳其语等特殊语言环境，另定 en-US 钉死 + 键迁移方案（v1 列入风险）。
 
 ## 9. 测试策略
 
-- 插件侧：Node 内置 test runner 单元测试覆盖边车序列化、合并仲裁（lastReview 取胜、log 去重、冲突副本处理）。
+- 插件侧：Node 内置 test runner 单元测试覆盖边车序列化、合并仲裁（lastReview 取胜、history 去重、冲突副本处理）。
+- 插件侧运行方案：仓库无 ts-node/tsx，用 esbuild 编译后 `node --test`（`package.json` 无 test script，需一并补齐）。
+- studyKey 双规则、大小写/语言环境边界向量、节点文本模板解析、日期组创建均纳入单测。
 - iOS 侧：XCTest 覆盖 FSRS 移植对拍与合并逻辑；SwiftUI 预览验证各页面；日历/热力图聚合单测。
 - 端到端（真机 + TestFlight）：
   1. vault → 手机拉取 → 评分 → 写边车 → 桌面合并回 `data.json`；
   2. 桌面评分 → 手机下次启动显示新 due；
   3. 两端同时复习同一词的冲突仲裁；
-  4. 手机增删改单词 → 桌面 Canvas 更新；
-  5. 860 词级词库的启动与滚动性能。
+  4. 两端同时编辑同一 Canvas 的内容冲突（桌面为准）；
+  5. 手机增删改单词（含日期组、别名格式）→ 桌面 Canvas 更新；
+  6. iCloud 冲突副本（`xxx 2` 命名）识别与仲裁；
+  7. 860 词级词库的启动与滚动性能。
 
 ## 10. 里程碑
 
@@ -254,6 +309,11 @@ flowchart LR
 | FSRS 移植偏差 | 冻结测试向量两端对拍 + 回归测试 |
 | 后台不推送导致手机进度滞后 | v1 前台同步 + 手动刷新；后续叠加 CloudKit 变更通知 |
 | 大词库性能 | 列表分页、progress 按需加载、日志聚合缓存 |
+| macOS 对 iCloud 目录 fs.watch 不可靠 | fs.watch + stat 轮询双保险；提示完全磁盘访问权限 |
+| studyKey 大小写/语言环境偏差 | 冻结边界测试向量；必要时 en-US 钉死 + 键迁移 |
+| Canvas 改名/移动导致 source:nodeId 键断裂 | v1 沿用桌面现状并在文档明示；后续做路径迁移 |
+| vault 内音频附件 iOS 不可用 | 回退有道 TTS / AVSpeechSynthesizer |
+| 手机写 Canvas 破坏未知字段 | 写回保留未知键 + 原子写 + 解析失败退避 |
 
 ## 12. 决策记录（摘要）
 
@@ -263,3 +323,16 @@ flowchart LR
 4. 复习交互：卡片翻转 + 四向滑动 + 三键评分 + 撤销；学习/复习分离。
 5. 熟练度：五档自动映射（见 6.4）。
 6. 视觉：iOS 毛玻璃材质；单词日间黑/夜间暗紫。
+7. 拓扑：vault 不在 iCloud；插件双向镜像 vault 词库 ⇄ iCloud 同步目录；边车只存 iCloud 目录。
+8. 内容权威：Canvas 内容冲突时桌面（vault）为准。
+
+## 13. 审查修订记录（2026-08-14）
+
+经独立子代理对照源码审查，修正以下问题：
+
+1. **studyKey 双规则**：卡片节点 `language:type:text`；普通 Canvas 节点 `source:nodeId`（原「词 + 来源」描述错误，会致进度全量对不上）。
+2. **补镜像链路**：vault ⇄ iCloud 同步目录双向复制；边车只放 iCloud 目录、不放 vault。
+3. **边车 schema 对齐**真实 `StudyProgressItem`（`status/stage/ef/interval/dueDate/history/lifecycle/pinned`），删除虚构字段，并新增 `settings` 块。
+4. **已掌握阈值**由 60 改为桌面常量 30（或 lifecycle/status 判定）。
+5. **iOS 文件监听**由 NSMetadataQuery 改为 security-scoped bookmark + NSFilePresenter/轮询 + 重新授权流程。
+6. 补充节点文本模板、日期组创建、原子写、未知字段保留、Apple 冲突副本命名（`xxx 2`）、fs.watch 轮询兜底、audio 附件不可用、统计数据可得性等落地细节。

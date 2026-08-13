@@ -15,6 +15,7 @@ import { LocalDictionaryService, getLocalDictionaryService } from "./hiwords/ser
 import { EncounterTracker, setEncounterTracker } from "./hiwords/core/encounter-tracker";
 import type { HiWordsSettings, VocabularyBookDisplaySettings, WordDefinition } from "./hiwords/utils/types";
 import { pickDirectory } from "./sync/folder-picker";
+import { SyncManager } from "./sync/sync-manager";
 
 const DEFAULT_AI_DEFINITION_PROMPT = '你是一个英汉词典编纂助手。请为单词 "{{word}}" 生成词条（上下文句子，可能为空：{{sentence}}）。\n\n输出要求（必须严格遵守）：\n1. 只输出一个 JSON 对象，不要输出任何其他内容：不要 markdown 代码块、不要 ```json 标记、不要注释、不要解释性文字、不要前后缀说明。\n2. JSON 只包含两个字段：\n   - "aliases"：字符串数组。如果该单词是词形变化（-ing / -ed / -s / -es / -ies / -er / -est 等），必须包含其原形（lemma）及常见变形；如果本身就是原形，可返回常见变形或空数组。例如 suing 返回 ["sue", "sued", "sues"]；went 返回 ["go", "goes", "going", "gone"]；better 返回 ["good"]；books 返回 ["book"]。\n   - "definition"：字符串，内容依次为：\n     1）音标（英式/美式）\\n2）中文释义（含词性标注）\\n3）英文释义\\n4）例句\n     其中序号之间的换行使用 JSON 转义符 \\n，不要使用 markdown 列表符号。\n3. 必须是合法 JSON：键和字符串值使用英文双引号；不要有尾随逗号；字符串内部不要有未转义的换行；不要使用单引号。\n\n只输出下面格式的 JSON 对象本身（不要包含任何其他文字）：\n{"aliases": ["sustain", "sustained", "sustaining", "sustains"], "definition": "1）英/ sə\'steɪn / 美/ sə\'steɪn /\\n2）v. 维持，保持；遭受，经受；支持，支撑\\nn. （乐）延音\\n3）to cause or allow something to continue for a period of time\\n4）The economy looks set to sustain its growth into next year."}';
 
@@ -105,6 +106,7 @@ export default class NoteBarPlugin extends Plugin {
   masteredService: MasteredService | null = null;
   definitionPopover: DefinitionPopover | null = null;
   encounterTracker: EncounterTracker | null = null;
+  syncManager: SyncManager | null = null;
   private editorExtensions: Extension[] = [];
   private isSidebarInitialized = false;
 
@@ -116,6 +118,9 @@ export default class NoteBarPlugin extends Plugin {
 
     // 初始化词库管理器
     this.vocabularyManager = new VocabularyManager(this.app, this.hiwordsSettings);
+
+    // 初始化手机同步管理器
+    this.syncManager = new SyncManager(this);
 
     // 初始化已掌握服务
     this.masteredService = new MasteredService(this, this.vocabularyManager);
@@ -153,6 +158,11 @@ export default class NoteBarPlugin extends Plugin {
       void (async () => {
         await this.vocabularyManager!.loadAllVocabularyBooks();
         this.refreshHighlighter();
+
+        // 启用手机同步时，词库加载完成后启动同步（镜像 + 首次导出）
+        if (this.hiwordsSettings.mobileSync?.enabled) {
+          await this.syncManager?.start();
+        }
 
         // 延迟加载相遇记录（与词库加载同一时机，避免阻塞启动）
         await this.encounterTracker?.load();
@@ -273,6 +283,7 @@ export default class NoteBarPlugin extends Plugin {
           );
           if (isVocabBook) {
             modifiedCanvasFiles.add(file.path);
+            this.syncManager?.scheduleMirror(file.path);
           }
         }
       })
@@ -339,6 +350,10 @@ export default class NoteBarPlugin extends Plugin {
           this.vocabularyManager!.removeBookData(oldPath);
           await this.vocabularyManager!.reloadVocabularyBook(file.path);
           this.refreshHighlighter();
+
+          // 同步目录里的旧镜像改名归档、新路径开始镜像
+          this.syncManager?.scheduleMirror(oldPath);
+          this.syncManager?.scheduleMirror(file.path);
 
           new Notice(`生词本路径已更新: ${file.basename}`);
         }
@@ -409,6 +424,11 @@ export default class NoteBarPlugin extends Plugin {
     this.vocabularyManager?.updateSettings(this.hiwordsSettings);
     this.masteredService?.updateSettings();
     this.app.workspace.trigger('hi-words:settings-changed');
+
+    // 评分/设置保存后自动导出进度到边车（防抖在 SyncManager 内处理）
+    if (this.hiwordsSettings.mobileSync?.enabled && this.syncManager?.isRunning) {
+      void this.syncManager.exportAll();
+    }
   }
 
   private registerSelectionChangeListener(): void {
@@ -456,6 +476,10 @@ export default class NoteBarPlugin extends Plugin {
 
   async onunload() {
     console.log("Note Bar plugin unloaded");
+
+    // 停止手机同步（清轮询与待执行的镜像任务）
+    this.syncManager?.stop();
+    this.syncManager = null;
 
     // 相遇记录立即落盘（防抖未触发的数据也会被写入）
     if (this.encounterTracker) {

@@ -48,17 +48,40 @@ final class SyncService {
     private var lastMtimes: [String: (canvas: Date?, sidecar: Date?)] = [:]
     private let store: DataStore
     private let onConflictsChanged: ([SyncConflict]) -> Void
+    private let onStatusChanged: (String) -> Void
 
-    init(store: DataStore, onConflictsChanged: @escaping ([SyncConflict]) -> Void) {
+    init(
+        store: DataStore,
+        onConflictsChanged: @escaping ([SyncConflict]) -> Void,
+        onStatusChanged: @escaping (String) -> Void = { _ in }
+    ) {
         self.store = store
         self.onConflictsChanged = onConflictsChanged
+        self.onStatusChanged = onStatusChanged
     }
 
-    func configure(folder url: URL) {
+    /// 保存用户选择的同步目录。返回 false 表示该目录当前读不到（权限未授予或目录无效）。
+    /// 调用成功后 SyncService 会在进程存活期间一直持有已开启安全作用域的 URL。
+    @discardableResult
+    func configure(folder url: URL) -> Bool {
+        // 文档选择器返回的是安全作用域 URL：在回调内立即开启作用域并长期持有，
+        // 否则离开选择器回调后访问会失效（这就是之前真机上无法同步的根因）。
+        let scoped = url.startAccessingSecurityScopedResource()
         syncDir = url
         if let bookmark = try? url.bookmarkData(options: .minimalBookmark, includingResourceValuesForKeys: nil, relativeTo: nil) {
             BookmarkStore.save(bookmark)
         }
+        if scoped {
+            NSLog("[SyncService] security scope active for %@", url.path)
+        }
+        // 作用域开启失败不代表一定不可用（模拟器/沙盒内路径不需要作用域），以能否读到目录为准。
+        let readable = (try? FileManager.default.contentsOfDirectory(atPath: url.path)) != nil
+        if !readable {
+            NSLog("[SyncService] selected directory is not readable: %@", url.path)
+            syncDir = nil
+            BookmarkStore.clear()
+        }
+        return readable
     }
 
     func start() {
@@ -79,11 +102,24 @@ final class SyncService {
         if scanning { return }
         scanning = true
         defer { scanning = false }
-        guard let root = syncDir ?? BookmarkStore.resolve() else { return }
+        guard let root = root() else {
+            if BookmarkStore.load() == nil {
+                onStatusChanged("未选择同步目录：请到「设置」选择 iCloud 云盘中的 NoteBar 文件夹")
+            } else {
+                onStatusChanged("无法访问同步目录：请到「设置」重新选择 iCloud 中的 NoteBar 文件夹")
+            }
+            return
+        }
 
         let payload = await Task.detached(priority: .utility) {
             Self.collect(root: root)
         }.value
+
+        guard let payload else {
+            syncDir = nil
+            onStatusChanged("同步失败：目录权限不可用，请到「设置」重新选择 iCloud 中的 NoteBar 文件夹")
+            return
+        }
 
         conflicts = payload.conflicts
         onConflictsChanged(conflicts)
@@ -118,11 +154,15 @@ final class SyncService {
         if changed {
             try? store.context.save()
         }
+        onStatusChanged("已连接：\(root.lastPathComponent) · 最近同步 \(Self.timeString(Date()))")
     }
 
     /// 评分后写回边车：读磁盘 → 合并 → 原子写，全部在后台线程
     func persist(book: String, key: String, progress: StudyProgress) {
-        guard let root = syncDir ?? BookmarkStore.resolve() else { return }
+        guard let root = root() else {
+            onStatusChanged("无法访问同步目录：进度未能写回 iCloud")
+            return
+        }
         let base = book.replacingOccurrences(of: "\\.canvas$", with: "", options: .regularExpression)
         let sidecarURL = root.appendingPathComponent("\(base).nb-sync.json")
         Task.detached(priority: .utility) {
@@ -132,10 +172,10 @@ final class SyncService {
 
     /// 读取 Canvas JSON（后台 IO，主线程解析）
     func readCanvas(_ relative: String) async -> [String: Any]? {
-        guard let root = syncDir ?? BookmarkStore.resolve() else { return nil }
+        guard let root = root() else { return nil }
         let url = root.appendingPathComponent(relative)
         let result = await Task.detached(priority: .utility) {
-            try? Data(contentsOf: url)
+            Self.readData(at: url)
         }.value
         guard let data = result else { return nil }
         return try? JSONSerialization.jsonObject(with: data) as? [String: Any]
@@ -143,7 +183,10 @@ final class SyncService {
 
     /// 写回 Canvas JSON（后台原子写）
     func writeCanvas(_ relative: String, data: [String: Any]) {
-        guard let root = syncDir ?? BookmarkStore.resolve() else { return }
+        guard let root = root() else {
+            onStatusChanged("无法访问同步目录：单词内容未能写回 iCloud")
+            return
+        }
         let url = root.appendingPathComponent(relative)
         guard let encoded = try? JSONSerialization.data(withJSONObject: data, options: [.prettyPrinted, .sortedKeys]) else { return }
         Task.detached(priority: .utility) {
@@ -153,7 +196,7 @@ final class SyncService {
 
     /// 冲突仲裁：保留主版本或保留副本版本，之后重新扫描
     func resolve(_ conflict: SyncConflict, keepCopy: Bool) {
-        guard let root = syncDir ?? BookmarkStore.resolve() else { return }
+        guard let root = root() else { return }
         let main = URL(fileURLWithPath: conflict.mainPath)
         let copy = URL(fileURLWithPath: conflict.conflictPath)
         let archive = copy.appendingPathExtension("resolved-\(Int(Date().timeIntervalSince1970))")
@@ -173,10 +216,39 @@ final class SyncService {
 
     // MARK: - 后台实现
 
-    private nonisolated static func collect(root: URL) -> (snapshots: [CanvasSnapshot], conflicts: [SyncConflict]) {
+    /// 取当前可用的同步目录；书签解析成功后把 URL 留在进程内，保证安全作用域持续有效。
+    private func root() -> URL? {
+        if let dir = syncDir { return dir }
+        if let resolved = BookmarkStore.resolve() {
+            syncDir = resolved
+            return resolved
+        }
+        return nil
+    }
+
+    private nonisolated static func timeString(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm"
+        return formatter.string(from: date)
+    }
+
+    private nonisolated static func readData(at url: URL) -> Data? {
+        var coordinatorError: NSError?
+        var result: Data?
+        NSFileCoordinator().coordinate(readingItemAt: url, options: [], error: &coordinatorError) { target in
+            result = try? Data(contentsOf: target)
+        }
+        if let coordinatorError {
+            NSLog("[SyncService] read coordination failed for %@: %@", url.path, String(describing: coordinatorError))
+        }
+        return result
+    }
+
+    /// 目录枚举失败（典型原因是安全作用域失效）时返回 nil，让调用方提示用户重新授权。
+    private nonisolated static func collect(root: URL) -> (snapshots: [CanvasSnapshot], conflicts: [SyncConflict])? {
         let fm = FileManager.default
         guard let enumerator = fm.enumerator(at: root, includingPropertiesForKeys: [.contentModificationDateKey]) else {
-            return ([], [])
+            return nil
         }
 
         var files: [URL] = []
@@ -227,7 +299,7 @@ final class SyncService {
                         conflictWords: sidecarWords(url)
                     ))
                 } else {
-                    if let data = try? Data(contentsOf: url),
+                    if let data = readData(at: url),
                        let sidecar = try? JSONDecoder().decode(SidecarFile.self, from: data) {
                         sidecars[sidecar.book] = sidecar
                         sidecarMtimes[sidecar.book] = mtime
@@ -237,7 +309,7 @@ final class SyncService {
         }
 
         let snapshots = canvases.map { relative, url in
-            let data = (try? Data(contentsOf: url)) ?? Data()
+            let data = readData(at: url) ?? Data()
             let words = (try? CanvasEditor.parseWords(data: data, source: relative)) ?? []
             return CanvasSnapshot(
                 relative: relative,
@@ -261,20 +333,20 @@ final class SyncService {
     }
 
     private nonisolated static func canvasWords(_ url: URL) -> [String] {
-        guard let data = try? Data(contentsOf: url),
+        guard let data = readData(at: url),
               let words = try? CanvasEditor.parseWords(data: data, source: "") else { return [] }
         return words.map(\.word).sorted()
     }
 
     private nonisolated static func sidecarWords(_ url: URL) -> [String] {
-        guard let data = try? Data(contentsOf: url),
+        guard let data = readData(at: url),
               let sidecar = try? JSONDecoder().decode(SidecarFile.self, from: data) else { return [] }
         return sidecar.words.keys.sorted()
     }
 
     private nonisolated static func writeProgress(_ progress: StudyProgress, key: String, book: String, at url: URL) {
         var sidecar: SidecarFile
-        if let data = try? Data(contentsOf: url),
+        if let data = readData(at: url),
            let decoded = try? JSONDecoder().decode(SidecarFile.self, from: data) {
             sidecar = decoded
         } else {

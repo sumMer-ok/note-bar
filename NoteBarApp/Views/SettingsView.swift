@@ -9,7 +9,9 @@ struct SettingsView: View {
             Form {
                 Section("iCloud 同步目录") {
                     Button("选择目录") { showPicker = true }
-                    Text(appState.syncStatus).font(.caption).foregroundStyle(.secondary)
+                    Text(appState.syncStatus)
+                        .font(.caption)
+                        .foregroundStyle(statusColor)
                     Button("立即同步") {
                         Task { await appState.sync.scan() }
                     }
@@ -89,12 +91,23 @@ struct SettingsView: View {
             .navigationTitle("设置")
             .sheet(isPresented: $showPicker) {
                 FolderPicker { url in
-                    appState.sync.configure(folder: url)
-                    appState.syncStatus = url.lastPathComponent
-                    appState.sync.start()
+                    if appState.sync.configure(folder: url) {
+                        appState.syncStatus = "已连接：\(url.lastPathComponent)"
+                        appState.sync.start()
+                    } else {
+                        appState.syncStatus = "无法访问该目录，请重新选择 iCloud 云盘中的 NoteBar 文件夹"
+                    }
                 }
                 .ignoresSafeArea()
             }
         }
+    }
+
+    private var statusColor: Color {
+        let s = appState.syncStatus
+        if s.hasPrefix("无法") || s.hasPrefix("同步失败") || s.hasPrefix("未选择") {
+            return .orange
+        }
+        return .secondary
     }
 }

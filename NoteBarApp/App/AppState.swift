@@ -22,6 +22,8 @@ final class AppState: ObservableObject {
     lazy var sync: SyncService = {
         SyncService(store: DataStore(context: context)) { [weak self] conflicts in
             Task { @MainActor in self?.conflicts = conflicts }
+        } onStatusChanged: { [weak self] message in
+            Task { @MainActor in self?.syncStatus = message }
         }
     }()
 

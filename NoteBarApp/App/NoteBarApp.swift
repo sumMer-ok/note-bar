@@ -31,6 +31,7 @@ struct NoteBarApp: App {
 
 struct RootView: View {
     @EnvironmentObject var appState: AppState
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         TabView(selection: $appState.selectedTab) {
@@ -40,5 +41,8 @@ struct RootView: View {
             SettingsView().tabItem { Label("设置", systemImage: "gearshape.fill") }.tag(AppTab.settings)
         }
         .onChange(of: appState.selectedTab) { appState.handleTabChange($0) }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { appState.sync.start() }
+        }
     }
 }

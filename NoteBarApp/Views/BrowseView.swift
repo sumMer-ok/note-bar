@@ -65,8 +65,23 @@ struct BrowseView: View {
         VStack(spacing: 14) {
             if back {
                 ScrollView {
-                    DefinitionModulesView(raw: entry.definition, order: appState.settings.definitionOrder) { module in
-                        editingModule = module
+                    VStack(spacing: 12) {
+                        Text(entry.word)
+                            .font(.title.bold())
+                            .foregroundStyle(Theme.wordColor(scheme))
+                        if let phonetic = PhoneticExtractor.phonetic(from: entry.definition) {
+                            Button { appState.speak(entry.word) } label: {
+                                HStack(spacing: 5) {
+                                    Text(phonetic).foregroundStyle(.secondary)
+                                    Image(systemName: "speaker.wave.2.fill")
+                                }
+                                .font(.subheadline)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        DefinitionModulesView(raw: entry.definition, order: appState.settings.definitionOrder) { module in
+                            editingModule = module
+                        }
                     }
                     .padding()
                 }

@@ -128,8 +128,23 @@ struct ReviewView: View {
         VStack(spacing: 12) {
             if back {
                 ScrollView {
-                    DefinitionModulesView(raw: entry.definition, order: appState.settings.definitionOrder) { module in
-                        editingModule = module
+                    VStack(spacing: 12) {
+                        Text(entry.word)
+                            .font(.title.bold())
+                            .foregroundStyle(Theme.wordColor(scheme))
+                        if let phonetic = PhoneticExtractor.phonetic(from: entry.definition) {
+                            Button { appState.speak(entry.word) } label: {
+                                HStack(spacing: 5) {
+                                    Text(phonetic).foregroundStyle(.secondary)
+                                    Image(systemName: "speaker.wave.2.fill")
+                                }
+                                .font(.subheadline)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        DefinitionModulesView(raw: entry.definition, order: appState.settings.definitionOrder) { module in
+                            editingModule = module
+                        }
                     }
                     .padding()
                 }
@@ -207,7 +222,7 @@ struct ReviewView: View {
 
     private func direction(for size: CGSize) -> Direction? {
         if abs(size.width) < 20 && abs(size.height) < 20 { return nil }
-        if abs(size.width) >= abs(size.height) { return size.width < 0 ? .good : .again }
+        if abs(size.width) >= abs(size.height) { return size.width < 0 ? .again : .good }
         return size.height < 0 ? .easy : .hard
     }
 
@@ -217,8 +232,8 @@ struct ReviewView: View {
         let screenW = UIScreen.main.bounds.width
         let screenH = UIScreen.main.bounds.height
         switch dir {
-        case .good: return CGSize(width: -screenW * 1.3, height: translation.height)
-        case .again: return CGSize(width: screenW * 1.3, height: translation.height)
+        case .again: return CGSize(width: -screenW * 1.3, height: translation.height)
+        case .good: return CGSize(width: screenW * 1.3, height: translation.height)
         case .easy: return CGSize(width: translation.width, height: -screenH * 1.3)
         case .hard: return CGSize(width: translation.width, height: screenH * 1.3)
         }

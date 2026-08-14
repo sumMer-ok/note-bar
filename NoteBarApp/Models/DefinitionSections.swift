@@ -158,3 +158,19 @@ enum DefinitionSections {
         return parts.joined(separator: "\n\n")
     }
 }
+
+/// 从释义文本中提取音标（优先英式「英/ ... /」，其次美式「美/ ... /」）
+enum PhoneticExtractor {
+    static func phonetic(from definition: String) -> String? {
+        for pattern in ["英/\\s*([^/]+?)\\s*/", "美/\\s*([^/]+?)\\s*/"] {
+            if let regex = try? NSRegularExpression(pattern: pattern),
+               let match = regex.firstMatch(in: definition, range: NSRange(definition.startIndex..., in: definition)),
+               match.numberOfRanges > 1,
+               let range = Range(match.range(at: 1), in: definition) {
+                let value = String(definition[range]).trimmingCharacters(in: .whitespacesAndNewlines)
+                if !value.isEmpty { return value }
+            }
+        }
+        return nil
+    }
+}

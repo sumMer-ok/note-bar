@@ -22,6 +22,7 @@ struct SettingsView: View {
                     Stepper("每日新词上限 \(appState.settings.dailyNewWordLimit)", value: $appState.settings.dailyNewWordLimit, in: 1...200)
                     Stepper("每日复习上限 \(appState.settings.dailyReviewLimit)", value: $appState.settings.dailyReviewLimit, in: 1...500)
                     Stepper("每轮听写 \(appState.settings.dictationPerSession) 词", value: $appState.settings.dictationPerSession, in: 1...100)
+                    Toggle("听写拼写正确后自动下一个", isOn: $appState.settings.dictationAutoAdvance)
                 }
                 Section("AI 释义") {
                     TextField("API 地址", text: $appState.settings.aiApiUrl)

@@ -36,6 +36,7 @@ final class AppState: ObservableObject {
         var dailyNewWordLimit = 20
         var dailyReviewLimit = 50
         var dictationPerSession = 20
+        var dictationAutoAdvance = true
         var ttsTemplate = "https://dict.youdao.com/dictvoice?audio={{word}}&type=2"
         var definitionOrder: [DefinitionModule] = DefinitionModule.allCases
         var aiApiUrl = "https://api.openai.com/v1"
@@ -47,6 +48,7 @@ final class AppState: ObservableObject {
         private enum CodingKeys: String, CodingKey {
             case autoPronounce, forceDarkMode, dailyNewWordLimit
             case dailyReviewLimit, dictationPerSession, ttsTemplate, definitionOrder
+            case dictationAutoAdvance
             case aiApiUrl, aiApiKey, aiModel, aiExtraParams, aiNotesPrompt
         }
 
@@ -59,6 +61,7 @@ final class AppState: ObservableObject {
             dailyNewWordLimit = try container.decodeIfPresent(Int.self, forKey: .dailyNewWordLimit) ?? 20
             dailyReviewLimit = try container.decodeIfPresent(Int.self, forKey: .dailyReviewLimit) ?? 50
             dictationPerSession = try container.decodeIfPresent(Int.self, forKey: .dictationPerSession) ?? 20
+            dictationAutoAdvance = try container.decodeIfPresent(Bool.self, forKey: .dictationAutoAdvance) ?? true
             ttsTemplate = try container.decodeIfPresent(String.self, forKey: .ttsTemplate)
                 ?? "https://dict.youdao.com/dictvoice?audio={{word}}&type=2"
             definitionOrder = try container.decodeIfPresent([DefinitionModule].self, forKey: .definitionOrder)

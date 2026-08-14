@@ -11,6 +11,7 @@
 		05BABE97FECE8807438D816D /* BookmarkStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F86760B758C3990D8F0A448 /* BookmarkStore.swift */; };
 		0C092C2A7CF569D824914A87 /* NoteBarApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 764872AF56817AA494F1A796 /* NoteBarApp.swift */; };
 		178CB35AC202FDC2023012FA /* DefinitionModulesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB9A95F9188A5E6F0EE6F4DB /* DefinitionModulesView.swift */; };
+		1ABAC81C677A92FEA74AA821 /* DailyQuoteTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13B39F8FB65E8D7671805100 /* DailyQuoteTests.swift */; };
 		251339A8572150809023C920 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 290F5A72B5720A88F9E92723 /* Theme.swift */; };
 		25A4997703E3F4D2C4A1E7BE /* StudyKey.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DDA22B3C2676336D9C51A75 /* StudyKey.swift */; };
 		26AE5F127D8AB2A0B80F9DFB /* rabbit.png in Resources */ = {isa = PBXBuildFile; fileRef = 06F5AB7AA50D0AAF0F032322 /* rabbit.png */; };
@@ -38,6 +39,7 @@
 		C0D7700740EF2DDFB0EBF427 /* cat.png in Resources */ = {isa = PBXBuildFile; fileRef = 7A253888C838CF50B40960C4 /* cat.png */; };
 		C132835AA3F46EB8CA202DF4 /* AssetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0CEC87FCA85F9D48318C559E /* AssetTests.swift */; };
 		CE6AF2B6B2A776868D278AC8 /* SyncIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A724F3DE76950D827B493BE3 /* SyncIntegrationTests.swift */; };
+		D139E2F0DB6627B2053DEC91 /* DailyQuote.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8885B7FDAE7CC8EFEBA2764 /* DailyQuote.swift */; };
 		D5DB22C01FE77FB0861D0269 /* AIDefinitionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 754D7C92C4BCF1E50D3A2CEB /* AIDefinitionService.swift */; };
 		D83D8025A6F0B503A1BD7FF2 /* MergeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80727E6A29540AE796D27DBE /* MergeTests.swift */; };
 		DF8C80740774964D0C9BFAB5 /* CanvasEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0364B95EA71602AFF59D03E /* CanvasEditor.swift */; };
@@ -62,6 +64,7 @@
 		06F5AB7AA50D0AAF0F032322 /* rabbit.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = rabbit.png; sourceTree = "<group>"; };
 		0CEC87FCA85F9D48318C559E /* AssetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssetTests.swift; sourceTree = "<group>"; };
 		137C0613FA4F5BA1D56F8633 /* WordDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WordDetailView.swift; sourceTree = "<group>"; };
+		13B39F8FB65E8D7671805100 /* DailyQuoteTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyQuoteTests.swift; sourceTree = "<group>"; };
 		1C106E5FB4CB065E404017DF /* DefinitionSectionsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefinitionSectionsTests.swift; sourceTree = "<group>"; };
 		1D1902E1ECCC2B362771FCFE /* Merge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Merge.swift; sourceTree = "<group>"; };
 		1DC370B2EA5CA0F564C051BE /* NoteBarApp.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = NoteBarApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -93,6 +96,7 @@
 		C8A70B5E58ADCBB412F8722A /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
 		D094865C8EF9551ECF75EF2B /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
 		D16AD92E616FBBE75CFB5AE0 /* DictationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictationView.swift; sourceTree = "<group>"; };
+		D8885B7FDAE7CC8EFEBA2764 /* DailyQuote.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyQuote.swift; sourceTree = "<group>"; };
 		DCEE227A2751D1982A361C56 /* FSRS.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FSRS.swift; sourceTree = "<group>"; };
 		DFE82934AFC9D5A377C3ADD2 /* NoteBarAppTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = NoteBarAppTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		E0364B95EA71602AFF59D03E /* CanvasEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasEditor.swift; sourceTree = "<group>"; };
@@ -138,6 +142,7 @@
 				7CABC1F0D9A6193603450B71 /* AIDefinitionServiceTests.swift */,
 				0CEC87FCA85F9D48318C559E /* AssetTests.swift */,
 				3C8AA88D3120B54052748231 /* CanvasEditorTests.swift */,
+				13B39F8FB65E8D7671805100 /* DailyQuoteTests.swift */,
 				1C106E5FB4CB065E404017DF /* DefinitionSectionsTests.swift */,
 				4534080E3D49FB96A25396E1 /* FSRSTests.swift */,
 				80727E6A29540AE796D27DBE /* MergeTests.swift */,
@@ -152,6 +157,7 @@
 			isa = PBXGroup;
 			children = (
 				E0364B95EA71602AFF59D03E /* CanvasEditor.swift */,
+				D8885B7FDAE7CC8EFEBA2764 /* DailyQuote.swift */,
 				F4D34091FBB709C061FD2BC5 /* DefinitionSections.swift */,
 				C26AAA32502E84D7567E9A3C /* Sidecar.swift */,
 			);
@@ -373,6 +379,7 @@
 				B6B1C701DBA53A504217BCEF /* AIDefinitionServiceTests.swift in Sources */,
 				C132835AA3F46EB8CA202DF4 /* AssetTests.swift in Sources */,
 				9643CC236CDB09A6DFA5B193 /* CanvasEditorTests.swift in Sources */,
+				1ABAC81C677A92FEA74AA821 /* DailyQuoteTests.swift in Sources */,
 				6F61FC3B07A106FAFBE9B005 /* DefinitionSectionsTests.swift in Sources */,
 				EF1274650F59D819B4249A61 /* FSRSTests.swift in Sources */,
 				D83D8025A6F0B503A1BD7FF2 /* MergeTests.swift in Sources */,
@@ -391,6 +398,7 @@
 				05BABE97FECE8807438D816D /* BookmarkStore.swift in Sources */,
 				BE2840B42D02F56EBFC2990A /* BrowseView.swift in Sources */,
 				DF8C80740774964D0C9BFAB5 /* CanvasEditor.swift in Sources */,
+				D139E2F0DB6627B2053DEC91 /* DailyQuote.swift in Sources */,
 				2FBD9D8AA1C4B6AD6E609874 /* DataStore.swift in Sources */,
 				178CB35AC202FDC2023012FA /* DefinitionModulesView.swift in Sources */,
 				3BA7F2281EA0F567B05438C1 /* DefinitionSections.swift in Sources */,

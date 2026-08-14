@@ -23,6 +23,7 @@ final class Entry {
     var status: String?
     var stage: Int?
     var mastered: Bool?
+    var firstLearnedDate: String?
 
     init(
         studyKey: String, book: String, source: String, nodeId: String,
@@ -54,6 +55,14 @@ final class Entry {
             lapses = newValue.lapses; dueDate = newValue.dueDate; lastReview = newValue.lastReview
             history = newValue.history; lifecycle = newValue.lifecycle; pinned = newValue.pinned
         }
+    }
+}
+
+extension Entry {
+    /// 词库显示名：相对路径去掉目录与 .canvas 后缀
+    var bookDisplayName: String {
+        let base = (book as NSString).lastPathComponent
+        return base.hasSuffix(".canvas") ? String(base.dropLast(".canvas".count)) : base
     }
 }
 

@@ -160,6 +160,7 @@ struct ReviewView: View {
     private func rate(_ dir: Direction) {
         guard let entry = current else { return }
         let before = entry.progress
+        let isNewWord = entry.s == nil
         let grade = grade(for: dir)
         let elapsed = entry.lastReview.flatMap { ISO8601DateFormatter().date(from: $0) }
             .map { max(0, (FSRS.startOfDay(Date()).timeIntervalSince($0) / 86400).rounded()) } ?? 0
@@ -171,6 +172,9 @@ struct ReviewView: View {
         progress.lastReview = now
         progress.history = Merge.history(a: entry.history, b: [ReviewRecord(date: now, quality: grade.label)]) ?? entry.history
         if result.graduated { progress.lifecycle = "graduated" }
+        if isNewWord, entry.firstLearnedDate == nil {
+            entry.firstLearnedDate = FSRS.dayString(Date())
+        }
         undoStack.append((entry, before))
         entry.progress = progress
         try? context.save()

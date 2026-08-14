@@ -2,14 +2,52 @@ import SwiftUI
 import SwiftData
 
 struct StatsView: View {
+    @EnvironmentObject var appState: AppState
     @Query private var entries: [Entry]
     @State private var selectedDay: String?
+    @State private var editingEntry: Entry?
 
+    private var today: String { FSRS.dayString(Date()) }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    QuoteCard(quote: DailyQuoteBook.quote(for: Date()))
+
+                    HStack(spacing: 8) {
+                        statCard("连续天数", "\(streak)")
+                        statCard("今日学习", "\(learnEntries(on: today).count)")
+                        statCard("今日复习", "\(reviewEntries(on: today).count)")
+                    }
+
+                    Text("日历").font(.headline)
+                    CalendarGrid(byDay: byDay, selected: $selectedDay)
+
+                    if let selectedDay {
+                        dayDetail(selectedDay)
+                    }
+
+                    Text("近 18 周热力图").font(.headline)
+                    Heatmap(byDay: byDay)
+                }
+                .padding()
+            }
+            .navigationTitle("统计")
+            .sheet(item: $editingEntry) { entry in
+                WordEditSheet(entry: entry, focusModule: nil)
+            }
+        }
+    }
+
+    // MARK: - 数据
+
+    /// 按本地日期聚合每天的复习记录（词 → 当天评分）
     private var byDay: [String: [DayRecord]] {
         var map: [String: [DayRecord]] = [:]
         for entry in entries {
             for record in entry.history ?? [] {
-                let day = String(record.date.prefix(10))
+                let day = localDay(from: record.date)
                 map[day, default: []].append(DayRecord(word: entry.word, quality: record.quality))
             }
         }
@@ -27,45 +65,91 @@ struct StatsView: View {
         return count
     }
 
-    var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    HStack {
-                        statCard("连续天数", "\(streak)")
-                        statCard("今日复习", "\(byDay[FSRS.dayString(Date())]?.count ?? 0)")
-                    }
-                    Text("日历").font(.headline)
-                    CalendarGrid(byDay: byDay, selected: $selectedDay)
-                    if let selectedDay {
-                        Text("\(selectedDay) · 复习 \(byDay[selectedDay]?.count ?? 0) 词")
-                            .font(.headline)
-                        ForEach(byDay[selectedDay] ?? [], id: \.self) { record in
-                            HStack {
-                                Text(record.word)
-                                Spacer()
-                                Text(qualityLabel(record.quality)).font(.caption).foregroundStyle(.secondary)
-                            }
-                            .padding(.horizontal)
-                        }
-                    }
-                    Text("近 18 周热力图").font(.headline)
-                    Heatmap(byDay: byDay)
-                }
-                .padding()
-            }
-            .navigationTitle("统计")
+    /// 当天首次学习（第一次评分）的词
+    private func learnEntries(on day: String) -> [Entry] {
+        entries.filter { $0.firstLearnedDate == day }
+    }
+
+    /// 当天复习过的词：有当天评分记录，且不是当天首次学习
+    private func reviewEntries(on day: String) -> [Entry] {
+        entries.filter { entry in
+            guard let history = entry.history,
+                  history.contains(where: { localDay(from: $0.date) == day }) else { return false }
+            return entry.firstLearnedDate != day
         }
     }
 
+    private func localDay(from iso: String) -> String {
+        let fractional = ISO8601DateFormatter()
+        fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = fractional.date(from: iso) { return FSRS.dayString(date) }
+        let plain = ISO8601DateFormatter()
+        plain.formatOptions = [.withInternetDateTime]
+        if let date = plain.date(from: iso) { return FSRS.dayString(date) }
+        return String(iso.prefix(10))
+    }
+
+    // MARK: - 视图
+
     private func statCard(_ title: String, _ value: String) -> some View {
-        VStack {
-            Text(value).font(.title.bold())
+        VStack(spacing: 2) {
+            Text(value).font(.title2.bold())
             Text(title).font(.caption).foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 12)
         .glassCard()
+    }
+
+    @ViewBuilder
+    private func dayDetail(_ day: String) -> some View {
+        let learn = learnEntries(on: day)
+        let review = reviewEntries(on: day)
+        VStack(alignment: .leading, spacing: 8) {
+            Text("今日学习 \(learn.count) 词").font(.headline)
+            if learn.isEmpty {
+                Text("无").font(.caption).foregroundStyle(.secondary)
+            } else {
+                ForEach(learn) { entry in wordRow(entry, quality: nil) }
+            }
+
+            Text("今日复习 \(review.count) 词").font(.headline)
+                .padding(.top, 6)
+            if review.isEmpty {
+                Text("无").font(.caption).foregroundStyle(.secondary)
+            } else {
+                ForEach(review) { entry in
+                    wordRow(entry, quality: latestQuality(entry, on: day))
+                }
+            }
+        }
+        .padding()
+        .glassCard()
+    }
+
+    private func wordRow(_ entry: Entry, quality: String?) -> some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(entry.word).fontWeight(.medium)
+                Text(entry.bookDisplayName).font(.caption2).foregroundStyle(.secondary)
+            }
+            Spacer()
+            if let quality {
+                Text(qualityLabel(quality)).font(.caption).foregroundStyle(.secondary)
+            }
+            Button {
+                editingEntry = entry
+            } label: {
+                Image(systemName: "square.and.pencil")
+                    .foregroundStyle(.blue)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.vertical, 2)
+    }
+
+    private func latestQuality(_ entry: Entry, on day: String) -> String? {
+        entry.history?.last { localDay(from: $0.date) == day }?.quality
     }
 
     private func qualityLabel(_ q: String) -> String {
@@ -75,6 +159,31 @@ struct StatsView: View {
         case "easy": return "太简单"
         default: return "认识"
         }
+    }
+}
+
+/// 每日一句卡片（英语 + 中文翻译）
+struct QuoteCard: View {
+    let quote: DailyQuote
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label("每日一句", systemImage: "quote.opening").font(.caption).foregroundStyle(.secondary)
+            Text(quote.english)
+                .font(.system(.body, design: .serif).italic())
+                .fixedSize(horizontal: false, vertical: true)
+            Text(quote.chinese)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Text("— \(quote.author)")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+                .frame(maxWidth: .infinity, alignment: .trailing)
+        }
+        .padding()
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .glassCard()
     }
 }
 
@@ -124,7 +233,7 @@ struct CalendarGrid: View {
         let now = Date()
         let range = cal.range(of: .day, in: .month, for: now)!
         let first = cal.date(from: cal.dateComponents([.year, .month], from: now))!
-        let weekday = cal.component(.weekday, from: first) // 1=周日
+        let weekday = cal.component(.weekday, from: first)
         let leading = (weekday + 5) % 7
         var cells: [Date?] = Array(repeating: nil, count: leading)
         for day in range { cells.append(cal.date(byAdding: .day, value: day - 1, to: first)) }

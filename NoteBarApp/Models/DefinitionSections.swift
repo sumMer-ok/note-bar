@@ -134,10 +134,10 @@ enum DefinitionSections {
 
     private static func canonicalHeader(_ module: DefinitionModule) -> String {
         switch module {
-        case .legal: return "--- Black's Law Dictionary ---"
-        case .ai: return "--- AI 释义 ---"
-        case .notes: return "--- 自定义笔记 ---"
-        case .dictionary: return "--- 词典释义 ---"
+        case .legal: return "Black's Law Dictionary"
+        case .ai: return "AI 释义"
+        case .notes: return "自定义笔记"
+        case .dictionary: return "词典释义"
         }
     }
 
@@ -147,7 +147,7 @@ enum DefinitionSections {
             let content = item.content.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !content.isEmpty else { continue }
             if let header = item.headerLine {
-                parts.append("\(header)\n\(content)")
+                parts.append("--- \(header) ---\n\(content)")
             } else {
                 parts.append(content)
             }

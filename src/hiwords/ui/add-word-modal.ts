@@ -4,6 +4,7 @@ import { VocabularyManager } from '../core/vocabulary-manager';
 import { DictionaryService } from '../services/dictionary-service';
 import { LocalDictionaryService, getLocalDictionaryService } from '../services/local-dictionary-service';
 import { getEncounterTracker } from '../core/encounter-tracker';
+import { normalizeDefinitionSections } from '../utils/definition-sections';
 
 /**
  * 添加或编辑词汇的模态框
@@ -232,14 +233,17 @@ export class AddWordModal extends Modal {
                             aliasesInput.value = localResult.aliases.join(', ');
                         }
                         const localDefinition = this.formatDefinitions(localResult.definitions);
-                        // AI 释义显示在词典释义之前
+                        // 词典释义在前，AI 释义排在后面
+                        const aiSection = `--- AI 释义 ---\n${aiDefinition}`;
                         if (currentDefinition) {
-                            definitionInput.value = `${aiDefinition}\n\n--- 已有释义 ---\n${currentDefinition}`;
+                            definitionInput.value = `${currentDefinition}\n\n${aiSection}`;
                         } else {
-                            definitionInput.value = `${aiDefinition}\n\n--- 词典释义 ---\n${localDefinition}`;
+                            definitionInput.value = localDefinition
+                                ? `${localDefinition}\n\n${aiSection}`
+                                : aiSection;
                         }
                     } else {
-                        definitionInput.value = aiDefinition;
+                        definitionInput.value = `--- AI 释义 ---\n${aiDefinition}`;
                         if (!currentAliases) {
                             const aliasesToFill = aiAliases.length > 0 ? aiAliases : await this.deriveAliases(queryWord);
                             if (aliasesToFill.length > 0) {
@@ -359,7 +363,8 @@ export class AddWordModal extends Modal {
             const selectedBooks = bookCheckboxes
                 .filter(item => item.checkbox.checked)
                 .map(item => item.path);
-            const definition = definitionInput.value;
+            // 保存时统一规范化顺序：词典释义 → 法律词典释义 → AI 释义 → 自定义笔记
+            const definition = normalizeDefinitionSections(definitionInput.value);
             const colorValue = colorSelect.value ? parseInt(colorSelect.value) : undefined;
             const aliasesText = aliasesInput.value.trim();
 

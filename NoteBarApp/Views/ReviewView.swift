@@ -39,14 +39,12 @@ struct ReviewView: View {
                 }
                 .font(.caption).foregroundStyle(.secondary)
 
-                ZStack {
-                    cardFace(current, back: false)
-                        .opacity(flipped ? 0 : 1)
-                        .rotation3DEffect(.degrees(flipped ? 180 : 0), axis: (x: 0, y: 1, z: 0))
-                    cardFace(current, back: true)
-                        .opacity(flipped ? 1 : 0)
-                        .rotation3DEffect(.degrees(flipped ? 0 : -180), axis: (x: 0, y: 1, z: 0))
-                }
+                FlipView(
+                    progress: flipped ? 1 : 0,
+                    front: cardFace(current, back: false),
+                    back: cardFace(current, back: true)
+                )
+                .animation(.easeInOut(duration: 0.45), value: flipped)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .offset(x: dragOffset.width, y: dragOffset.height)
                 .rotationEffect(.degrees(Double(dragOffset.width / 24)))
@@ -266,6 +264,29 @@ extension FSRSGrade {
         case .hard: return "hard"
         case .good: return "good"
         case .easy: return "easy"
+        }
+    }
+}
+
+/// 双面卡片翻转：旋转进度过半（90°）时精确切换正反面，避免两层同时可见产生残影
+struct FlipView<Front: View, Back: View>: View, Animatable {
+    var progress: Double // 0 = 正面，1 = 背面
+    let front: Front
+    let back: Back
+
+    var animatableData: Double {
+        get { progress }
+        set { progress = newValue }
+    }
+
+    var body: some View {
+        ZStack {
+            back
+                .rotation3DEffect(.degrees(-180 + progress * 180), axis: (x: 0, y: 1, z: 0))
+                .opacity(progress > 0.5 ? 1 : 0)
+            front
+                .rotation3DEffect(.degrees(progress * 180), axis: (x: 0, y: 1, z: 0))
+                .opacity(progress < 0.5 ? 1 : 0)
         }
     }
 }

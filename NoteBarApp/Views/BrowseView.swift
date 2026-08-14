@@ -18,14 +18,12 @@ struct BrowseView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
-                ZStack {
-                    face(current, back: false)
-                        .opacity(flipped ? 0 : 1)
-                        .rotation3DEffect(.degrees(flipped ? 180 : 0), axis: (x: 0, y: 1, z: 0))
-                    face(current, back: true)
-                        .opacity(flipped ? 1 : 0)
-                        .rotation3DEffect(.degrees(flipped ? 0 : -180), axis: (x: 0, y: 1, z: 0))
-                }
+                FlipView(
+                    progress: flipped ? 1 : 0,
+                    front: face(current, back: false),
+                    back: face(current, back: true)
+                )
+                .animation(.easeInOut(duration: 0.45), value: flipped)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .onTapGesture { withAnimation(.spring(duration: 0.45)) { flipped.toggle() } }
 

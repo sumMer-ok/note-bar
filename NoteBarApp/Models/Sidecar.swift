@@ -1,12 +1,12 @@
 import Foundation
 
-struct ReviewRecord: Codable, Hashable {
+struct ReviewRecord: Codable, Hashable, Sendable {
     var date: String
     var quality: String // again | hard | good | easy
 }
 
 /// 与插件 StudyProgressItem 逐字段对应
-struct StudyProgress: Codable {
+struct StudyProgress: Codable, Sendable {
     var status: String? // new | learning | review | mastered
     var stage: Int?
     var reps: Int?
@@ -26,7 +26,7 @@ struct StudyProgress: Codable {
     init() {}
 }
 
-struct SidecarFile: Codable {
+struct SidecarFile: Codable, Sendable {
     var version: Int
     var book: String
     var words: [String: StudyProgress]

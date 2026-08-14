@@ -1,7 +1,7 @@
 import Foundation
 import Security
 
-struct ParsedWord {
+struct ParsedWord: Sendable {
     var nodeId: String
     var word: String
     var aliases: [String]

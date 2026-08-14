@@ -97,9 +97,16 @@ struct WordEditSheet: View {
         entry.aliases = newAliases
         try? context.save()
 
-        if var canvas = appState.sync.readCanvas(entry.book) {
-            _ = CanvasEditor.updateWord(data: &canvas, nodeId: entry.nodeId, word: entry.word, definition: entry.definition, aliases: newAliases)
-            appState.sync.writeCanvas(entry.book, data: canvas)
+        let book = entry.book
+        let nodeId = entry.nodeId
+        let newWord = word
+        let newDefinition = definition
+        let sync = appState.sync
+        Task {
+            if var canvas = await sync.readCanvas(book) {
+                _ = CanvasEditor.updateWord(data: &canvas, nodeId: nodeId, word: newWord, definition: newDefinition, aliases: newAliases)
+                sync.writeCanvas(book, data: canvas)
+            }
         }
         dismiss()
     }

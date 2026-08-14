@@ -85,6 +85,5 @@ final class DataStore {
             if let progress { entry.progress = progress }
             context.insert(entry)
         }
-        try context.save()
     }
 }

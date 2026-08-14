@@ -31,6 +31,7 @@
 		AF9605836477D0D5B3C9AC4A /* StudyKeyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 744E431B3BDB9CD363258901 /* StudyKeyTests.swift */; };
 		BE2840B42D02F56EBFC2990A /* BrowseView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F07BC0FF9F19051B79B6E82 /* BrowseView.swift */; };
 		C0D7700740EF2DDFB0EBF427 /* cat.png in Resources */ = {isa = PBXBuildFile; fileRef = 7A253888C838CF50B40960C4 /* cat.png */; };
+		C132835AA3F46EB8CA202DF4 /* AssetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0CEC87FCA85F9D48318C559E /* AssetTests.swift */; };
 		D83D8025A6F0B503A1BD7FF2 /* MergeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80727E6A29540AE796D27DBE /* MergeTests.swift */; };
 		DF8C80740774964D0C9BFAB5 /* CanvasEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0364B95EA71602AFF59D03E /* CanvasEditor.swift */; };
 		DFB7B4FAB6A9EA4645644986 /* Merge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D1902E1ECCC2B362771FCFE /* Merge.swift */; };
@@ -51,6 +52,7 @@
 
 /* Begin PBXFileReference section */
 		06F5AB7AA50D0AAF0F032322 /* rabbit.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = rabbit.png; sourceTree = "<group>"; };
+		0CEC87FCA85F9D48318C559E /* AssetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssetTests.swift; sourceTree = "<group>"; };
 		137C0613FA4F5BA1D56F8633 /* WordDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WordDetailView.swift; sourceTree = "<group>"; };
 		1D1902E1ECCC2B362771FCFE /* Merge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Merge.swift; sourceTree = "<group>"; };
 		1DC370B2EA5CA0F564C051BE /* NoteBarApp.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = NoteBarApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -109,6 +111,7 @@
 		2ECF74D06EFD777356E0E066 /* NoteBarAppTests */ = {
 			isa = PBXGroup;
 			children = (
+				0CEC87FCA85F9D48318C559E /* AssetTests.swift */,
 				3C8AA88D3120B54052748231 /* CanvasEditorTests.swift */,
 				4534080E3D49FB96A25396E1 /* FSRSTests.swift */,
 				80727E6A29540AE796D27DBE /* MergeTests.swift */,
@@ -326,6 +329,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				C132835AA3F46EB8CA202DF4 /* AssetTests.swift in Sources */,
 				9643CC236CDB09A6DFA5B193 /* CanvasEditorTests.swift in Sources */,
 				EF1274650F59D819B4249A61 /* FSRSTests.swift in Sources */,
 				D83D8025A6F0B503A1BD7FF2 /* MergeTests.swift in Sources */,

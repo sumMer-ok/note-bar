@@ -115,34 +115,40 @@ struct CartoonAnimal: View {
     let delay: Double
     @State private var visible = false
     @State private var point: CGPoint = .zero
-    @State private var tilt: Double = 0
-    @State private var scale: CGFloat = 0.75
+    @State private var tick: Int
+
+    private let timer = Timer.publish(every: 0.55, on: .main, in: .common).autoconnect()
+
+    init(name: String, delay: Double) {
+        self.name = name
+        self.delay = delay
+        _tick = State(initialValue: Int(delay / 0.55))
+    }
 
     var body: some View {
         GeometryReader { geo in
             ZStack(alignment: .topLeading) {
-                if visible {
-                    Image(name)
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 36, height: 36)
-                        .rotationEffect(.degrees(tilt))
-                        .scaleEffect(scale)
-                        .offset(x: point.x, y: point.y)
-                        .transition(.scale(scale: 0.4).combined(with: .opacity))
-                }
+                Image(name)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 36, height: 36)
+                    .rotationEffect(.degrees(visible ? 0 : -12))
+                    .scaleEffect(visible ? 1 : 0.45)
+                    .opacity(visible ? 1 : 0)
+                    .offset(x: point.x, y: point.y)
             }
-            .task {
-                try? await Task.sleep(for: .seconds(delay))
-                while !Task.isCancelled {
+            .onAppear {
+                point = randomPoint(in: geo.size)
+            }
+            .onReceive(timer) { _ in
+                let shouldShow = tick % 2 == 0
+                if shouldShow {
                     point = randomPoint(in: geo.size)
-                    tilt = .random(in: -14...14)
-                    scale = .random(in: 0.8...1.1)
-                    withAnimation(.spring(duration: 0.45, bounce: 0.5)) { visible = true }
-                    try? await Task.sleep(for: .seconds(1.1))
-                    withAnimation(.easeOut(duration: 0.25)) { visible = false }
-                    try? await Task.sleep(for: .seconds(0.55))
                 }
+                withAnimation(.spring(duration: 0.42, bounce: 0.45)) {
+                    visible = shouldShow
+                }
+                tick += 1
             }
         }
     }

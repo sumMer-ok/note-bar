@@ -23,33 +23,23 @@ struct SettingsView: View {
                     Stepper("每日复习上限 \(appState.settings.dailyReviewLimit)", value: $appState.settings.dailyReviewLimit, in: 1...500)
                     Stepper("每轮听写 \(appState.settings.dictationPerSession) 词", value: $appState.settings.dictationPerSession, in: 1...100)
                 }
-                Section("单词卡片显示顺序") {
+                Section {
                     ForEach(appState.settings.definitionOrder, id: \.self) { module in
                         HStack {
                             Image(systemName: "line.3.horizontal").foregroundStyle(.secondary)
                             Text(module.rawValue)
                             Spacer()
                         }
-                        .contentShape(Rectangle())
-                        .draggable(module.rawValue)
-                        .dropDestination(for: String.self) { items, _ in
-                            guard let dragged = items.first,
-                                  dragged != module.rawValue,
-                                  let from = appState.settings.definitionOrder.firstIndex(where: { $0.rawValue == dragged }),
-                                  let to = appState.settings.definitionOrder.firstIndex(of: module)
-                            else { return false }
-                            withAnimation {
-                                appState.settings.definitionOrder.move(
-                                    fromOffsets: IndexSet(integer: from),
-                                    toOffset: to > from ? to + 1 : to
-                                )
-                            }
-                            return true
-                        }
                     }
-                    Text("拖动可调整四个释义模块在卡片上的显示顺序")
+                    .onMove { source, destination in
+                        appState.settings.definitionOrder.move(fromOffsets: source, toOffset: destination)
+                    }
+                    Text("按住右侧把手拖动，调整四个释义模块在卡片上的显示顺序")
                         .font(.caption2).foregroundStyle(.secondary)
+                } header: {
+                    Text("单词卡片显示顺序")
                 }
+                .environment(\.editMode, .constant(.active))
                 Section("冲突日志") {
                     ForEach(appState.conflicts, id: \.self) { Text($0).font(.caption) }
                 }

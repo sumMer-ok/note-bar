@@ -37,4 +37,20 @@ final class CanvasEditorTests: XCTestCase {
         XCTAssertTrue(CanvasEditor.deleteWord(data: &data, nodeId: "n1"))
         XCTAssertEqual((data["nodes"] as! [[String: Any]]).count, 0)
     }
+
+    func testMasteredDetectionFromGroupAndColor() throws {
+        let json = """
+        {"nodes":[
+          {"id":"g1","type":"group","label":"Mastered","x":0,"y":0,"width":300,"height":200},
+          {"id":"n1","type":"text","x":10,"y":10,"width":50,"height":30,"text":"alpha\\n\\n释义A"},
+          {"id":"n2","type":"text","x":100,"y":10,"width":50,"height":30,"text":"beta\\n\\n释义B","color":"4"},
+          {"id":"n3","type":"text","x":10,"y":250,"width":50,"height":30,"text":"gamma\\n\\n释义C"}
+        ],"edges":[]}
+        """
+        let words = try CanvasEditor.parseWords(data: Data(json.utf8), source: "Words/x.canvas")
+        let byId = Dictionary(uniqueKeysWithValues: words.map { ($0.nodeId, $0) })
+        XCTAssertEqual(byId["n1"]?.mastered, true)
+        XCTAssertEqual(byId["n2"]?.mastered, true)
+        XCTAssertEqual(byId["n3"]?.mastered, false)
+    }
 }

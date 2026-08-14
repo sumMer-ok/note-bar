@@ -7,6 +7,43 @@ import SwiftData
 /// 依赖宿主机上已由 scripts/seed-sync-dir.mjs 生成的同步目录；缺失时跳过。
 @MainActor
 final class SyncIntegrationTests: XCTestCase {
+    func testConflictCopyDetectionAndResolution() async throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("nb-conflict-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        let main = #"{"nodes":[{"id":"a","type":"text","text":"hello\n\n你好"}],"edges":[]}"#
+        let copy = #"{"nodes":[{"id":"b","type":"text","text":"world\n\n世界"}],"edges":[]}"#
+        try main.write(to: dir.appendingPathComponent("words.canvas"), atomically: true, encoding: .utf8)
+        try copy.write(to: dir.appendingPathComponent("words 2.canvas"), atomically: true, encoding: .utf8)
+
+        let schema = Schema([Entry.self])
+        let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+        let container = try ModelContainer(for: schema, configurations: [config])
+        let store = DataStore(context: container.mainContext)
+        let sync = SyncService(store: store) { _ in }
+        sync.configure(folder: dir)
+        await sync.scan()
+
+        XCTAssertEqual(sync.conflicts.count, 1)
+        XCTAssertEqual(Set(sync.conflicts.first?.changedWords ?? []), Set(["hello", "world"]))
+
+        guard let conflict = sync.conflicts.first else { return XCTFail("未检测到冲突") }
+        sync.resolve(conflict, keepCopy: true)
+
+        var resolved = false
+        for _ in 0..<20 {
+            if let data = try? Data(contentsOf: dir.appendingPathComponent("words.canvas")),
+               String(data: data, encoding: .utf8)?.contains("world") == true {
+                resolved = true
+                break
+            }
+            try await Task.sleep(for: .milliseconds(100))
+        }
+        XCTAssertTrue(resolved, "保留副本后主文件应包含副本内容")
+    }
+
     func testScanRealVaultDataAndPersist() async throws {
         let dir = ProcessInfo.processInfo.environment["NOTE_BAR_SYNC_DIR"]
             ?? "/Users/shengxia/Library/Mobile Documents/com~apple~CloudDocs/NoteBar"

@@ -10,6 +10,13 @@ final class AIDefinitionServiceTests: XCTestCase {
         XCTAssertTrue(prompt.contains("aliases"))
     }
 
+    func testLegalCorrectionPromptHasSentencePlaceholder() {
+        let prompt = AIDefinitionService.legalCorrectionPrompt
+        XCTAssertTrue(prompt.contains("{{sentence}}"))
+        XCTAssertTrue(prompt.contains("OCR"))
+        XCTAssertTrue(prompt.contains("Black's Law Dictionary"))
+    }
+
     func testParseStrictJSON() {
         let result = AIDefinitionService.parse(#"{"aliases":["sue","sued"],"definition":"1）英/ suː / 美/ suː /\n2）v. 起诉"}"#)
         XCTAssertEqual(result.aliases, ["sue", "sued"])

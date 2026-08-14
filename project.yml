@@ -27,6 +27,7 @@ targets:
     scheme:
       testTargets:
         - NoteBarAppTests
+        - NoteBarAppUITests
   NoteBarAppTests:
     type: bundle.unit-test
     platform: iOS
@@ -36,3 +37,10 @@ targets:
       - target: NoteBarApp
     resources:
       - NoteBarAppTests/Fixtures/sync-vectors.json
+  NoteBarAppUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - NoteBarAppUITests
+    dependencies:
+      - target: NoteBarApp

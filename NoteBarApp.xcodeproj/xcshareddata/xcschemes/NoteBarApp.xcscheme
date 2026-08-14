@@ -50,6 +50,17 @@
                ReferencedContainer = "container:NoteBarApp.xcodeproj">
             </BuildableReference>
          </TestableReference>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "E7AD788AABEF55E5FC5BC00F"
+               BuildableName = "NoteBarAppUITests.xctest"
+               BlueprintName = "NoteBarAppUITests"
+               ReferencedContainer = "container:NoteBarApp.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
       </Testables>
       <CommandLineArguments>
       </CommandLineArguments>

@@ -92,44 +92,41 @@ struct BookRow: View {
     private var isOpen: Bool { offsetX < -8 }
 
     var body: some View {
-        ZStack(alignment: .trailing) {
-            // 动作层：平时完全隐藏，只有向左滑动后才浮现
-            HStack(spacing: 0) {
-                actionButton(isDefault ? "取消默认" : "默认", active: isDefault, color: .purple) { toggleDefault() }
-                actionButton(isPinned ? "取消置顶" : "置顶", active: isPinned, color: .orange) { togglePinned() }
-            }
-            .opacity(isOpen ? 1 : 0)
-            .animation(.easeOut(duration: 0.16), value: isOpen)
+        GeometryReader { geo in
+            ZStack(alignment: .trailing) {
+                // 动作层：平时完全隐藏，只有向左滑动后才浮现
+                HStack(spacing: 0) {
+                    actionButton(isDefault ? "取消默认" : "默认", active: isDefault, color: .purple) { toggleDefault() }
+                    actionButton(isPinned ? "取消置顶" : "置顶", active: isPinned, color: .orange) { togglePinned() }
+                }
+                .allowsHitTesting(isOpen)
+                .opacity(isOpen ? 1 : 0)
+                .animation(.easeOut(duration: 0.16), value: isOpen)
 
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    HStack(spacing: 5) {
-                        Text(book).fontWeight(.medium).lineLimit(1)
-                        if isDefault {
-                            Text("（默认）")
-                                .font(.caption2.weight(.semibold))
-                                .foregroundStyle(.red)
+                // 前景行：只负责渲染，不挂任何手势，避免挡住身后的按钮
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(spacing: 5) {
+                            Text(book).fontWeight(.medium).lineLimit(1)
+                            if isDefault {
+                                Text("（默认）")
+                                    .font(.caption2.weight(.semibold))
+                                    .foregroundStyle(.red)
+                            }
                         }
+                        Text("\(wordCount) 词")
+                            .font(.caption).foregroundStyle(.secondary)
                     }
-                    Text("\(wordCount) 词")
-                        .font(.caption).foregroundStyle(.secondary)
+                    Spacer()
+                    Text("待复习 \(dueCount)").font(.caption).foregroundStyle(.red)
                 }
-                Spacer()
-                Text("待复习 \(dueCount)").font(.caption).foregroundStyle(.red)
+                .padding()
+                // 不透明前景：遮住背后的按钮，避免透明材质与按钮图层重叠
+                .background(Color(.systemBackground), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .shadow(color: .black.opacity(isOpen ? 0.12 : 0), radius: 5, x: isOpen ? -3 : 0, y: 1)
+                .offset(x: offsetX)
             }
-            .padding()
-            // 不透明前景：遮住背后的按钮，避免透明材质与按钮图层重叠
-            .background(Color(.systemBackground), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-            .shadow(color: .black.opacity(isOpen ? 0.12 : 0), radius: 5, x: isOpen ? -3 : 0, y: 1)
-            .offset(x: offsetX)
             .contentShape(Rectangle())
-            .onTapGesture {
-                if offsetX != 0 {
-                    withAnimation(.spring(duration: 0.3)) { offsetX = 0 }
-                } else {
-                    appState.showLibrary(book: book)
-                }
-            }
             .gesture(
                 DragGesture(minimumDistance: 12)
                     .onChanged { value in
@@ -144,6 +141,19 @@ struct BookRow: View {
                         isTracking = false
                         withAnimation(.spring(duration: 0.3)) {
                             offsetX = projected < -45 ? -160 : 0
+                        }
+                    }
+            )
+            .gesture(
+                SpatialTapGesture()
+                    .onEnded { value in
+                        if offsetX != 0 {
+                            // 点在已露出的按钮区时交给按钮处理；否则轻点收回
+                            if value.location.x < geo.size.width - 160 {
+                                withAnimation(.spring(duration: 0.3)) { offsetX = 0 }
+                            }
+                        } else {
+                            appState.showLibrary(book: book)
                         }
                     }
             )

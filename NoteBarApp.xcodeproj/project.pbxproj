@@ -47,11 +47,19 @@
 		E6BF777ACAF85E642850E388 /* ReviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 570AB9ED21F49E66487493EB /* ReviewView.swift */; };
 		E7074D57C98898F464225F56 /* BookPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F451DDE6213D6086F4A24CEB /* BookPickerView.swift */; };
 		EF1274650F59D819B4249A61 /* FSRSTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4534080E3D49FB96A25396E1 /* FSRSTests.swift */; };
+		FB466ACE854913E747350E70 /* BookRowSwipeActionsUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 676CBEE8D7410745BCAC9B36 /* BookRowSwipeActionsUITests.swift */; };
 		FF70DDB6C6C179D125605D4E /* WordListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6A3EF1FAF634472BE4BBC97 /* WordListView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
 		987DF8ED430213B6C9937492 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 1E943F90D0028DA78DC17665 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 9CE66C58E92C12C5AEADC5F5;
+			remoteInfo = NoteBarApp;
+		};
+		E2A5B549B38D4A01C6B67959 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 1E943F90D0028DA78DC17665 /* Project object */;
 			proxyType = 1;
@@ -72,6 +80,7 @@
 		290F5A72B5720A88F9E92723 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 		2AF4283526432ADB95AD9A5C /* bear.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = bear.png; sourceTree = "<group>"; };
 		2F86760B758C3990D8F0A448 /* BookmarkStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookmarkStore.swift; sourceTree = "<group>"; };
+		30495EFFB8F991F8D402723A /* NoteBarAppUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = NoteBarAppUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		3C8AA88D3120B54052748231 /* CanvasEditorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasEditorTests.swift; sourceTree = "<group>"; };
 		3D3CB4C4271E0F647A82AABF /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		4534080E3D49FB96A25396E1 /* FSRSTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FSRSTests.swift; sourceTree = "<group>"; };
@@ -79,6 +88,7 @@
 		570AB9ED21F49E66487493EB /* ReviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewView.swift; sourceTree = "<group>"; };
 		5F3B773FCF701CABAB42B3A8 /* FolderPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FolderPicker.swift; sourceTree = "<group>"; };
 		5F4B40DABE7C9FB8DD2A08A3 /* StatsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatsView.swift; sourceTree = "<group>"; };
+		676CBEE8D7410745BCAC9B36 /* BookRowSwipeActionsUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookRowSwipeActionsUITests.swift; sourceTree = "<group>"; };
 		744E431B3BDB9CD363258901 /* StudyKeyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyKeyTests.swift; sourceTree = "<group>"; };
 		754D7C92C4BCF1E50D3A2CEB /* AIDefinitionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIDefinitionService.swift; sourceTree = "<group>"; };
 		764872AF56817AA494F1A796 /* NoteBarApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteBarApp.swift; sourceTree = "<group>"; };
@@ -199,6 +209,14 @@
 			path = Theme;
 			sourceTree = "<group>";
 		};
+		8ABA6B101BE7D072A132D823 /* NoteBarAppUITests */ = {
+			isa = PBXGroup;
+			children = (
+				676CBEE8D7410745BCAC9B36 /* BookRowSwipeActionsUITests.swift */,
+			);
+			path = NoteBarAppUITests;
+			sourceTree = "<group>";
+		};
 		977F04E21D3B62128142AD49 /* Services */ = {
 			isa = PBXGroup;
 			children = (
@@ -249,6 +267,7 @@
 			children = (
 				5DC33C3E87DCA675509CE15F /* NoteBarApp */,
 				2ECF74D06EFD777356E0E066 /* NoteBarAppTests */,
+				8ABA6B101BE7D072A132D823 /* NoteBarAppUITests */,
 				F3FABE0DC1CB8CA5FE68FA7D /* Products */,
 			);
 			sourceTree = "<group>";
@@ -266,6 +285,7 @@
 			children = (
 				1DC370B2EA5CA0F564C051BE /* NoteBarApp.app */,
 				DFE82934AFC9D5A377C3ADD2 /* NoteBarAppTests.xctest */,
+				30495EFFB8F991F8D402723A /* NoteBarAppUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -310,6 +330,24 @@
 			productReference = DFE82934AFC9D5A377C3ADD2 /* NoteBarAppTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
+		E7AD788AABEF55E5FC5BC00F /* NoteBarAppUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 9D115D19F5D47E7FE914522F /* Build configuration list for PBXNativeTarget "NoteBarAppUITests" */;
+			buildPhases = (
+				0BC2DF7AB333773CA2A3D2A2 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				C503663F2151342909937E6F /* PBXTargetDependency */,
+			);
+			name = NoteBarAppUITests;
+			packageProductDependencies = (
+			);
+			productName = NoteBarAppUITests;
+			productReference = 30495EFFB8F991F8D402723A /* NoteBarAppUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -324,6 +362,10 @@
 					};
 					BB1488923FE30696E0B61A74 = {
 						DevelopmentTeam = "";
+					};
+					E7AD788AABEF55E5FC5BC00F = {
+						DevelopmentTeam = "";
+						TestTargetID = 9CE66C58E92C12C5AEADC5F5;
 					};
 				};
 			};
@@ -343,6 +385,7 @@
 			targets = (
 				9CE66C58E92C12C5AEADC5F5 /* NoteBarApp */,
 				BB1488923FE30696E0B61A74 /* NoteBarAppTests */,
+				E7AD788AABEF55E5FC5BC00F /* NoteBarAppUITests */,
 			);
 		};
 /* End PBXProject section */
@@ -372,6 +415,14 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		0BC2DF7AB333773CA2A3D2A2 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				FB466ACE854913E747350E70 /* BookRowSwipeActionsUITests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		ADB1BF186AC12D3228F1EF60 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -428,6 +479,11 @@
 			target = 9CE66C58E92C12C5AEADC5F5 /* NoteBarApp */;
 			targetProxy = 987DF8ED430213B6C9937492 /* PBXContainerItemProxy */;
 		};
+		C503663F2151342909937E6F /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 9CE66C58E92C12C5AEADC5F5 /* NoteBarApp */;
+			targetProxy = E2A5B549B38D4A01C6B67959 /* PBXContainerItemProxy */;
+		};
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
@@ -444,6 +500,38 @@
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/NoteBarApp.app/NoteBarApp";
+			};
+			name = Release;
+		};
+		3CEA3D18BF42FF38D9F7AA7B /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.notebar.NoteBarAppUITests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = NoteBarApp;
+			};
+			name = Debug;
+		};
+		62E3925C5882B915A0ABA6DD /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.notebar.NoteBarAppUITests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = NoteBarApp;
 			};
 			name = Release;
 		};
@@ -641,6 +729,15 @@
 			buildConfigurations = (
 				ADC80105DA0850FC6A2D5F98 /* Debug */,
 				F1ED4343A72B2E9B26D82044 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		9D115D19F5D47E7FE914522F /* Build configuration list for PBXNativeTarget "NoteBarAppUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				3CEA3D18BF42FF38D9F7AA7B /* Debug */,
+				62E3925C5882B915A0ABA6DD /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;

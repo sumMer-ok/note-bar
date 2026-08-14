@@ -7,14 +7,26 @@ struct WordListView: View {
     @Environment(\.colorScheme) var scheme
     @Query private var entries: [Entry]
     @State private var grouping = Grouping.date
+    @State private var searchText = ""
 
     enum Grouping: String, CaseIterable {
         case date = "按日期", letter = "按首字母", proficiency = "按熟练度"
     }
 
     private var filtered: [Entry] {
-        guard let book else { return entries }
-        return entries.filter { $0.book == book }
+        let byBook: [Entry]
+        if let book {
+            byBook = entries.filter { $0.book == book }
+        } else {
+            byBook = entries
+        }
+        let query = searchText.trimmingCharacters(in: .whitespaces).lowercased()
+        guard !query.isEmpty else { return byBook }
+        return byBook.filter { entry in
+            entry.word.lowercased().contains(query)
+                || entry.aliases.contains { $0.lowercased().contains(query) }
+                || entry.definition.lowercased().contains(query)
+        }
     }
 
     private var sections: [(String, [Entry])] {
@@ -61,6 +73,11 @@ struct WordListView: View {
             }
             .navigationTitle(book ?? "全部词库")
             .navigationBarTitleDisplayMode(.inline)
+            .searchable(
+                text: $searchText,
+                placement: .navigationBarDrawer(displayMode: .always),
+                prompt: "搜索单词、别名或释义"
+            )
             .toolbar {
                 if book != nil {
                     ToolbarItem(placement: .topBarLeading) {

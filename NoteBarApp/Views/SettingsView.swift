@@ -34,7 +34,9 @@ struct SettingsView: View {
                     TextField("额外参数（JSON，可选）", text: $appState.settings.aiExtraParams)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
-                    Text("提示词与 Obsidian 插件保持一致，无需在手机上维护")
+                    TextEditor(text: $appState.settings.aiNotesPrompt)
+                        .frame(minHeight: 120)
+                    Text("「AI 释义」提示词与 Obsidian 插件保持一致；上方为「自定义笔记」提示词，可自行修改，支持 {{word}} 与 {{sentence}} 占位符")
                         .font(.caption2).foregroundStyle(.secondary)
                 }
                 Section {

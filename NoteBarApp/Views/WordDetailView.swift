@@ -72,8 +72,8 @@ struct WordEditSheet: View {
     @State private var aliases: String
     @State private var contents: [DefinitionModule: String]
     @State private var expanded: Set<DefinitionModule>
-    @State private var aiLoading = false
-    @State private var aiMessage: String?
+    @State private var generating: DefinitionModule?
+    @State private var messageByModule: [DefinitionModule: String] = [:]
 
     init(entry: Entry, focusModule: DefinitionModule?) {
         self.entry = entry
@@ -121,18 +121,18 @@ struct WordEditSheet: View {
             HStack {
                 Text(module.rawValue).font(.headline)
                 Spacer()
-                if module == .ai {
+                if module == .ai || module == .notes {
                     Button {
-                        Task { await generateAI() }
+                        Task { await generate(module) }
                     } label: {
-                        if aiLoading {
+                        if generating == module {
                             ProgressView().controlSize(.small)
                         } else {
                             Label("AI 生成", systemImage: "sparkles")
                                 .font(.caption)
                         }
                     }
-                    .disabled(aiLoading || word.trimmingCharacters(in: .whitespaces).isEmpty)
+                    .disabled(generating != nil || word.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
                 Image(systemName: expanded.contains(module) ? "chevron.down" : "chevron.right")
                     .foregroundStyle(.secondary)
@@ -147,10 +147,10 @@ struct WordEditSheet: View {
                     .frame(minHeight: 120)
                     .padding(6)
                     .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14))
-                if module == .ai, let aiMessage {
-                    Text(aiMessage)
+                if module == .ai || module == .notes, let message = messageByModule[module] {
+                    Text(message)
                         .font(.caption2)
-                        .foregroundStyle(aiMessage.contains("已生成") ? Color.green : Color.red)
+                        .foregroundStyle(message.contains("已生成") ? Color.green : Color.red)
                 }
             }
         }
@@ -165,29 +165,32 @@ struct WordEditSheet: View {
         )
     }
 
-    private func generateAI() async {
+    private func generate(_ module: DefinitionModule) async {
         let cleanWord = word.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !cleanWord.isEmpty else {
-            aiMessage = "请先输入单词"
+            messageByModule[module] = "请先输入单词"
             return
         }
-        aiLoading = true
-        aiMessage = nil
-        defer { aiLoading = false }
+        let config = module == .ai ? appState.settings.aiConfig : appState.settings.notesAIConfig
+        generating = module
+        messageByModule[module] = nil
+        defer { generating = nil }
         do {
             let result = try await AIDefinitionService.fetchDefinition(
                 word: cleanWord,
                 sentence: "",
-                config: appState.settings.aiConfig
+                config: config
             )
-            contents[.ai] = result.definition
-            if aliases.trimmingCharacters(in: .whitespaces).isEmpty, !result.aliases.isEmpty {
+            contents[module] = result.definition
+            if module == .ai,
+               aliases.trimmingCharacters(in: .whitespaces).isEmpty,
+               !result.aliases.isEmpty {
                 aliases = result.aliases.joined(separator: ", ")
             }
-            expanded.insert(.ai)
-            aiMessage = "AI 释义已生成"
+            expanded.insert(module)
+            messageByModule[module] = "\(module.rawValue)已生成"
         } catch {
-            aiMessage = error.localizedDescription
+            messageByModule[module] = error.localizedDescription
         }
     }
 

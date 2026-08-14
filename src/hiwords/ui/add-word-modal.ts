@@ -260,6 +260,20 @@ export class AddWordModal extends Modal {
             });
         }
 
+        const noteBtn = autoFillActionsContainer.createDiv({ cls: 'hiwords-auto-fill-btn' });
+        const noteIcon = noteBtn.createDiv({ cls: 'hiwords-auto-fill-icon' });
+        setIcon(noteIcon, 'pencil');
+        noteBtn.setAttribute('aria-label', '插入自定义笔记');
+        noteBtn.addEventListener('click', () => {
+            const current = definitionInput.value;
+            const prefix = current.trim() ? '\n\n' : '';
+            definitionInput.value = `${current}${prefix}--- 自定义笔记 ---\n`;
+            definitionInput.focus();
+            const end = definitionInput.value.length;
+            definitionInput.selectionStart = end;
+            definitionInput.selectionEnd = end;
+        });
+
         const definitionInput = definitionContainer.createEl('textarea', {
             placeholder: '输入词汇释义...',
             cls: 'setting-item-input hiwords-word-definition-input'

@@ -12,7 +12,7 @@ final class AppState: ObservableObject {
         didSet { saveSettings() }
     }
     @Published var syncStatus = "未连接"
-    @Published var conflicts: [String] = []
+    @Published var conflicts: [SyncConflict] = []
     @Published var selectedTab: AppTab = .learn
     @Published var libraryFilter: String?
 
@@ -20,8 +20,8 @@ final class AppState: ObservableObject {
     private let speaker = Speaker()
     private var libraryFilterConsumed = false
     lazy var sync: SyncService = {
-        SyncService(store: DataStore(context: context)) { [weak self] message in
-            Task { @MainActor in self?.conflicts.append(message) }
+        SyncService(store: DataStore(context: context)) { [weak self] conflicts in
+            Task { @MainActor in self?.conflicts = conflicts }
         }
     }()
 

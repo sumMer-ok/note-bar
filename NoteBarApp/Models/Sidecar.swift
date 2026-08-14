@@ -6,7 +6,7 @@ struct ReviewRecord: Codable, Hashable, Sendable {
 }
 
 /// 与插件 StudyProgressItem 逐字段对应
-struct StudyProgress: Codable, Sendable {
+struct StudyProgress: Codable, Equatable, Sendable {
     var status: String? // new | learning | review | mastered
     var stage: Int?
     var reps: Int?

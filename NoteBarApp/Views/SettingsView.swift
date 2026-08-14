@@ -57,8 +57,33 @@ struct SettingsView: View {
                     Text("单词卡片显示顺序")
                 }
                 .environment(\.editMode, .constant(.active))
-                Section("冲突日志") {
-                    ForEach(appState.conflicts, id: \.self) { Text($0).font(.caption) }
+                Section("冲突仲裁") {
+                    if appState.conflicts.isEmpty {
+                        Text("暂无冲突")
+                            .font(.caption).foregroundStyle(.secondary)
+                    } else {
+                        ForEach(appState.conflicts) { conflict in
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("\(conflict.bookDisplayName) · \(conflict.kind == .canvas ? "单词内容" : "复习进度")")
+                                    .font(.subheadline)
+                                if !conflict.changedWords.isEmpty {
+                                    Text("两版差异 \(conflict.changedWords.count) 处：\(conflict.changedWords.prefix(5).joined(separator: "、"))")
+                                        .font(.caption2).foregroundStyle(.secondary)
+                                }
+                                HStack {
+                                    Button("保留主版本") {
+                                        appState.sync.resolve(conflict, keepCopy: false)
+                                    }
+                                    .buttonStyle(.bordered)
+                                    Button("保留副本") {
+                                        appState.sync.resolve(conflict, keepCopy: true)
+                                    }
+                                    .buttonStyle(.bordered)
+                                }
+                            }
+                            .padding(.vertical, 4)
+                        }
+                    }
                 }
             }
             .navigationTitle("设置")

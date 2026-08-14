@@ -23,6 +23,8 @@ struct HomeView: View {
     }
 
     var body: some View {
+        let totalDue = dueCount()
+        let totalNew = newCount
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
@@ -55,7 +57,7 @@ struct HomeView: View {
                         }
                         .buttonStyle(.plain)
                     }
-                    Text("今日待复习 \(dueCount()) · 新词 \(newCount)")
+                    Text("今日待复习 \(totalDue) · 新词 \(totalNew)")
                         .font(.subheadline).foregroundStyle(.secondary)
                     Text("我的词库").font(.headline)
                     ForEach(books, id: \.self) { book in

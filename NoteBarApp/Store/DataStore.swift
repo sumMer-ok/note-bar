@@ -22,11 +22,12 @@ final class Entry {
     var pinned: Bool?
     var status: String?
     var stage: Int?
+    var mastered: Bool?
 
     init(
         studyKey: String, book: String, source: String, nodeId: String,
         word: String, aliases: [String] = [], definition: String = "",
-        color: String? = nil, addedDate: String? = nil
+        color: String? = nil, addedDate: String? = nil, mastered: Bool? = false
     ) {
         self.studyKey = studyKey
         self.book = book
@@ -37,6 +38,7 @@ final class Entry {
         self.definition = definition
         self.color = color
         self.addedDate = addedDate
+        self.mastered = mastered
     }
 
     var progress: StudyProgress {
@@ -74,11 +76,12 @@ final class DataStore {
             existing.definition = word.definition
             existing.color = word.color
             existing.addedDate = word.addedDate
+            existing.mastered = word.mastered
             if let progress { existing.progress = progress }
         } else {
             let entry = Entry(studyKey: key, book: book, source: source, nodeId: word.nodeId,
                               word: word.word, aliases: word.aliases, definition: word.definition,
-                              color: word.color, addedDate: word.addedDate)
+                              color: word.color, addedDate: word.addedDate, mastered: word.mastered)
             if let progress { entry.progress = progress }
             context.insert(entry)
         }

@@ -8,6 +8,7 @@ struct ParsedWord {
     var definition: String
     var color: String?
     var addedDate: String?
+    var mastered: Bool
 }
 
 enum CanvasEditor {
@@ -26,6 +27,10 @@ enum CanvasEditor {
         let root = try JSONSerialization.jsonObject(with: data) as! [String: Any]
         let nodes = (root["nodes"] as? [[String: Any]]) ?? []
         let groups = nodes.filter { ($0["type"] as? String) == "group" }
+        let masteredGroup = groups.first { node in
+            let label = node["label"] as? String
+            return label == "Mastered" || label == "已掌握"
+        }
         let dateGroups = groups.filter { node in
             guard let label = node["label"] as? String else { return false }
             return label.range(of: "^\\d{4}-\\d{2}-\\d{2}$", options: .regularExpression) != nil
@@ -45,9 +50,13 @@ enum CanvasEditor {
             for group in dateGroups where nodeInGroup(node, group) {
                 addedDate = group["label"] as? String
             }
+            var mastered = false
+            if let masteredGroup, nodeInGroup(node, masteredGroup) { mastered = true }
+            if node["color"] as? String == "4" { mastered = true }
             words.append(ParsedWord(
                 nodeId: id, word: parsed.word, aliases: parsed.aliases,
-                definition: parsed.definition, color: node["color"] as? String, addedDate: addedDate
+                definition: parsed.definition, color: node["color"] as? String,
+                addedDate: addedDate, mastered: mastered
             ))
         }
         return words

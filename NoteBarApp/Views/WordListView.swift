@@ -76,8 +76,9 @@ struct WordListView: View {
     }
 
     private func proficiency(_ entry: Entry) -> String {
+        if entry.mastered == true || entry.status == "mastered" || entry.lifecycle == "graduated" { return "已掌握" }
         guard let s = entry.s else { return "未开始" }
-        if entry.lifecycle == "graduated" || entry.status == "mastered" || s >= 30 { return "已掌握" }
+        if s >= 30 { return "已掌握" }
         if s < 2 { return "新学" }
         if s < 15 { return "巩固" }
         return "熟悉"

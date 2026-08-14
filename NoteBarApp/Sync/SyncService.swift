@@ -65,6 +65,7 @@ final class SyncService {
                     existing.aliases = word.aliases
                     existing.color = word.color
                     existing.addedDate = word.addedDate
+                    existing.mastered = word.mastered
                     if let remote, let merged = Merge.progress(local: existing.progress, remote: remote) {
                         existing.progress = merged
                     }

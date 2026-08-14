@@ -20,6 +20,7 @@ struct ReviewView: View {
     @State private var undoStack: [(Entry, StudyProgress)] = []
     @State private var editingModule: DefinitionModule?
     @State private var usedKeys: Set<String> = []
+    @State private var cardPhase: Double = 1
     @Environment(\.dismiss) private var dismiss
 
     private let swipeThreshold: CGFloat = 120
@@ -45,10 +46,18 @@ struct ReviewView: View {
                     front: cardFace(current, back: false),
                     back: cardFace(current, back: true)
                 )
-                .animation(.easeInOut(duration: 0.45), value: flipped)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .offset(x: dragOffset.width, y: dragOffset.height)
                 .rotationEffect(.degrees(Double(dragOffset.width / 24)))
+                // 新卡片像书页一样从右侧翻开进入
+                .rotation3DEffect(
+                    .degrees((1 - cardPhase) * -82),
+                    axis: (x: 0, y: 1, z: 0),
+                    anchor: .trailing,
+                    perspective: 0.55
+                )
+                .opacity(0.3 + 0.7 * cardPhase)
+                .scaleEffect(0.94 + 0.06 * cardPhase)
                 .overlay(alignment: .center) {
                     if let dir = activeDirection {
                         Text(dir.rawValue)
@@ -80,17 +89,20 @@ struct ReviewView: View {
                                 }
                                 return
                             }
-                            // 先完全飞出屏幕，动画结束后才触发评分
+                            // 先完全飞出屏幕，等飞出动画结束后再评分并翻入下一张
                             isFlying = true
                             activeDirection = dir
-                            withAnimation(.easeOut(duration: 0.28)) {
+                            withAnimation(.easeOut(duration: 0.38)) {
                                 dragOffset = flyOffset(for: dir, from: value.translation)
                             }
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.28) {
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.38) {
                                 rate(dir)
                                 dragOffset = .zero
                                 activeDirection = nil
-                                isFlying = false
+                                advance()
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.58) {
+                                    isFlying = false
+                                }
                             }
                         }
                 )
@@ -187,7 +199,12 @@ struct ReviewView: View {
     private func rateButton(_ title: String, _ dir: Direction, _ color: Color) -> some View {
         Button {
             guard !isFlying else { return }
+            isFlying = true
             rate(dir)
+            advance()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.55) {
+                isFlying = false
+            }
         } label: {
             Text(title).frame(maxWidth: .infinity).padding(.vertical, 12)
                 .background(color.opacity(0.18), in: RoundedRectangle(cornerRadius: 12))
@@ -218,14 +235,29 @@ struct ReviewView: View {
         try? context.save()
         preview = "\(result.interval) 天后"
         appState.sync.persist(book: entry.book, key: entry.studyKey, progress: progress)
-        withAnimation(.spring(duration: 0.35)) { index += 1; flipped = false; preview = nil }
+    }
+
+    private func advance() {
+        cardPhase = 0
+        withAnimation(.easeInOut(duration: 0.55)) {
+            index += 1
+            flipped = false
+            preview = nil
+            cardPhase = 1
+        }
     }
 
     private func undo() {
         guard let (entry, progress) = undoStack.popLast() else { return }
         entry.progress = progress
         try? context.save()
-        index = max(0, index - 1)
+        cardPhase = 0
+        withAnimation(.easeInOut(duration: 0.45)) {
+            index = max(0, index - 1)
+            flipped = false
+            preview = nil
+            cardPhase = 1
+        }
     }
 
     private func buildQueue() {

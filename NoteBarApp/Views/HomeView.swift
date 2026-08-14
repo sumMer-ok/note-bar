@@ -84,23 +84,32 @@ struct BookRow: View {
     let dueCount: Int
     @EnvironmentObject var appState: AppState
     @State private var offsetX: CGFloat = 0
+    @State private var dragStartX: CGFloat = 0
+    @State private var isTracking = false
 
     private var isDefault: Bool { appState.settings.defaultBooks.contains(book) }
     private var isPinned: Bool { appState.settings.pinnedBooks.contains(book) }
+    private var isOpen: Bool { offsetX < -8 }
 
     var body: some View {
         ZStack(alignment: .trailing) {
+            // 动作层：平时完全隐藏，只有向左滑动后才浮现
             HStack(spacing: 0) {
-                actionButton("默认", active: isDefault, color: .purple) { toggleDefault() }
-                actionButton("置顶", active: isPinned, color: .orange) { togglePinned() }
+                actionButton(isDefault ? "取消默认" : "默认", active: isDefault, color: .purple) { toggleDefault() }
+                actionButton(isPinned ? "取消置顶" : "置顶", active: isPinned, color: .orange) { togglePinned() }
             }
+            .opacity(isOpen ? 1 : 0)
+            .animation(.easeOut(duration: 0.16), value: isOpen)
 
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
-                    HStack(spacing: 4) {
-                        Text(book).fontWeight(.medium)
-                        if isPinned { Text("📌").font(.caption) }
-                        if isDefault { Text("⭐").font(.caption) }
+                    HStack(spacing: 5) {
+                        Text(book).fontWeight(.medium).lineLimit(1)
+                        if isDefault {
+                            Text("（默认）")
+                                .font(.caption2.weight(.semibold))
+                                .foregroundStyle(.red)
+                        }
                     }
                     Text("\(wordCount) 词")
                         .font(.caption).foregroundStyle(.secondary)
@@ -109,7 +118,9 @@ struct BookRow: View {
                 Text("待复习 \(dueCount)").font(.caption).foregroundStyle(.red)
             }
             .padding()
-            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            // 不透明前景：遮住背后的按钮，避免透明材质与按钮图层重叠
+            .background(Color(.systemBackground), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .shadow(color: .black.opacity(isOpen ? 0.12 : 0), radius: 5, x: isOpen ? -3 : 0, y: 1)
             .offset(x: offsetX)
             .contentShape(Rectangle())
             .onTapGesture {
@@ -122,18 +133,37 @@ struct BookRow: View {
             .gesture(
                 DragGesture(minimumDistance: 12)
                     .onChanged { value in
-                        let w = value.translation.width
-                        offsetX = min(0, max(-160, w))
+                        if !isTracking {
+                            isTracking = true
+                            dragStartX = offsetX
+                        }
+                        offsetX = min(0, max(-160, dragStartX + value.translation.width))
                     }
                     .onEnded { value in
+                        let projected = dragStartX + value.translation.width
+                        isTracking = false
                         withAnimation(.spring(duration: 0.3)) {
-                            offsetX = value.translation.width < -45 ? -160 : 0
+                            offsetX = projected < -45 ? -160 : 0
                         }
                     }
             )
         }
         .frame(height: 70)
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay(alignment: .topLeading) {
+            if isPinned {
+                Image(systemName: "pin.fill")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.orange)
+                    .rotationEffect(.degrees(-32))
+                    .padding(6)
+                    .background(Circle().fill(Color(.systemBackground)))
+                    .shadow(color: .black.opacity(0.18), radius: 2, y: 1)
+                    .offset(x: -5, y: -8)
+                    .transition(.scale.combined(with: .opacity))
+            }
+        }
+        .animation(.spring(duration: 0.32), value: isPinned)
     }
 
     private func actionButton(_ title: String, active: Bool, color: Color, action: @escaping () -> Void) -> some View {

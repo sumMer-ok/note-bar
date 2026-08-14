@@ -8,6 +8,7 @@ struct WordDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var context
     @State private var editing = false
+    @State private var editingModule: DefinitionModule?
 
     var body: some View {
         ScrollView {
@@ -18,10 +19,12 @@ struct WordDetailView: View {
                         .foregroundStyle(Theme.wordColor(scheme))
                     Button { appState.speak(entry.word) } label: { Image(systemName: "speaker.wave.2.fill") }
                 }
-                Text(entry.definition.isEmpty ? "（无释义）" : entry.definition)
-                    .padding()
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .glassCard()
+                DefinitionModulesView(raw: entry.definition) { module in
+                    editingModule = module
+                }
+                .padding()
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .glassCard()
 
                 if let s = entry.s {
                     ProgressView(value: min(s / 30, 1))
@@ -45,6 +48,9 @@ struct WordDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $editing) {
             WordEditSheet(entry: entry)
+        }
+        .sheet(item: $editingModule) { module in
+            ModuleEditorSheet(entry: entry, module: module)
         }
     }
 

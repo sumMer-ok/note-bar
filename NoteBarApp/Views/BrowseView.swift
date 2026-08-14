@@ -9,6 +9,7 @@ struct BrowseView: View {
     @State private var current: Entry?
     @State private var flipped = false
     @State private var history: [Entry] = []
+    @State private var editingModule: DefinitionModule?
 
     var body: some View {
         VStack(spacing: 16) {
@@ -53,15 +54,22 @@ struct BrowseView: View {
         .onAppear {
             if current == nil { next() }
         }
+        .sheet(item: $editingModule) { module in
+            if let current {
+                ModuleEditorSheet(entry: current, module: module)
+            }
+        }
     }
 
     private func face(_ entry: Entry, back: Bool) -> some View {
         VStack(spacing: 14) {
             if back {
-                Text(entry.definition.isEmpty ? "（无释义）" : entry.definition)
-                    .multilineTextAlignment(.center)
-                    .font(.title3)
+                ScrollView {
+                    DefinitionModulesView(raw: entry.definition) { module in
+                        editingModule = module
+                    }
                     .padding()
+                }
             } else {
                 Text(entry.word)
                     .font(.system(size: 38, weight: .bold, design: .rounded))

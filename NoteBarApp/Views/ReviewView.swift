@@ -13,11 +13,15 @@ struct ReviewView: View {
     @State private var queue: [Entry] = []
     @State private var index = 0
     @State private var flipped = false
-    @State private var drag: CGSize = .zero
+    @State private var dragOffset: CGSize = .zero
+    @State private var isFlying = false
     @State private var activeDirection: Direction?
     @State private var preview: String?
     @State private var undoStack: [(Entry, StudyProgress)] = []
+    @State private var editingModule: DefinitionModule?
     @Environment(\.dismiss) private var dismiss
+
+    private let swipeThreshold: CGFloat = 120
 
     enum Direction: String {
         case good = "认识", again = "不认识", hard = "模糊", easy = "太简单"
@@ -44,6 +48,8 @@ struct ReviewView: View {
                         .rotation3DEffect(.degrees(flipped ? 0 : -180), axis: (x: 0, y: 1, z: 0))
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .offset(x: dragOffset.width, y: dragOffset.height)
+                .rotationEffect(.degrees(Double(dragOffset.width / 24)))
                 .overlay(alignment: .center) {
                     if let dir = activeDirection {
                         Text(dir.rawValue)
@@ -59,18 +65,40 @@ struct ReviewView: View {
                         .strokeBorder(color(for: activeDirection).opacity(activeDirection == nil ? 0 : 0.9), lineWidth: 4)
                 }
                 .gesture(
-                    DragGesture(minimumDistance: 20)
+                    DragGesture(minimumDistance: 8)
                         .onChanged { value in
-                            drag = value.translation
-                            activeDirection = direction(for: drag)
+                            guard !isFlying else { return }
+                            dragOffset = value.translation
+                            activeDirection = direction(for: value.translation)
                         }
                         .onEnded { value in
-                            defer { drag = .zero; activeDirection = nil }
-                            guard let dir = direction(for: value.translation), absMax(value.translation) > 60 else { return }
-                            rate(dir)
+                            guard !isFlying else { return }
+                            let dir = direction(for: value.translation)
+                            guard let dir, absMax(value.translation) > swipeThreshold else {
+                                withAnimation(.spring(duration: 0.35)) {
+                                    dragOffset = .zero
+                                    activeDirection = nil
+                                }
+                                return
+                            }
+                            // 先完全飞出屏幕，动画结束后才触发评分
+                            isFlying = true
+                            activeDirection = dir
+                            withAnimation(.easeOut(duration: 0.28)) {
+                                dragOffset = flyOffset(for: dir, from: value.translation)
+                            }
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.28) {
+                                rate(dir)
+                                dragOffset = .zero
+                                activeDirection = nil
+                                isFlying = false
+                            }
                         }
                 )
-                .onTapGesture { withAnimation(.spring(duration: 0.45)) { flipped.toggle() } }
+                .onTapGesture {
+                    guard !isFlying else { return }
+                    withAnimation(.spring(duration: 0.45)) { flipped.toggle() }
+                }
 
                 if let preview {
                     Text("下次 \(preview)").font(.caption).foregroundStyle(.secondary)
@@ -89,15 +117,22 @@ struct ReviewView: View {
         .padding()
         .navigationBarTitleDisplayMode(.inline)
         .onAppear(perform: buildQueue)
+        .sheet(item: $editingModule) { module in
+            if let entry = current {
+                ModuleEditorSheet(entry: entry, module: module)
+            }
+        }
     }
 
     private func cardFace(_ entry: Entry, back: Bool) -> some View {
         VStack(spacing: 12) {
             if back {
-                Text(entry.definition.isEmpty ? "（无释义）" : entry.definition)
-                    .multilineTextAlignment(.center)
-                    .font(.title3)
+                ScrollView {
+                    DefinitionModulesView(raw: entry.definition) { module in
+                        editingModule = module
+                    }
                     .padding()
+                }
             } else {
                 Text(entry.word)
                     .font(.system(size: 34, weight: .bold, design: .rounded))
@@ -112,7 +147,10 @@ struct ReviewView: View {
     }
 
     private func rateButton(_ title: String, _ dir: Direction, _ color: Color) -> some View {
-        Button { rate(dir) } label: {
+        Button {
+            guard !isFlying else { return }
+            rate(dir)
+        } label: {
             Text(title).frame(maxWidth: .infinity).padding(.vertical, 12)
                 .background(color.opacity(0.18), in: RoundedRectangle(cornerRadius: 12))
                 .foregroundStyle(color)
@@ -170,6 +208,17 @@ struct ReviewView: View {
     }
 
     private func absMax(_ size: CGSize) -> CGFloat { max(abs(size.width), abs(size.height)) }
+
+    private func flyOffset(for dir: Direction, from translation: CGSize) -> CGSize {
+        let screenW = UIScreen.main.bounds.width
+        let screenH = UIScreen.main.bounds.height
+        switch dir {
+        case .good: return CGSize(width: -screenW * 1.3, height: translation.height)
+        case .again: return CGSize(width: screenW * 1.3, height: translation.height)
+        case .easy: return CGSize(width: translation.width, height: -screenH * 1.3)
+        case .hard: return CGSize(width: translation.width, height: screenH * 1.3)
+        }
+    }
 
     private func color(for dir: Direction?) -> Color {
         switch dir {

@@ -24,6 +24,8 @@ final class SyncIntegrationTests: XCTestCase {
 
         let entries = try container.mainContext.fetch(FetchDescriptor<Entry>())
         XCTAssertGreaterThan(entries.count, 0, "应从真实词库读入单词")
+        XCTAssertGreaterThan(entries.filter { $0.mastered == true }.count, 0, "应从 Mastered 分组/颜色4 解析出已掌握")
+        XCTAssertGreaterThan(entries.filter { $0.status == "mastered" }.count, 0, "status=mastered 应同步")
 
         guard let entry = entries.first(where: { $0.s != nil }) ?? entries.first else {
             throw XCTSkip("没有可写回进度的词条")
@@ -38,8 +40,17 @@ final class SyncIntegrationTests: XCTestCase {
 
         let base = entry.book.replacingOccurrences(of: "\\.canvas$", with: "", options: .regularExpression)
         let sidecarURL = URL(fileURLWithPath: dir).appendingPathComponent("\(base).nb-sync.json")
-        let data = try Data(contentsOf: sidecarURL)
-        let sidecar = try JSONDecoder().decode(SidecarFile.self, from: data)
-        XCTAssertEqual(sidecar.words[entry.studyKey]?.s, 999, "评分写回应落到边车文件")
+
+        // persist 是后台写入，轮询等待落盘
+        var writtenValue: Double?
+        for _ in 0..<20 {
+            if let data = try? Data(contentsOf: sidecarURL),
+               let sidecar = try? JSONDecoder().decode(SidecarFile.self, from: data) {
+                writtenValue = sidecar.words[entry.studyKey]?.s
+                if writtenValue == 999 { break }
+            }
+            try await Task.sleep(for: .milliseconds(100))
+        }
+        XCTAssertEqual(writtenValue, 999, "评分写回应落到边车文件")
     }
 }

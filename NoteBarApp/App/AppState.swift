@@ -38,10 +38,15 @@ final class AppState: ObservableObject {
         var dictationPerSession = 20
         var ttsTemplate = "https://dict.youdao.com/dictvoice?audio={{word}}&type=2"
         var definitionOrder: [DefinitionModule] = DefinitionModule.allCases
+        var aiApiUrl = "https://api.openai.com/v1"
+        var aiApiKey = ""
+        var aiModel = "gpt-4o-mini"
+        var aiExtraParams = "{}"
 
         private enum CodingKeys: String, CodingKey {
             case autoPronounce, forceDarkMode, dailyNewWordLimit
             case dailyReviewLimit, dictationPerSession, ttsTemplate, definitionOrder
+            case aiApiUrl, aiApiKey, aiModel, aiExtraParams
         }
 
         init() {}
@@ -57,6 +62,20 @@ final class AppState: ObservableObject {
                 ?? "https://dict.youdao.com/dictvoice?audio={{word}}&type=2"
             definitionOrder = try container.decodeIfPresent([DefinitionModule].self, forKey: .definitionOrder)
                 ?? DefinitionModule.allCases
+            aiApiUrl = try container.decodeIfPresent(String.self, forKey: .aiApiUrl) ?? "https://api.openai.com/v1"
+            aiApiKey = try container.decodeIfPresent(String.self, forKey: .aiApiKey) ?? ""
+            aiModel = try container.decodeIfPresent(String.self, forKey: .aiModel) ?? "gpt-4o-mini"
+            aiExtraParams = try container.decodeIfPresent(String.self, forKey: .aiExtraParams) ?? "{}"
+        }
+
+        var aiConfig: AIDefinitionService.Config {
+            AIDefinitionService.Config(
+                apiUrl: aiApiUrl,
+                apiKey: aiApiKey,
+                model: aiModel,
+                extraParams: aiExtraParams,
+                prompt: AIDefinitionService.loadPrompt()
+            )
         }
 
         static func load() -> Settings {

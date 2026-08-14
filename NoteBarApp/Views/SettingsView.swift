@@ -23,6 +23,20 @@ struct SettingsView: View {
                     Stepper("每日复习上限 \(appState.settings.dailyReviewLimit)", value: $appState.settings.dailyReviewLimit, in: 1...500)
                     Stepper("每轮听写 \(appState.settings.dictationPerSession) 词", value: $appState.settings.dictationPerSession, in: 1...100)
                 }
+                Section("AI 释义") {
+                    TextField("API 地址", text: $appState.settings.aiApiUrl)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                    SecureField("API Key", text: $appState.settings.aiApiKey)
+                    TextField("模型", text: $appState.settings.aiModel)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                    TextField("额外参数（JSON，可选）", text: $appState.settings.aiExtraParams)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                    Text("提示词与 Obsidian 插件保持一致，无需在手机上维护")
+                        .font(.caption2).foregroundStyle(.secondary)
+                }
                 Section {
                     ForEach(appState.settings.definitionOrder, id: \.self) { module in
                         HStack {

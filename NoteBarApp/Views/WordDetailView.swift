@@ -72,6 +72,8 @@ struct WordEditSheet: View {
     @State private var aliases: String
     @State private var contents: [DefinitionModule: String]
     @State private var expanded: Set<DefinitionModule>
+    @State private var aiLoading = false
+    @State private var aiMessage: String?
 
     init(entry: Entry, focusModule: DefinitionModule?) {
         self.entry = entry
@@ -116,23 +118,40 @@ struct WordEditSheet: View {
 
     private func moduleBox(_ module: DefinitionModule) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Button {
-                if expanded.contains(module) { expanded.remove(module) } else { expanded.insert(module) }
-            } label: {
-                HStack {
-                    Text(module.rawValue).font(.headline)
-                    Spacer()
-                    Image(systemName: expanded.contains(module) ? "chevron.down" : "chevron.right")
-                        .foregroundStyle(.secondary)
+            HStack {
+                Text(module.rawValue).font(.headline)
+                Spacer()
+                if module == .ai {
+                    Button {
+                        Task { await generateAI() }
+                    } label: {
+                        if aiLoading {
+                            ProgressView().controlSize(.small)
+                        } else {
+                            Label("AI 生成", systemImage: "sparkles")
+                                .font(.caption)
+                        }
+                    }
+                    .disabled(aiLoading || word.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
+                Image(systemName: expanded.contains(module) ? "chevron.down" : "chevron.right")
+                    .foregroundStyle(.secondary)
             }
-            .buttonStyle(.plain)
+            .contentShape(Rectangle())
+            .onTapGesture {
+                if expanded.contains(module) { expanded.remove(module) } else { expanded.insert(module) }
+            }
 
             if expanded.contains(module) {
                 TextEditor(text: contentBinding(module))
                     .frame(minHeight: 120)
                     .padding(6)
                     .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14))
+                if module == .ai, let aiMessage {
+                    Text(aiMessage)
+                        .font(.caption2)
+                        .foregroundStyle(aiMessage.contains("已生成") ? Color.green : Color.red)
+                }
             }
         }
         .padding(14)
@@ -144,6 +163,32 @@ struct WordEditSheet: View {
             get: { contents[module] ?? "" },
             set: { contents[module] = $0 }
         )
+    }
+
+    private func generateAI() async {
+        let cleanWord = word.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleanWord.isEmpty else {
+            aiMessage = "请先输入单词"
+            return
+        }
+        aiLoading = true
+        aiMessage = nil
+        defer { aiLoading = false }
+        do {
+            let result = try await AIDefinitionService.fetchDefinition(
+                word: cleanWord,
+                sentence: "",
+                config: appState.settings.aiConfig
+            )
+            contents[.ai] = result.definition
+            if aliases.trimmingCharacters(in: .whitespaces).isEmpty, !result.aliases.isEmpty {
+                aliases = result.aliases.joined(separator: ", ")
+            }
+            expanded.insert(.ai)
+            aiMessage = "AI 释义已生成"
+        } catch {
+            aiMessage = error.localizedDescription
+        }
     }
 
     private func save() {

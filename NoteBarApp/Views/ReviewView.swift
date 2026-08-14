@@ -157,11 +157,17 @@ struct ReviewView: View {
                             .foregroundStyle(Theme.wordColor(scheme))
                         if let phonetic = PhoneticExtractor.phonetic(from: entry.definition) {
                             Button { appState.speak(entry.word) } label: {
-                                HStack(spacing: 5) {
-                                    Text(phonetic).foregroundStyle(.secondary)
+                                HStack(spacing: 8) {
+                                    Text(phonetic)
+                                        .font(.title3)
+                                        .foregroundStyle(.secondary)
                                     Image(systemName: "speaker.wave.2.fill")
+                                        .font(.system(size: 22, weight: .medium))
+                                        .foregroundStyle(.blue)
+                                        .frame(width: 44, height: 44)
+                                        .background(Circle().fill(.blue.opacity(0.12)))
                                 }
-                                .font(.subheadline)
+                                .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
                         }

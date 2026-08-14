@@ -60,8 +60,8 @@ struct HomeView: View {
                         .font(.subheadline).foregroundStyle(.secondary)
                     Text("我的词库").font(.headline)
                     ForEach(books, id: \.self) { book in
-                        NavigationLink {
-                            WordListView(book: book)
+                        Button {
+                            appState.showLibrary(book: book)
                         } label: {
                             HStack {
                                 VStack(alignment: .leading) {

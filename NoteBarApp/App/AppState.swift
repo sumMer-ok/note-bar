@@ -2,6 +2,10 @@ import SwiftUI
 import SwiftData
 import AVFoundation
 
+enum AppTab: Hashable {
+    case learn, library, stats, settings
+}
+
 @MainActor
 final class AppState: ObservableObject {
     @Published var settings: Settings {
@@ -9,9 +13,12 @@ final class AppState: ObservableObject {
     }
     @Published var syncStatus = "未连接"
     @Published var conflicts: [String] = []
+    @Published var selectedTab: AppTab = .learn
+    @Published var libraryFilter: String?
 
     private let context: ModelContext
     private let speaker = Speaker()
+    private var libraryFilterConsumed = false
     lazy var sync: SyncService = {
         SyncService(store: DataStore(context: context)) { [weak self] message in
             Task { @MainActor in self?.conflicts.append(message) }
@@ -57,6 +64,23 @@ final class AppState: ObservableObject {
 
     func speak(_ word: String) {
         speaker.speak(word: word, url: ttsURL(word: word))
+    }
+
+    /// 从首页点词库时：带上过滤条件切到「词库」Tab
+    func showLibrary(book: String?) {
+        libraryFilter = book
+        libraryFilterConsumed = true
+        selectedTab = .library
+    }
+
+    /// Tab 变化时：直接点击「词库」Tab 栏则清空过滤条件（显示全部词库）
+    func handleTabChange(_ tab: AppTab) {
+        guard tab == .library else { return }
+        if libraryFilterConsumed {
+            libraryFilterConsumed = false
+        } else {
+            libraryFilter = nil
+        }
     }
 }
 

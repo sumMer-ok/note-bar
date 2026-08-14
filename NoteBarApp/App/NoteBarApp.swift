@@ -30,12 +30,15 @@ struct NoteBarApp: App {
 }
 
 struct RootView: View {
+    @EnvironmentObject var appState: AppState
+
     var body: some View {
-        TabView {
-            HomeView().tabItem { Label("学习", systemImage: "book.fill") }
-            WordListView().tabItem { Label("词库", systemImage: "books.vertical") }
-            StatsView().tabItem { Label("统计", systemImage: "chart.bar.fill") }
-            SettingsView().tabItem { Label("设置", systemImage: "gearshape.fill") }
+        TabView(selection: $appState.selectedTab) {
+            HomeView().tabItem { Label("学习", systemImage: "book.fill") }.tag(AppTab.learn)
+            WordListView(book: appState.libraryFilter).tabItem { Label("词库", systemImage: "books.vertical") }.tag(AppTab.library)
+            StatsView().tabItem { Label("统计", systemImage: "chart.bar.fill") }.tag(AppTab.stats)
+            SettingsView().tabItem { Label("设置", systemImage: "gearshape.fill") }.tag(AppTab.settings)
         }
+        .onChange(of: appState.selectedTab) { appState.handleTabChange($0) }
     }
 }

@@ -29,13 +29,13 @@ struct HomeView: View {
                     Text("学习").font(.largeTitle.bold())
                     HStack(spacing: 12) {
                         NavigationLink {
-                            ReviewView(mode: .review)
+                            BookPickerView(mode: .review)
                         } label: {
                             HomeActionButton(title: "开始复习", icon: "arrow.clockwise", animal: "rabbit", delay: 0.0, color: .blue)
                         }
                         .buttonStyle(.plain)
                         NavigationLink {
-                            ReviewView(mode: .learn)
+                            BookPickerView(mode: .learn)
                         } label: {
                             HomeActionButton(title: "开始学习", icon: "sparkles", animal: "bear", delay: 0.35, color: .purple)
                         }

@@ -4,6 +4,7 @@ import SwiftData
 struct ReviewView: View {
     enum Mode { case review, learn }
     let mode: Mode
+    var books: Set<String> = []
 
     @EnvironmentObject var appState: AppState
     @Environment(\.colorScheme) var scheme
@@ -151,7 +152,8 @@ struct ReviewView: View {
     private func buildQueue() {
         let today = FSRS.dayString(Date())
         let limit = mode == .review ? appState.settings.dailyReviewLimit : appState.settings.dailyNewWordLimit
-        let active = all.filter { !["graduated", "archived", "retired"].contains($0.lifecycle ?? "") }
+        let scope = books.isEmpty ? all : all.filter { books.contains($0.book) }
+        let active = scope.filter { !["graduated", "archived", "retired"].contains($0.lifecycle ?? "") }
         switch mode {
         case .review:
             queue = active.filter { ($0.dueDate ?? "") <= today }.sorted { ($0.dueDate ?? "") < ($1.dueDate ?? "") }

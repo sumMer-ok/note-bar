@@ -37,6 +37,7 @@
 		DF8C80740774964D0C9BFAB5 /* CanvasEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0364B95EA71602AFF59D03E /* CanvasEditor.swift */; };
 		DFB7B4FAB6A9EA4645644986 /* Merge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D1902E1ECCC2B362771FCFE /* Merge.swift */; };
 		E6BF777ACAF85E642850E388 /* ReviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 570AB9ED21F49E66487493EB /* ReviewView.swift */; };
+		E7074D57C98898F464225F56 /* BookPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F451DDE6213D6086F4A24CEB /* BookPickerView.swift */; };
 		EF1274650F59D819B4249A61 /* FSRSTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4534080E3D49FB96A25396E1 /* FSRSTests.swift */; };
 		FF70DDB6C6C179D125605D4E /* WordListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6A3EF1FAF634472BE4BBC97 /* WordListView.swift */; };
 /* End PBXBuildFile section */
@@ -86,6 +87,7 @@
 		DFE82934AFC9D5A377C3ADD2 /* NoteBarAppTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = NoteBarAppTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		E0364B95EA71602AFF59D03E /* CanvasEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanvasEditor.swift; sourceTree = "<group>"; };
 		E8F11A3EC51905D7BB26BD59 /* fox.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = fox.png; sourceTree = "<group>"; };
+		F451DDE6213D6086F4A24CEB /* BookPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookPickerView.swift; sourceTree = "<group>"; };
 		FCF34452238F3CC751BEE0BB /* sync-vectors.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "sync-vectors.json"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -189,6 +191,7 @@
 		CF2727BFFFEEAEDCA5453293 /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				F451DDE6213D6086F4A24CEB /* BookPickerView.swift */,
 				1F07BC0FF9F19051B79B6E82 /* BrowseView.swift */,
 				D16AD92E616FBBE75CFB5AE0 /* DictationView.swift */,
 				C8A70B5E58ADCBB412F8722A /* HomeView.swift */,
@@ -346,6 +349,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				47A2987B0C7BFA8D45BFFFBA /* AppState.swift in Sources */,
+				E7074D57C98898F464225F56 /* BookPickerView.swift in Sources */,
 				05BABE97FECE8807438D816D /* BookmarkStore.swift in Sources */,
 				BE2840B42D02F56EBFC2990A /* BrowseView.swift in Sources */,
 				DF8C80740774964D0C9BFAB5 /* CanvasEditor.swift in Sources */,

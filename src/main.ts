@@ -1090,6 +1090,23 @@ class NoteBarSettingTab extends PluginSettingTab {
       .setName("手动同步")
       .setDesc("立即执行一次导出或导入")
       .addButton((button) =>
+        button.setButtonText("立即同步").onClick(async () => {
+          const cfg = this.plugin.hiwordsSettings.mobileSync;
+          if (!cfg?.enabled || !cfg?.syncDir) {
+            new Notice("请先启用手机同步并选择 iCloud 同步目录");
+            return;
+          }
+          if (!this.plugin.syncManager?.isRunning) {
+            await this.plugin.syncManager?.start();
+          }
+          const result = await this.plugin.syncManager?.syncNow();
+          const failed = result?.failed?.length
+            ? `，失败 ${result.failed.length} 个词库`
+            : "";
+          new Notice(`同步完成：导入 ${result?.imported ?? 0} 个进度，导出 ${result?.exported ?? 0} 个边车${failed}`);
+        })
+      )
+      .addButton((button) =>
         button.setButtonText("立即导出").onClick(async () => {
           const result = await this.plugin.syncManager?.exportAll(true);
           new Notice(`导出完成：写入 ${result?.written ?? 0}，跳过 ${result?.unchanged ?? 0}`);

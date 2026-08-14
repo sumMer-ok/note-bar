@@ -84,7 +84,7 @@ export class SyncManager {
 
   async exportAll(immediate = false): Promise<SyncExportResult | null> {
     const cfg = this.config;
-    if (!this.running || !cfg?.syncDir || !this.plugin.vocabularyManager) return null;
+    if (!cfg?.syncDir || !this.plugin.vocabularyManager) return null;
     if (!immediate) {
       if (this.exportTimer) clearTimeout(this.exportTimer);
       return await new Promise((resolve) => {
@@ -110,11 +110,25 @@ export class SyncManager {
 
   async importAll(): Promise<SyncImportResult | null> {
     const cfg = this.config;
-    if (!this.running || !cfg?.syncDir) return null;
+    if (!cfg?.syncDir) return null;
     const result = await importSidecars({ settings: this.plugin.hiwordsSettings, syncDir: cfg.syncDir });
     await this.plugin.saveHiWordsSettings();
     this.plugin.refreshHighlighter();
     return result;
+  }
+
+  /** 立即执行一次完整双向同步：镜像 Canvas + 导入手机进度 + 导出合并后的边车 */
+  async syncNow(): Promise<{ imported: number; exported: number; failed: string[] } | null> {
+    const cfg = this.config;
+    if (!cfg?.syncDir) return null;
+    await this.mirrorer?.syncOnce();
+    const imported = await this.importAll();
+    const exported = await this.exportAll(true);
+    return {
+      imported: imported?.mergedKeys ?? 0,
+      exported: exported?.written ?? 0,
+      failed: exported?.failed ?? [],
+    };
   }
 
   /** 监听同步目录里边车文件变化（fs.watch + 轮询兜底），防抖后自动导入 */

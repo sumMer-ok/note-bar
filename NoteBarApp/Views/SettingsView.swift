@@ -17,7 +17,12 @@ struct SettingsView: View {
                     }
                 }
                 Section("外观") {
-                    Toggle("暗夜模式", isOn: $appState.settings.forceDarkMode)
+                    Picker("外观模式", selection: $appState.settings.appearance) {
+                        ForEach(AppState.Settings.Appearance.allCases) { mode in
+                            Text(mode.title).tag(mode)
+                        }
+                    }
+                    .pickerStyle(.segmented)
                 }
                 Section("学习") {
                     Toggle("自动朗读单词", isOn: $appState.settings.autoPronounce)

@@ -7,29 +7,42 @@ struct StatsView: View {
     @State private var selectedDay: String?
     @State private var editingEntry: Entry?
 
+    private static let fractionalFormatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }()
+
+    private static let plainFormatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter
+    }()
+
     private var today: String { FSRS.dayString(Date()) }
 
     var body: some View {
+        let dayMap = byDay
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     QuoteCard(quote: DailyQuoteBook.quote(for: Date()))
 
                     HStack(spacing: 8) {
-                        statCard("连续天数", "\(streak)")
+                        statCard("连续天数", "\(streak(days: dayMap))")
                         statCard("今日学习", "\(learnEntries(on: today).count)")
                         statCard("今日复习", "\(reviewEntries(on: today).count)")
                     }
 
                     Text("日历").font(.headline)
-                    CalendarGrid(byDay: byDay, selected: $selectedDay)
+                    CalendarGrid(byDay: dayMap, selected: $selectedDay)
 
                     if let selectedDay {
                         dayDetail(selectedDay)
                     }
 
                     Text("近 18 周热力图").font(.headline)
-                    Heatmap(byDay: byDay)
+                    Heatmap(byDay: dayMap)
                 }
                 .padding()
             }
@@ -54,11 +67,11 @@ struct StatsView: View {
         return map
     }
 
-    private var streak: Int {
-        let days = Set(byDay.keys)
+    private func streak(days: [String: [DayRecord]]) -> Int {
+        let dayKeys = Set(days.keys)
         var count = 0
         var cursor = FSRS.startOfDay(Date())
-        while days.contains(FSRS.dayString(cursor)) {
+        while dayKeys.contains(FSRS.dayString(cursor)) {
             count += 1
             cursor = Calendar.current.date(byAdding: .day, value: -1, to: cursor)!
         }
@@ -80,12 +93,8 @@ struct StatsView: View {
     }
 
     private func localDay(from iso: String) -> String {
-        let fractional = ISO8601DateFormatter()
-        fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let date = fractional.date(from: iso) { return FSRS.dayString(date) }
-        let plain = ISO8601DateFormatter()
-        plain.formatOptions = [.withInternetDateTime]
-        if let date = plain.date(from: iso) { return FSRS.dayString(date) }
+        if let date = Self.fractionalFormatter.date(from: iso) { return FSRS.dayString(date) }
+        if let date = Self.plainFormatter.date(from: iso) { return FSRS.dayString(date) }
         return String(iso.prefix(10))
     }
 

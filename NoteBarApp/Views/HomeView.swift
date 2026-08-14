@@ -28,6 +28,7 @@ struct HomeView: View {
     var body: some View {
         let totalDue = dueCount()
         let totalNew = newCount
+        let isActive = appState.selectedTab == .learn
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
@@ -36,13 +37,13 @@ struct HomeView: View {
                         NavigationLink {
                             BookPickerView(mode: .review)
                         } label: {
-                            HomeActionButton(title: "开始复习", icon: "arrow.clockwise", animal: "rabbit", delay: 0.0, color: .blue)
+                            HomeActionButton(title: "开始复习", icon: "arrow.clockwise", animal: "rabbit", delay: 0.0, color: .blue, isActive: isActive)
                         }
                         .buttonStyle(.plain)
                         NavigationLink {
                             BookPickerView(mode: .learn)
                         } label: {
-                            HomeActionButton(title: "开始学习", icon: "sparkles", animal: "bear", delay: 0.35, color: .purple)
+                            HomeActionButton(title: "开始学习", icon: "sparkles", animal: "bear", delay: 0.35, color: .purple, isActive: isActive)
                         }
                         .buttonStyle(.plain)
                     }
@@ -50,13 +51,13 @@ struct HomeView: View {
                         NavigationLink {
                             BrowseView()
                         } label: {
-                            HomeActionButton(title: "开始慢游", icon: "leaf.fill", animal: "fox", delay: 0.7, color: .teal)
+                            HomeActionButton(title: "开始慢游", icon: "leaf.fill", animal: "fox", delay: 0.7, color: .teal, isActive: isActive)
                         }
                         .buttonStyle(.plain)
                         NavigationLink {
                             DictationView()
                         } label: {
-                            HomeActionButton(title: "开始听写", icon: "pencil.and.list.clipboard", animal: "cat", delay: 1.05, color: Theme.hardGray)
+                            HomeActionButton(title: "开始听写", icon: "pencil.and.list.clipboard", animal: "cat", delay: 1.05, color: Theme.hardGray, isActive: isActive)
                         }
                         .buttonStyle(.plain)
                     }
@@ -211,6 +212,7 @@ struct HomeActionButton: View {
     let animal: String
     let delay: Double
     let color: Color
+    let isActive: Bool
 
     var body: some View {
         ZStack {
@@ -222,7 +224,7 @@ struct HomeActionButton: View {
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 18)
             }
-            CartoonAnimal(name: animal, delay: delay)
+            CartoonAnimal(name: animal, delay: delay, isActive: isActive)
         }
         .foregroundStyle(.white)
         .frame(maxWidth: .infinity)
@@ -234,15 +236,17 @@ struct HomeActionButton: View {
 struct CartoonAnimal: View {
     let name: String
     let delay: Double
+    let isActive: Bool
     @State private var visible = false
     @State private var point: CGPoint = .zero
     @State private var tick: Int
 
     private let timer = Timer.publish(every: 0.55, on: .main, in: .common).autoconnect()
 
-    init(name: String, delay: Double) {
+    init(name: String, delay: Double, isActive: Bool) {
         self.name = name
         self.delay = delay
+        self.isActive = isActive
         _tick = State(initialValue: Int(delay / 0.55))
     }
 
@@ -262,6 +266,8 @@ struct CartoonAnimal: View {
                 point = randomPoint(in: geo.size)
             }
             .onReceive(timer) { _ in
+                // 不在学习页时停止更新动画，避免后台 Tab 每 0.55 秒触发一次重绘
+                guard isActive else { return }
                 let shouldShow = tick % 2 == 0
                 if shouldShow {
                     point = randomPoint(in: geo.size)

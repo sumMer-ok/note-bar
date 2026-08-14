@@ -19,7 +19,7 @@ struct WordDetailView: View {
                         .foregroundStyle(Theme.wordColor(scheme))
                     Button { appState.speak(entry.word) } label: { Image(systemName: "speaker.wave.2.fill") }
                 }
-                DefinitionModulesView(raw: entry.definition) { module in
+                DefinitionModulesView(raw: entry.definition, order: appState.settings.definitionOrder) { module in
                     editingModule = module
                 }
                 .padding()
@@ -47,10 +47,10 @@ struct WordDetailView: View {
         }
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $editing) {
-            WordEditSheet(entry: entry)
+            WordEditSheet(entry: entry, focusModule: nil)
         }
         .sheet(item: $editingModule) { module in
-            ModuleEditorSheet(entry: entry, module: module)
+            WordEditSheet(entry: entry, focusModule: module)
         }
     }
 
@@ -61,30 +61,48 @@ struct WordDetailView: View {
     }
 }
 
+/// 单词编辑：四个释义模块各自一个圆角矩形输入框，支持折叠/展开
 struct WordEditSheet: View {
     let entry: Entry
+    let focusModule: DefinitionModule?
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var context
     @EnvironmentObject var appState: AppState
     @State private var word: String
-    @State private var definition: String
     @State private var aliases: String
+    @State private var contents: [DefinitionModule: String]
+    @State private var expanded: Set<DefinitionModule>
 
-    init(entry: Entry) {
+    init(entry: Entry, focusModule: DefinitionModule?) {
         self.entry = entry
+        self.focusModule = focusModule
         _word = State(initialValue: entry.word)
-        _definition = State(initialValue: entry.definition)
         _aliases = State(initialValue: entry.aliases.joined(separator: ", "))
+        _contents = State(initialValue: Dictionary(uniqueKeysWithValues: DefinitionModule.allCases.map { module in
+            (module, DefinitionSections.content(entry.definition, module: module))
+        }))
+        var initialExpanded: Set<DefinitionModule> = [.dictionary]
+        if let focusModule { initialExpanded.insert(focusModule) }
+        _expanded = State(initialValue: initialExpanded)
     }
 
     var body: some View {
         NavigationStack {
-            Form {
-                TextField("单词", text: $word)
-                TextField("别名（逗号分隔）", text: $aliases)
-                TextEditor(text: $definition).frame(minHeight: 140)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    TextField("单词", text: $word)
+                        .textFieldStyle(.roundedBorder)
+                    TextField("别名（逗号分隔）", text: $aliases)
+                        .textFieldStyle(.roundedBorder)
+
+                    ForEach(appState.settings.definitionOrder, id: \.self) { module in
+                        moduleBox(module)
+                    }
+                }
+                .padding()
             }
             .navigationTitle("编辑单词")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("取消") { dismiss() }
@@ -96,11 +114,49 @@ struct WordEditSheet: View {
         }
     }
 
+    private func moduleBox(_ module: DefinitionModule) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Button {
+                if expanded.contains(module) { expanded.remove(module) } else { expanded.insert(module) }
+            } label: {
+                HStack {
+                    Text(module.rawValue).font(.headline)
+                    Spacer()
+                    Image(systemName: expanded.contains(module) ? "chevron.down" : "chevron.right")
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .buttonStyle(.plain)
+
+            if expanded.contains(module) {
+                TextEditor(text: contentBinding(module))
+                    .frame(minHeight: 120)
+                    .padding(6)
+                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14))
+            }
+        }
+        .padding(14)
+        .background(.quaternary, in: RoundedRectangle(cornerRadius: 18))
+    }
+
+    private func contentBinding(_ module: DefinitionModule) -> Binding<String> {
+        Binding(
+            get: { contents[module] ?? "" },
+            set: { contents[module] = $0 }
+        )
+    }
+
     private func save() {
         entry.word = word
-        entry.definition = definition
         let newAliases = aliases.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
         entry.aliases = newAliases
+
+        // 序列化成规范顺序（词典→法律→AI→笔记），与桌面端存储保持一致
+        var definition = ""
+        for module in DefinitionModule.allCases {
+            definition = DefinitionSections.update(definition, module: module, content: contents[module] ?? "")
+        }
+        entry.definition = definition
         try? context.save()
 
         let book = entry.book

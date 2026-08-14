@@ -37,6 +37,27 @@ final class AppState: ObservableObject {
         var dailyReviewLimit = 50
         var dictationPerSession = 20
         var ttsTemplate = "https://dict.youdao.com/dictvoice?audio={{word}}&type=2"
+        var definitionOrder: [DefinitionModule] = DefinitionModule.allCases
+
+        private enum CodingKeys: String, CodingKey {
+            case autoPronounce, forceDarkMode, dailyNewWordLimit
+            case dailyReviewLimit, dictationPerSession, ttsTemplate, definitionOrder
+        }
+
+        init() {}
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            autoPronounce = try container.decodeIfPresent(Bool.self, forKey: .autoPronounce) ?? true
+            forceDarkMode = try container.decodeIfPresent(Bool.self, forKey: .forceDarkMode) ?? false
+            dailyNewWordLimit = try container.decodeIfPresent(Int.self, forKey: .dailyNewWordLimit) ?? 20
+            dailyReviewLimit = try container.decodeIfPresent(Int.self, forKey: .dailyReviewLimit) ?? 50
+            dictationPerSession = try container.decodeIfPresent(Int.self, forKey: .dictationPerSession) ?? 20
+            ttsTemplate = try container.decodeIfPresent(String.self, forKey: .ttsTemplate)
+                ?? "https://dict.youdao.com/dictvoice?audio={{word}}&type=2"
+            definitionOrder = try container.decodeIfPresent([DefinitionModule].self, forKey: .definitionOrder)
+                ?? DefinitionModule.allCases
+        }
 
         static func load() -> Settings {
             guard let data = UserDefaults.standard.data(forKey: "app-settings"),

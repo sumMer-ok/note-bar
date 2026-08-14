@@ -56,7 +56,7 @@ struct BrowseView: View {
         }
         .sheet(item: $editingModule) { module in
             if let current {
-                ModuleEditorSheet(entry: current, module: module)
+                WordEditSheet(entry: current, focusModule: module)
             }
         }
     }
@@ -65,7 +65,7 @@ struct BrowseView: View {
         VStack(spacing: 14) {
             if back {
                 ScrollView {
-                    DefinitionModulesView(raw: entry.definition) { module in
+                    DefinitionModulesView(raw: entry.definition, order: appState.settings.definitionOrder) { module in
                         editingModule = module
                     }
                     .padding()

@@ -1,6 +1,6 @@
 import Foundation
 
-enum DefinitionModule: String, CaseIterable, Hashable, Identifiable {
+enum DefinitionModule: String, CaseIterable, Hashable, Identifiable, Codable {
     case dictionary = "词典释义"
     case legal = "法律词典释义"
     case ai = "AI 释义"
@@ -52,11 +52,14 @@ enum DefinitionSections {
         return modules
     }
 
-    /// 合并同类 section，按固定顺序返回：词典释义、法律词典释义、AI 释义、自定义笔记
-    static func modules(_ raw: String) -> [(module: DefinitionModule, content: String, headerLine: String?)] {
+    /// 合并同类 section，按给定顺序返回（默认：词典释义、法律词典释义、AI 释义、自定义笔记）
+    static func modules(
+        _ raw: String,
+        order: [DefinitionModule] = DefinitionModule.allCases
+    ) -> [(module: DefinitionModule, content: String, headerLine: String?)] {
         let parsed = parse(raw)
         var result: [(DefinitionModule, String, String?)] = []
-        for key in DefinitionModule.allCases {
+        for key in order {
             let matches = parsed.filter { $0.module == key }
             guard !matches.isEmpty else { continue }
             let content = matches

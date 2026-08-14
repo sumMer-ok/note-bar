@@ -119,7 +119,7 @@ struct ReviewView: View {
         .onAppear(perform: buildQueue)
         .sheet(item: $editingModule) { module in
             if let entry = current {
-                ModuleEditorSheet(entry: entry, module: module)
+                WordEditSheet(entry: entry, focusModule: module)
             }
         }
     }
@@ -128,7 +128,7 @@ struct ReviewView: View {
         VStack(spacing: 12) {
             if back {
                 ScrollView {
-                    DefinitionModulesView(raw: entry.definition) { module in
+                    DefinitionModulesView(raw: entry.definition, order: appState.settings.definitionOrder) { module in
                         editingModule = module
                     }
                     .padding()

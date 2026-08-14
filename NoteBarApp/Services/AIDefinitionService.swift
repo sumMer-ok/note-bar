@@ -47,6 +47,18 @@ enum AIDefinitionService {
         return "请为单词 \"{{word}}\" 生成英汉词典释义。只输出 JSON：{\"aliases\": [], \"definition\": \"\"}"
     }
 
+    /// 法律词典 OCR 校对提示词（{{sentence}} 位置传入待纠正的原文）
+    static let legalCorrectionPrompt = """
+    你是法律词典校对助手。下面是经过 OCR 识别的英文法律词典释义（来自 Black's Law Dictionary），可能存在错字、乱码、断行错误、标点错误和多余空格。请在不改变原意的前提下：
+    1）纠正所有 OCR 识别错误；
+    2）按编号条目（1. 2. 3.）重新组织段落，删除多余换行；
+    3）保持英文原文，不翻译、不增删词义。
+    只输出纠正后的纯文本，不要任何解释、不要 markdown 标题、不要 JSON。
+
+    待纠正的原文：
+    {{sentence}}
+    """
+
     static func fetchDefinition(
         word: String,
         sentence: String = "",

@@ -121,14 +121,14 @@ struct WordEditSheet: View {
             HStack {
                 Text(module.rawValue).font(.headline)
                 Spacer()
-                if module == .ai || module == .notes {
+                if module == .ai || module == .legal || module == .notes {
                     Button {
                         Task { await generate(module) }
                     } label: {
                         if generating == module {
                             ProgressView().controlSize(.small)
                         } else {
-                            Label("AI 生成", systemImage: "sparkles")
+                            Label(module == .legal ? "AI 纠正" : "AI 生成", systemImage: "sparkles")
                                 .font(.caption)
                         }
                     }
@@ -147,10 +147,10 @@ struct WordEditSheet: View {
                     .frame(minHeight: 120)
                     .padding(6)
                     .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14))
-                if module == .ai || module == .notes, let message = messageByModule[module] {
+                if module == .ai || module == .legal || module == .notes, let message = messageByModule[module] {
                     Text(message)
                         .font(.caption2)
-                        .foregroundStyle(message.contains("已生成") ? Color.green : Color.red)
+                        .foregroundStyle(message.contains("已生成") || message.contains("已纠正") ? Color.green : Color.red)
                 }
             }
         }
@@ -171,14 +171,36 @@ struct WordEditSheet: View {
             messageByModule[module] = "请先输入单词"
             return
         }
-        let config = module == .ai ? appState.settings.aiConfig : appState.settings.notesAIConfig
+        let config: AIDefinitionService.Config
+        switch module {
+        case .ai:
+            config = appState.settings.aiConfig
+        case .notes:
+            config = appState.settings.notesAIConfig
+        case .legal:
+            let legalContent = (contents[.legal] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !legalContent.isEmpty else {
+                messageByModule[module] = "法律释义为空，请先填写再纠正"
+                return
+            }
+            config = AIDefinitionService.Config(
+                apiUrl: appState.settings.aiApiUrl,
+                apiKey: appState.settings.aiApiKey,
+                model: appState.settings.aiModel,
+                extraParams: appState.settings.aiExtraParams,
+                prompt: AIDefinitionService.legalCorrectionPrompt
+            )
+        case .dictionary:
+            return
+        }
+        let sentence = module == .legal ? (contents[.legal] ?? "") : ""
         generating = module
         messageByModule[module] = nil
         defer { generating = nil }
         do {
             let result = try await AIDefinitionService.fetchDefinition(
                 word: cleanWord,
-                sentence: "",
+                sentence: sentence,
                 config: config
             )
             contents[module] = result.definition
@@ -188,7 +210,7 @@ struct WordEditSheet: View {
                 aliases = result.aliases.joined(separator: ", ")
             }
             expanded.insert(module)
-            messageByModule[module] = "\(module.rawValue)已生成"
+            messageByModule[module] = module == .legal ? "法律词典释义已纠正" : "\(module.rawValue)已生成"
         } catch {
             messageByModule[module] = error.localizedDescription
         }

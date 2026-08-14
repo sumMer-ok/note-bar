@@ -43,7 +43,7 @@ struct ReviewView: View {
                         .opacity(flipped ? 1 : 0)
                         .rotation3DEffect(.degrees(flipped ? 0 : -180), axis: (x: 0, y: 1, z: 0))
                 }
-                .frame(maxHeight: 420)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .overlay(alignment: .center) {
                     if let dir = activeDirection {
                         Text(dir.rawValue)

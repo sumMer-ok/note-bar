@@ -3,6 +3,7 @@ import SwiftData
 
 struct WordListView: View {
     var book: String?
+    @EnvironmentObject var appState: AppState
     @Environment(\.colorScheme) var scheme
     @Query private var entries: [Entry]
     @State private var grouping = Grouping.date
@@ -33,32 +34,45 @@ struct WordListView: View {
     }
 
     var body: some View {
-        List {
-            Picker("分组", selection: $grouping) {
-                ForEach(Grouping.allCases, id: \.self) { Text($0.rawValue) }
-            }
-            .pickerStyle(.segmented)
-            .listRowSeparator(.hidden)
+        NavigationStack {
+            List {
+                Picker("分组", selection: $grouping) {
+                    ForEach(Grouping.allCases, id: \.self) { Text($0.rawValue) }
+                }
+                .pickerStyle(.segmented)
+                .listRowSeparator(.hidden)
 
-            ForEach(sections, id: \.0) { section in
-                Section(section.0) {
-                    ForEach(section.1) { entry in
-                        NavigationLink {
-                            WordDetailView(entry: entry)
-                        } label: {
-                            HStack {
-                                Text(entry.word).foregroundStyle(Theme.wordColor(scheme))
-                                Spacer()
-                                Text(proficiency(entry)).font(.caption).foregroundStyle(.secondary)
-                                Image(systemName: "square.and.pencil").font(.caption).foregroundStyle(.blue)
+                ForEach(sections, id: \.0) { section in
+                    Section(section.0) {
+                        ForEach(section.1) { entry in
+                            NavigationLink {
+                                WordDetailView(entry: entry)
+                            } label: {
+                                HStack {
+                                    Text(entry.word).foregroundStyle(Theme.wordColor(scheme))
+                                    Spacer()
+                                    Text(proficiency(entry)).font(.caption).foregroundStyle(.secondary)
+                                    Image(systemName: "square.and.pencil").font(.caption).foregroundStyle(.blue)
+                                }
                             }
                         }
                     }
                 }
             }
+            .navigationTitle(book ?? "全部词库")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                if book != nil {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button {
+                            appState.libraryFilter = nil
+                        } label: {
+                            Label("全部词库", systemImage: "books.vertical")
+                        }
+                    }
+                }
+            }
         }
-        .navigationTitle(book ?? "全部词库")
-        .navigationBarTitleDisplayMode(.inline)
     }
 
     private func proficiency(_ entry: Entry) -> String {

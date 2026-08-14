@@ -49,6 +49,9 @@ final class SyncService {
     private let store: DataStore
     private let onConflictsChanged: ([SyncConflict]) -> Void
     private let onStatusChanged: (String) -> Void
+    /// 逻辑词库名统一为 `Words/xxx.canvas`（与桌面插件契约一致）。
+    /// 若用户直接选了 Words 目录本身，prefix 为空，物理路径不加 Words/。
+    private var logicalPrefix = "Words/"
 
     init(
         store: DataStore,
@@ -68,11 +71,12 @@ final class SyncService {
         // 否则离开选择器回调后访问会失效（这就是之前真机上无法同步的根因）。
         let scoped = url.startAccessingSecurityScopedResource()
         syncDir = url
+        logicalPrefix = Self.logicalPrefix(for: url)
         if let bookmark = try? url.bookmarkData(options: .minimalBookmark, includingResourceValuesForKeys: nil, relativeTo: nil) {
             BookmarkStore.save(bookmark)
         }
         if scoped {
-            NSLog("[SyncService] security scope active for %@", url.path)
+            NSLog("[SyncService] security scope active for %@ (prefix=%@)", url.path, logicalPrefix)
         }
         // 作用域开启失败不代表一定不可用（模拟器/沙盒内路径不需要作用域），以能否读到目录为准。
         let readable = (try? FileManager.default.contentsOfDirectory(atPath: url.path)) != nil
@@ -111,8 +115,9 @@ final class SyncService {
             return
         }
 
+        let prefix = logicalPrefix
         let payload = await Task.detached(priority: .utility) {
-            Self.collect(root: root)
+            Self.collect(root: root, logicalPrefix: prefix)
         }.value
 
         guard let payload else {
@@ -154,17 +159,27 @@ final class SyncService {
         if changed {
             try? store.context.save()
         }
+        // 清理「词库」里的重复项：只保留 Words/ 前缀的合法词库，
+        // 之前把同步目录选成 Words 时产生的裸文件名重复词库一并删除。
+        let validPrefix = "Words/"
+        if let all = try? store.context.fetch(FetchDescriptor<Entry>()) {
+            for entry in all where !entry.book.hasPrefix(validPrefix) {
+                store.context.delete(entry)
+                changed = true
+            }
+        }
+        if changed {
+            try? store.context.save()
+        }
         onStatusChanged("已连接：\(root.lastPathComponent) · 最近同步 \(Self.timeString(Date()))")
     }
 
     /// 评分后写回边车：读磁盘 → 合并 → 原子写，全部在后台线程
     func persist(book: String, key: String, progress: StudyProgress) {
-        guard let root = root() else {
+        guard let sidecarURL = physicalURL(for: book, suffix: ".nb-sync.json", replacingExtension: ".canvas") else {
             onStatusChanged("无法访问同步目录：进度未能写回 iCloud")
             return
         }
-        let base = book.replacingOccurrences(of: "\\.canvas$", with: "", options: .regularExpression)
-        let sidecarURL = root.appendingPathComponent("\(base).nb-sync.json")
         Task {
             let ok = await Task.detached(priority: .utility) {
                 Self.writeProgress(progress, key: key, book: book, at: sidecarURL)
@@ -177,11 +192,10 @@ final class SyncService {
 
     /// 读取 Canvas JSON（后台 IO，主线程解析）
     func readCanvas(_ relative: String) async -> [String: Any]? {
-        guard let root = root() else {
+        guard let url = physicalURL(for: relative, suffix: "", replacingExtension: nil) else {
             onStatusChanged("无法读取同步目录：请到「设置」重新选择 iCloud 中的 NoteBar 文件夹")
             return nil
         }
-        let url = root.appendingPathComponent(relative)
         let result = await Task.detached(priority: .utility) {
             Self.readData(at: url)
         }.value
@@ -192,11 +206,10 @@ final class SyncService {
     /// 写回 Canvas JSON（后台原子写）
     @discardableResult
     func writeCanvas(_ relative: String, data: [String: Any]) async -> Bool {
-        guard let root = root() else {
+        guard let url = physicalURL(for: relative, suffix: "", replacingExtension: nil) else {
             onStatusChanged("无法访问同步目录：单词内容未能写回 iCloud")
             return false
         }
-        let url = root.appendingPathComponent(relative)
         guard let encoded = try? JSONSerialization.data(withJSONObject: data, options: [.prettyPrinted, .sortedKeys]) else { return false }
         let ok = await Task.detached(priority: .utility) {
             Self.writeAtomically(encoded, to: url)
@@ -209,7 +222,7 @@ final class SyncService {
 
     /// 冲突仲裁：保留主版本或保留副本版本，之后重新扫描
     func resolve(_ conflict: SyncConflict, keepCopy: Bool) {
-        guard let root = root() else { return }
+        guard root() != nil else { return }
         let main = URL(fileURLWithPath: conflict.mainPath)
         let copy = URL(fileURLWithPath: conflict.conflictPath)
         let archive = copy.appendingPathExtension("resolved-\(Int(Date().timeIntervalSince1970))")
@@ -234,9 +247,33 @@ final class SyncService {
         if let dir = syncDir { return dir }
         if let resolved = BookmarkStore.resolve() {
             syncDir = resolved
+            logicalPrefix = Self.logicalPrefix(for: resolved)
             return resolved
         }
         return nil
+    }
+
+    /// 用户选 NoteBar 时为 `Words/`；用户直接选 Words 目录时为空。
+    private nonisolated static func logicalPrefix(for root: URL) -> String {
+        let fm = FileManager.default
+        let entries = (try? fm.contentsOfDirectory(atPath: root.path)) ?? []
+        let hasCanvasDirectly = entries.contains { $0.lowercased().hasSuffix(".canvas") }
+        return hasCanvasDirectly ? "" : "Words/"
+    }
+
+    /// 逻辑名 `Words/xxx.canvas` → 实际文件 URL。
+    /// 选 NoteBar 时落在 `NoteBar/Words/`；选 Words 目录本身时落在该目录下。
+    private func physicalURL(for logical: String, suffix: String, replacingExtension ext: String?) -> URL? {
+        guard let root = root() else { return nil }
+        var name = logical
+        if name.hasPrefix("Words/") {
+            name = String(name.dropFirst("Words/".count))
+        }
+        if let ext, name.hasSuffix(ext) {
+            name = String(name.dropLast(ext.count))
+        }
+        let base = logicalPrefix == "Words/" ? root.appendingPathComponent("Words", isDirectory: true) : root
+        return base.appendingPathComponent(name + suffix)
     }
 
     private nonisolated static func timeString(_ date: Date) -> String {
@@ -258,14 +295,31 @@ final class SyncService {
     }
 
     /// 目录枚举失败（典型原因是安全作用域失效）时返回 nil，让调用方提示用户重新授权。
-    private nonisolated static func collect(root: URL) -> (snapshots: [CanvasSnapshot], conflicts: [SyncConflict])? {
+    private nonisolated static func collect(
+        root: URL,
+        logicalPrefix: String
+    ) -> (snapshots: [CanvasSnapshot], conflicts: [SyncConflict])? {
         let fm = FileManager.default
-        guard let enumerator = fm.enumerator(at: root, includingPropertiesForKeys: [.contentModificationDateKey]) else {
+        var isDirectory: ObjCBool = false
+        guard fm.fileExists(atPath: root.path, isDirectory: &isDirectory), isDirectory.boolValue else {
             return nil
         }
 
-        var files: [URL] = []
-        while let url = enumerator.nextObject() as? URL { files.append(url) }
+        // 词库固定放在 <root>/Words/ 下，且没有更深层级；
+        // 只列这一层，避免把 Words/Words 之类的错误嵌套目录当成新词库。
+        let booksDir = logicalPrefix == "Words/"
+            ? root.appendingPathComponent("Words", isDirectory: true)
+            : root
+        var files: [URL]
+        if fm.fileExists(atPath: booksDir.path, isDirectory: &isDirectory), isDirectory.boolValue {
+            guard let listed = try? fm.contentsOfDirectory(
+                at: booksDir,
+                includingPropertiesForKeys: [.contentModificationDateKey]
+            ) else { return nil }
+            files = listed
+        } else {
+            files = []
+        }
 
         var sidecars: [String: SidecarFile] = [:]
         var canvasMtimes: [String: Date] = [:]
@@ -274,7 +328,7 @@ final class SyncService {
         var conflicts: [SyncConflict] = []
 
         for url in files {
-            let rel = url.path.replacingOccurrences(of: root.path + "/", with: "")
+            let rel = "Words/\(url.lastPathComponent)"
             let ext = url.pathExtension.lowercased()
             let name = url.lastPathComponent
             let mtime = (try? url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate)
@@ -282,7 +336,7 @@ final class SyncService {
             if ext == "canvas" {
                 if let base = conflictBase(name: name, suffix: ".canvas") {
                     let mainURL = url.deletingLastPathComponent().appendingPathComponent(base)
-                    let mainRel = mainURL.path.replacingOccurrences(of: root.path + "/", with: "")
+                    let mainRel = "Words/\(mainURL.lastPathComponent)"
                     conflicts.append(SyncConflict(
                         book: mainRel,
                         kind: .canvas,
@@ -300,7 +354,7 @@ final class SyncService {
             } else if ext == "json" && name.hasSuffix(".nb-sync.json") {
                 if let base = conflictBase(name: name, suffix: ".nb-sync.json") {
                     let mainURL = url.deletingLastPathComponent().appendingPathComponent(base)
-                    let mainRel = mainURL.path.replacingOccurrences(of: root.path + "/", with: "")
+                    let mainRel = "Words/\(mainURL.lastPathComponent)"
                     conflicts.append(SyncConflict(
                         book: mainRel.replacingOccurrences(of: "\\.nb-sync\\.json$", with: ".canvas", options: .regularExpression),
                         kind: .sidecar,

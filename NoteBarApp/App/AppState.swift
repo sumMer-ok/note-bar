@@ -206,6 +206,8 @@ final class Speaker: NSObject {
     private let synthesizer = AVSpeechSynthesizer()
 
     func speak(word: String, url: URL?) {
+        // 设置播放会话：静音键开启时也能正常出声（App 内显式点击发音属于主动播放）
+        Self.configureAudioSession()
         guard let url else { return fallback(word) }
         // 在线语音接口偶尔返回空音频，AVPlayer 播放空数据会直接报
         // AVAudioBuffer.mm 的 mDataByteSize (0) 断言。改为先下载并校验非空，
@@ -224,7 +226,8 @@ final class Speaker: NSObject {
                 do {
                     self.audioPlayer = try AVAudioPlayer(data: data)
                     self.audioPlayer?.prepareToPlay()
-                    self.audioPlayer?.play()
+                    let started = self.audioPlayer?.play() ?? false
+                    if !started { self.fallback(word) }
                 } catch {
                     self.fallback(word)
                 }
@@ -236,5 +239,11 @@ final class Speaker: NSObject {
         let utterance = AVSpeechUtterance(string: word)
         utterance.voice = AVSpeechSynthesisVoice(language: "en-US")
         synthesizer.speak(utterance)
+    }
+
+    private static func configureAudioSession() {
+        let session = AVAudioSession.sharedInstance()
+        try? session.setCategory(.playback, mode: .spokenAudio, options: [])
+        try? session.setActive(true)
     }
 }

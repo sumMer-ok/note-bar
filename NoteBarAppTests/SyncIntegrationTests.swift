@@ -13,10 +13,14 @@ final class SyncIntegrationTests: XCTestCase {
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: dir) }
 
+        // 同步契约：词库固定在 <root>/Words/ 下
+        let wordsDir = dir.appendingPathComponent("Words", isDirectory: true)
+        try FileManager.default.createDirectory(at: wordsDir, withIntermediateDirectories: true)
+
         let main = #"{"nodes":[{"id":"a","type":"text","text":"hello\n\n你好"}],"edges":[]}"#
         let copy = #"{"nodes":[{"id":"b","type":"text","text":"world\n\n世界"}],"edges":[]}"#
-        try main.write(to: dir.appendingPathComponent("words.canvas"), atomically: true, encoding: .utf8)
-        try copy.write(to: dir.appendingPathComponent("words 2.canvas"), atomically: true, encoding: .utf8)
+        try main.write(to: wordsDir.appendingPathComponent("words.canvas"), atomically: true, encoding: .utf8)
+        try copy.write(to: wordsDir.appendingPathComponent("words 2.canvas"), atomically: true, encoding: .utf8)
 
         let schema = Schema([Entry.self])
         let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
@@ -34,7 +38,7 @@ final class SyncIntegrationTests: XCTestCase {
 
         var resolved = false
         for _ in 0..<20 {
-            if let data = try? Data(contentsOf: dir.appendingPathComponent("words.canvas")),
+            if let data = try? Data(contentsOf: wordsDir.appendingPathComponent("words.canvas")),
                String(data: data, encoding: .utf8)?.contains("world") == true {
                 resolved = true
                 break
@@ -105,5 +109,51 @@ final class SyncIntegrationTests: XCTestCase {
         }
         XCTAssertEqual(writtenValue, 999, "评分写回应落到边车文件")
         XCTAssertEqual(writtenStatus, "mastered", "已掌握状态应随评分写回边车")
+    }
+
+    /// 用户如果直接把 iCloud 里的 Words 目录当同步目录，也要能正确读写，
+    /// 不能把文件写到 Words/Words 里。
+    func testPickingWordsDirectoryDirectly() async throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("nb-words-root-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        // 模拟用户选中了 Words 目录：canvas 与边车直接在这一层
+        let canvas = #"{"nodes":[{"id":"n1","type":"text","text":"hello\n\n你好"}],"edges":[]}"#
+        try canvas.write(to: dir.appendingPathComponent("words.canvas"), atomically: true, encoding: .utf8)
+        let sidecar = SidecarFile(version: 1, book: "Words/words.canvas", words: [:], updatedAt: "2026-08-01T00:00:00Z")
+        try JSONEncoder().encode(sidecar).write(to: dir.appendingPathComponent("words.nb-sync.json"))
+
+        let schema = Schema([Entry.self])
+        let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+        let container = try ModelContainer(for: schema, configurations: [config])
+        let store = DataStore(context: container.mainContext)
+        let sync = SyncService(store: store) { _ in }
+        sync.configure(folder: dir)
+        await sync.scan()
+
+        let entries = try container.mainContext.fetch(FetchDescriptor<Entry>())
+        XCTAssertEqual(entries.count, 1)
+        XCTAssertEqual(entries.first?.book, "Words/words.canvas")
+
+        var progress = StudyProgress()
+        progress.s = 42
+        progress.status = "mastered"
+        progress.lastReview = ISO8601DateFormatter().string(from: Date())
+        sync.persist(book: "Words/words.canvas", key: "Words/words.canvas:n1", progress: progress)
+
+        // 必须写回用户所选目录本身，而不是嵌套的 Words/Words
+        var written: Double?
+        for _ in 0..<20 {
+            if let data = try? Data(contentsOf: dir.appendingPathComponent("words.nb-sync.json")),
+               let decoded = try? JSONDecoder().decode(SidecarFile.self, from: data) {
+                written = decoded.words["Words/words.canvas:n1"]?.s
+                if written == 42 { break }
+            }
+            try await Task.sleep(for: .milliseconds(100))
+        }
+        XCTAssertEqual(written, 42)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: dir.appendingPathComponent("Words").path))
     }
 }

@@ -19,7 +19,10 @@ struct HomeView: View {
     }
 
     private var books: [String] {
-        Array(Set(entries.map(\.book))).sorted()
+        let all = Array(Set(entries.map(\.book))).sorted()
+        let pinned = appState.settings.pinnedBooks.filter { all.contains($0) }
+        let rest = all.filter { !pinned.contains($0) }
+        return pinned + rest
     }
 
     var body: some View {
@@ -61,26 +64,102 @@ struct HomeView: View {
                         .font(.subheadline).foregroundStyle(.secondary)
                     Text("我的词库").font(.headline)
                     ForEach(books, id: \.self) { book in
-                        Button {
-                            appState.showLibrary(book: book)
-                        } label: {
-                            HStack {
-                                VStack(alignment: .leading) {
-                                    Text(book).fontWeight(.medium)
-                                    Text("\(entries.filter { $0.book == book }.count) 词")
-                                        .font(.caption).foregroundStyle(.secondary)
-                                }
-                                Spacer()
-                                Text("待复习 \(dueCount(in: book))").font(.caption).foregroundStyle(.red)
-                            }
-                            .padding()
-                            .glassCard()
-                        }
-                        .buttonStyle(.plain)
+                        BookRow(
+                            book: book,
+                            wordCount: entries.filter { $0.book == book }.count,
+                            dueCount: dueCount(in: book)
+                        )
                     }
                 }
                 .padding()
             }
+        }
+    }
+}
+
+/// 词库行：向左滑动露出「默认 / 置顶」两个操作
+struct BookRow: View {
+    let book: String
+    let wordCount: Int
+    let dueCount: Int
+    @EnvironmentObject var appState: AppState
+    @State private var offsetX: CGFloat = 0
+
+    private var isDefault: Bool { appState.settings.defaultBooks.contains(book) }
+    private var isPinned: Bool { appState.settings.pinnedBooks.contains(book) }
+
+    var body: some View {
+        ZStack(alignment: .trailing) {
+            HStack(spacing: 0) {
+                actionButton("默认", active: isDefault, color: .purple) { toggleDefault() }
+                actionButton("置顶", active: isPinned, color: .orange) { togglePinned() }
+            }
+
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 4) {
+                        Text(book).fontWeight(.medium)
+                        if isPinned { Text("📌").font(.caption) }
+                        if isDefault { Text("⭐").font(.caption) }
+                    }
+                    Text("\(wordCount) 词")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                Spacer()
+                Text("待复习 \(dueCount)").font(.caption).foregroundStyle(.red)
+            }
+            .padding()
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .offset(x: offsetX)
+            .contentShape(Rectangle())
+            .onTapGesture {
+                if offsetX != 0 {
+                    withAnimation(.spring(duration: 0.3)) { offsetX = 0 }
+                } else {
+                    appState.showLibrary(book: book)
+                }
+            }
+            .gesture(
+                DragGesture(minimumDistance: 12)
+                    .onChanged { value in
+                        let w = value.translation.width
+                        offsetX = min(0, max(-160, w))
+                    }
+                    .onEnded { value in
+                        withAnimation(.spring(duration: 0.3)) {
+                            offsetX = value.translation.width < -45 ? -160 : 0
+                        }
+                    }
+            )
+        }
+        .frame(height: 70)
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+    }
+
+    private func actionButton(_ title: String, active: Bool, color: Color, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(title)
+                .font(.subheadline.bold())
+                .foregroundStyle(.white)
+                .frame(width: 80, height: 70)
+                .background(active ? color : color.opacity(0.55))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func toggleDefault() {
+        if isDefault {
+            appState.settings.defaultBooks.removeAll { $0 == book }
+        } else {
+            appState.settings.defaultBooks.append(book)
+        }
+    }
+
+    private func togglePinned() {
+        if isPinned {
+            appState.settings.pinnedBooks.removeAll { $0 == book }
+        } else {
+            appState.settings.pinnedBooks.append(book)
         }
     }
 }

@@ -4,6 +4,7 @@ import SwiftData
 /// 开始复习/学习前的词库多选页
 struct BookPickerView: View {
     let mode: ReviewView.Mode
+    @EnvironmentObject var appState: AppState
     @Query private var entries: [Entry]
     @State private var selected: Set<String> = []
 
@@ -54,7 +55,10 @@ struct BookPickerView: View {
             }
         }
         .onAppear {
-            if selected.isEmpty { selected = Set(books) }
+            // 默认不勾选；仅预选用户标记的「默认词库」
+            if selected.isEmpty {
+                selected = Set(books.filter { appState.settings.defaultBooks.contains($0) })
+            }
         }
     }
 }

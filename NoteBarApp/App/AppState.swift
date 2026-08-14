@@ -44,12 +44,15 @@ final class AppState: ObservableObject {
         var aiModel = "gpt-4o-mini"
         var aiExtraParams = "{}"
         var aiNotesPrompt = "你是一个英语学习助手。请针对单词 \"{{word}}\"（上下文句子，可能为空：{{sentence}}）写一段简短的自定义笔记，帮助记忆，包含：1）一个贴近真实语境的例句；2）词根词缀拆解（如有）；3）一个联想记忆技巧。只输出纯文本，不要 markdown 标题、不要 JSON。"
+        var defaultBooks: [String] = []
+        var pinnedBooks: [String] = []
 
         private enum CodingKeys: String, CodingKey {
             case autoPronounce, forceDarkMode, dailyNewWordLimit
             case dailyReviewLimit, dictationPerSession, ttsTemplate, definitionOrder
             case dictationAutoAdvance
             case aiApiUrl, aiApiKey, aiModel, aiExtraParams, aiNotesPrompt
+            case defaultBooks, pinnedBooks
         }
 
         init() {}
@@ -72,6 +75,8 @@ final class AppState: ObservableObject {
             aiExtraParams = try container.decodeIfPresent(String.self, forKey: .aiExtraParams) ?? "{}"
             aiNotesPrompt = try container.decodeIfPresent(String.self, forKey: .aiNotesPrompt)
                 ?? "你是一个英语学习助手。请针对单词 \"{{word}}\"（上下文句子，可能为空：{{sentence}}）写一段简短的自定义笔记，帮助记忆，包含：1）一个贴近真实语境的例句；2）词根词缀拆解（如有）；3）一个联想记忆技巧。只输出纯文本，不要 markdown 标题、不要 JSON。"
+            defaultBooks = try container.decodeIfPresent([String].self, forKey: .defaultBooks) ?? []
+            pinnedBooks = try container.decodeIfPresent([String].self, forKey: .pinnedBooks) ?? []
         }
 
         var aiConfig: AIDefinitionService.Config {

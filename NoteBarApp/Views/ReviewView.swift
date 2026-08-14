@@ -19,6 +19,7 @@ struct ReviewView: View {
     @State private var preview: String?
     @State private var undoStack: [(Entry, StudyProgress)] = []
     @State private var editingModule: DefinitionModule?
+    @State private var usedKeys: Set<String> = []
     @Environment(\.dismiss) private var dismiss
 
     private let swipeThreshold: CGFloat = 120
@@ -108,13 +109,37 @@ struct ReviewView: View {
                     rateButton("认识", .good, .green)
                 }
             } else {
-                ContentUnavailableView("全部完成", systemImage: "checkmark.circle", description: Text("本轮没有更多卡片"))
-                Button("返回") { dismiss() }.buttonStyle(.borderedProminent)
+                VStack(spacing: 20) {
+                    ContentUnavailableView("本组完成", systemImage: "checkmark.circle", description: Text("本轮卡片已全部完成"))
+                    HStack(spacing: 12) {
+                        Button {
+                            dismiss()
+                        } label: {
+                            Text("完成本组")
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 10)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        Button {
+                            startAnotherGroup()
+                        } label: {
+                            Text("再学一组")
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 10)
+                        }
+                        .buttonStyle(.bordered)
+                    }
+                }
             }
         }
         .padding()
         .navigationBarTitleDisplayMode(.inline)
         .onAppear(perform: buildQueue)
+        .task(id: current?.studyKey ?? "") {
+            guard let current, appState.settings.autoPronounce else { return }
+            try? await Task.sleep(for: .milliseconds(150))
+            appState.speak(current.word)
+        }
         .sheet(item: $editingModule) { module in
             if let entry = current {
                 WordEditSheet(entry: entry, focusModule: module)
@@ -193,7 +218,6 @@ struct ReviewView: View {
         try? context.save()
         preview = "\(result.interval) 天后"
         appState.sync.persist(book: entry.book, key: entry.studyKey, progress: progress)
-        if appState.settings.autoPronounce { appState.speak(entry.word) }
         withAnimation(.spring(duration: 0.35)) { index += 1; flipped = false; preview = nil }
     }
 
@@ -205,17 +229,48 @@ struct ReviewView: View {
     }
 
     private func buildQueue() {
+        buildQueue(excluding: [])
+    }
+
+    private func buildQueue(excluding excluded: Set<String>) {
         let today = FSRS.dayString(Date())
         let limit = mode == .review ? appState.settings.dailyReviewLimit : appState.settings.dailyNewWordLimit
         let scope = books.isEmpty ? all : all.filter { books.contains($0.book) }
-        let active = scope.filter { !["graduated", "archived", "retired"].contains($0.lifecycle ?? "") }
+        var candidates = scope.filter { entry in
+            !excluded.contains(entry.studyKey)
+                && !["graduated", "archived", "retired"].contains(entry.lifecycle ?? "")
+        }
         switch mode {
         case .review:
-            queue = active.filter { ($0.dueDate ?? "") <= today }.sorted { ($0.dueDate ?? "") < ($1.dueDate ?? "") }
+            candidates = candidates
+                .filter { ($0.dueDate ?? "") <= today }
+                .sorted { ($0.dueDate ?? "") < ($1.dueDate ?? "") }
         case .learn:
-            queue = active.filter { $0.s == nil }
+            candidates = candidates.filter { $0.s == nil }
         }
-        queue = Array(queue.prefix(limit))
+        if candidates.isEmpty && !excluded.isEmpty {
+            // 没有剩余新词时，退化为允许重复当前组
+            candidates = scope.filter { entry in
+                !["graduated", "archived", "retired"].contains(entry.lifecycle ?? "")
+            }
+            switch mode {
+            case .review:
+                candidates = candidates
+                    .filter { ($0.dueDate ?? "") <= today }
+                    .sorted { ($0.dueDate ?? "") < ($1.dueDate ?? "") }
+            case .learn:
+                candidates = candidates.filter { $0.s == nil }
+            }
+        }
+        queue = Array(candidates.prefix(limit))
+        usedKeys = Set(queue.map(\.studyKey))
+        index = 0
+        flipped = false
+        preview = nil
+    }
+
+    private func startAnotherGroup() {
+        buildQueue(excluding: usedKeys)
     }
 
     private func direction(for size: CGSize) -> Direction? {

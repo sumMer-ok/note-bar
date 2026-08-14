@@ -237,7 +237,7 @@ struct WordEditSheet: View {
         Task {
             if var canvas = await sync.readCanvas(book) {
                 _ = CanvasEditor.updateWord(data: &canvas, nodeId: nodeId, word: newWord, definition: newDefinition, aliases: newAliases)
-                sync.writeCanvas(book, data: canvas)
+                await sync.writeCanvas(book, data: canvas)
             }
         }
         dismiss()

@@ -165,14 +165,22 @@ final class SyncService {
         }
         let base = book.replacingOccurrences(of: "\\.canvas$", with: "", options: .regularExpression)
         let sidecarURL = root.appendingPathComponent("\(base).nb-sync.json")
-        Task.detached(priority: .utility) {
-            Self.writeProgress(progress, key: key, book: book, at: sidecarURL)
+        Task {
+            let ok = await Task.detached(priority: .utility) {
+                Self.writeProgress(progress, key: key, book: book, at: sidecarURL)
+            }.value
+            if !ok {
+                onStatusChanged("无法写回 iCloud：本次评分未同步到电脑端，请重试或重新选择同步目录")
+            }
         }
     }
 
     /// 读取 Canvas JSON（后台 IO，主线程解析）
     func readCanvas(_ relative: String) async -> [String: Any]? {
-        guard let root = root() else { return nil }
+        guard let root = root() else {
+            onStatusChanged("无法读取同步目录：请到「设置」重新选择 iCloud 中的 NoteBar 文件夹")
+            return nil
+        }
         let url = root.appendingPathComponent(relative)
         let result = await Task.detached(priority: .utility) {
             Self.readData(at: url)
@@ -182,16 +190,21 @@ final class SyncService {
     }
 
     /// 写回 Canvas JSON（后台原子写）
-    func writeCanvas(_ relative: String, data: [String: Any]) {
+    @discardableResult
+    func writeCanvas(_ relative: String, data: [String: Any]) async -> Bool {
         guard let root = root() else {
             onStatusChanged("无法访问同步目录：单词内容未能写回 iCloud")
-            return
+            return false
         }
         let url = root.appendingPathComponent(relative)
-        guard let encoded = try? JSONSerialization.data(withJSONObject: data, options: [.prettyPrinted, .sortedKeys]) else { return }
-        Task.detached(priority: .utility) {
+        guard let encoded = try? JSONSerialization.data(withJSONObject: data, options: [.prettyPrinted, .sortedKeys]) else { return false }
+        let ok = await Task.detached(priority: .utility) {
             Self.writeAtomically(encoded, to: url)
+        }.value
+        if !ok {
+            onStatusChanged("无法写回 iCloud：单词修改未同步到电脑端，请重试或重新选择同步目录")
         }
+        return ok
     }
 
     /// 冲突仲裁：保留主版本或保留副本版本，之后重新扫描
@@ -344,7 +357,7 @@ final class SyncService {
         return sidecar.words.keys.sorted()
     }
 
-    private nonisolated static func writeProgress(_ progress: StudyProgress, key: String, book: String, at url: URL) {
+    private nonisolated static func writeProgress(_ progress: StudyProgress, key: String, book: String, at url: URL) -> Bool {
         var sidecar: SidecarFile
         if let data = readData(at: url),
            let decoded = try? JSONDecoder().decode(SidecarFile.self, from: data) {
@@ -357,18 +370,35 @@ final class SyncService {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         if let data = try? encoder.encode(sidecar) {
-            writeAtomically(data, to: url)
+            return writeAtomically(data, to: url)
         }
+        return false
     }
 
-    private nonisolated static func writeAtomically(_ data: Data, to url: URL) {
+    /// 使用 NSFileCoordinator 直接写到协调后的 URL。iCloud 文件提供器上
+    /// `replaceItemAt` 经常静默失败，所以改成在协调块内用 `.atomic` 写入目标路径。
+    @discardableResult
+    private nonisolated static func writeAtomically(_ data: Data, to url: URL) -> Bool {
         let fm = FileManager.default
         try? fm.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
-        let tmp = url.appendingPathExtension("tmp")
         var coordinatorError: NSError?
+        var writeError: Error?
         NSFileCoordinator().coordinate(writingItemAt: url, options: .forReplacing, error: &coordinatorError) { target in
-            try? data.write(to: tmp, options: .atomic)
-            _ = try? fm.replaceItemAt(target, withItemAt: tmp)
+            do {
+                try data.write(to: target, options: [.atomic])
+            } catch {
+                writeError = error
+            }
         }
+        if let coordinatorError {
+            NSLog("[SyncService] write coordination failed for %@: %@", url.path, String(describing: coordinatorError))
+        }
+        if let writeError {
+            NSLog("[SyncService] write failed for %@: %@", url.path, String(describing: writeError))
+        }
+        if coordinatorError == nil, writeError == nil {
+            NSLog("[SyncService] wrote %@ (%d bytes)", url.path, data.count)
+        }
+        return coordinatorError == nil && writeError == nil
     }
 }

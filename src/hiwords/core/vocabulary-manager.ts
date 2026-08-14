@@ -451,6 +451,12 @@ export class VocabularyManager {
         this.canvasParser.updateSettings(settings);
     }
 
+    /** 手机进度导入后刷新内存缓存，让 mastered / lifecycle 立即反映到界面 */
+    refreshStudyCache(): void {
+        this.invalidateCache();
+        this.rebuildCache();
+    }
+
     async addWordToCanvas(bookPath: string, word: string, definition: string, color?: number, aliases?: string[]): Promise<boolean> {
         try {
             const wordDef: WordDefinition = {

@@ -218,7 +218,13 @@ struct ReviewView: View {
         let now = ISO8601DateFormatter().string(from: Date())
         progress.lastReview = now
         progress.history = Merge.history(a: entry.history, b: [ReviewRecord(date: now, quality: grade.label)]) ?? entry.history
-        if result.graduated { progress.lifecycle = "graduated" }
+        if result.graduated {
+            // 与桌面插件一致：稳定度达到阈值后同时写 lifecycle 和 status，
+            // 否则电脑端永远不会把该词显示为「已掌握」。
+            progress.lifecycle = "graduated"
+            progress.status = "mastered"
+            if progress.masteredAt == nil { progress.masteredAt = now }
+        }
         if isNewWord, entry.firstLearnedDate == nil {
             entry.firstLearnedDate = FSRS.dayString(Date())
         }

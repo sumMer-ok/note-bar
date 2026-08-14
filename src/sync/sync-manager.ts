@@ -113,6 +113,8 @@ export class SyncManager {
     if (!cfg?.syncDir) return null;
     const result = await importSidecars({ settings: this.plugin.hiwordsSettings, syncDir: cfg.syncDir });
     await this.plugin.saveHiWordsSettings();
+    // 进度合并后立即重建内存缓存，否则 Obsidian 界面要等重载插件才会显示手机端的新状态
+    this.plugin.vocabularyManager?.refreshStudyCache();
     this.plugin.refreshHighlighter();
     return result;
   }

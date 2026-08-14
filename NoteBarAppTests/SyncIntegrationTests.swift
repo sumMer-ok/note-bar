@@ -83,6 +83,8 @@ final class SyncIntegrationTests: XCTestCase {
         // 模拟一次评分写回
         var progress = entry.progress
         progress.s = 999
+        progress.status = "mastered"
+        progress.masteredAt = progress.lastReview
         progress.lastReview = ISO8601DateFormatter().string(from: Date())
         sync.persist(book: entry.book, key: entry.studyKey, progress: progress)
 
@@ -91,14 +93,17 @@ final class SyncIntegrationTests: XCTestCase {
 
         // persist 是后台写入，轮询等待落盘
         var writtenValue: Double?
+        var writtenStatus: String?
         for _ in 0..<20 {
             if let data = try? Data(contentsOf: sidecarURL),
                let sidecar = try? JSONDecoder().decode(SidecarFile.self, from: data) {
                 writtenValue = sidecar.words[entry.studyKey]?.s
+                writtenStatus = sidecar.words[entry.studyKey]?.status
                 if writtenValue == 999 { break }
             }
             try await Task.sleep(for: .milliseconds(100))
         }
         XCTAssertEqual(writtenValue, 999, "评分写回应落到边车文件")
+        XCTAssertEqual(writtenStatus, "mastered", "已掌握状态应随评分写回边车")
     }
 }

@@ -213,7 +213,7 @@ struct CalendarGrid: View {
             }
             ForEach(weeks, id: \.self) { week in
                 HStack {
-                    ForEach(week, id: \.self) { day in
+                    ForEach(Array(week.enumerated()), id: \.offset) { _, day in
                         if let day {
                             let key = FSRS.dayString(day)
                             let has = (byDay[key]?.count ?? 0) > 0

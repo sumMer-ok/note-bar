@@ -15,9 +15,17 @@ enum BookmarkStore {
     static func resolve() -> URL? {
         guard let data = load() else { return nil }
         var stale = false
-        guard let url = try? URL(resolvingBookmarkData: data, options: [], relativeTo: nil, bookmarkDataIsStale: &stale),
-              !stale else { return nil }
-        return url.startAccessingSecurityScopedResource() ? url : nil
+        do {
+            let url = try URL(resolvingBookmarkData: data, options: [], relativeTo: nil, bookmarkDataIsStale: &stale)
+            // iCloud 文件提供者的书签经常被标记 stale，但仍能正确解析并取得访问权限；
+            // 只有真正拿不到访问权限才视为失败。
+            let scoped = url.startAccessingSecurityScopedResource()
+            if stale { NSLog("[BookmarkStore] bookmark is stale but resolvable: %@", url.path) }
+            return scoped ? url : nil
+        } catch {
+            NSLog("[BookmarkStore] resolve error: %@", String(describing: error))
+            return nil
+        }
     }
 
     static func clear() {

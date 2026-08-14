@@ -45,10 +45,21 @@ final class SyncIntegrationTests: XCTestCase {
     }
 
     func testScanRealVaultDataAndPersist() async throws {
-        let dir = ProcessInfo.processInfo.environment["NOTE_BAR_SYNC_DIR"]
+        let sourceDir = ProcessInfo.processInfo.environment["NOTE_BAR_SYNC_DIR"]
             ?? "/Users/shengxia/Library/Mobile Documents/com~apple~CloudDocs/NoteBar"
-        guard FileManager.default.fileExists(atPath: dir) else {
+        guard FileManager.default.fileExists(atPath: sourceDir) else {
             throw XCTSkip("同步目录不存在，请先运行 scripts/seed-sync-dir.mjs")
+        }
+
+        // 把真实同步目录复制到临时副本再操作，避免测试评分污染用户的真实数据
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("notebar-test-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        for item in try FileManager.default.contentsOfDirectory(atPath: sourceDir) {
+            let src = URL(fileURLWithPath: sourceDir).appendingPathComponent(item)
+            let dst = dir.appendingPathComponent(item)
+            try FileManager.default.copyItem(at: src, to: dst)
         }
 
         let schema = Schema([Entry.self])
@@ -56,7 +67,7 @@ final class SyncIntegrationTests: XCTestCase {
         let container = try ModelContainer(for: schema, configurations: [config])
         let store = DataStore(context: container.mainContext)
         let sync = SyncService(store: store) { _ in }
-        sync.configure(folder: URL(fileURLWithPath: dir))
+        sync.configure(folder: dir)
         await sync.scan()
 
         let entries = try container.mainContext.fetch(FetchDescriptor<Entry>())
@@ -76,7 +87,7 @@ final class SyncIntegrationTests: XCTestCase {
         sync.persist(book: entry.book, key: entry.studyKey, progress: progress)
 
         let base = entry.book.replacingOccurrences(of: "\\.canvas$", with: "", options: .regularExpression)
-        let sidecarURL = URL(fileURLWithPath: dir).appendingPathComponent("\(base).nb-sync.json")
+        let sidecarURL = dir.appendingPathComponent("\(base).nb-sync.json")
 
         // persist 是后台写入，轮询等待落盘
         var writtenValue: Double?

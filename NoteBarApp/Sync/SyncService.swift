@@ -98,7 +98,7 @@ final class SyncService {
 
             for word in snapshot.words {
                 let key = StudyKey.canvas(source: snapshot.relative, nodeId: word.nodeId)
-                let remote = snapshot.progress[key]
+                let remote = snapshot.progress[key]?.withLegacyFieldsDerived()
                 if let existing = try? store.entry(forKey: key) {
                     if existing.word != word.word { existing.word = word.word; changed = true }
                     if existing.definition != word.definition { existing.definition = word.definition; changed = true }

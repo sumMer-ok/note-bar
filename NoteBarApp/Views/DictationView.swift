@@ -12,6 +12,7 @@ struct DictationView: View {
     @State private var answered = false
     @State private var lastCorrect = false
     @State private var shakeCount = 0
+    @State private var revealAnswer = false
     @State private var pendingAdvance: DispatchWorkItem?
 
     var body: some View {
@@ -42,6 +43,24 @@ struct DictationView: View {
                     Text(message)
                         .font(.subheadline)
                         .foregroundStyle(message.contains("正确") ? Color.green : Color.red)
+                }
+
+                if revealAnswer {
+                    HStack(spacing: 8) {
+                        Text(entry.word)
+                            .font(.title3.bold())
+                        Button {
+                            appState.speak(entry.word)
+                        } label: {
+                            Image(systemName: "speaker.wave.2.fill")
+                                .foregroundStyle(.blue)
+                        }
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 10)
+                    .background(.ultraThinMaterial, in: Capsule())
+                    .transition(.scale(scale: 0.7).combined(with: .opacity))
+                    .animation(.spring(duration: 0.35, bounce: 0.5), value: revealAnswer)
                 }
 
                 HStack(spacing: 12) {
@@ -83,6 +102,7 @@ struct DictationView: View {
         if ok {
             lastCorrect = true
             answered = true
+            revealAnswer = false
             correctCount += 1
             message = "正确 ✓"
             if appState.settings.dictationAutoAdvance {
@@ -93,6 +113,7 @@ struct DictationView: View {
         } else {
             message = "拼写错误，请重试"
             withAnimation { shakeCount += 1 }
+            withAnimation(.spring(duration: 0.35, bounce: 0.5)) { revealAnswer = true }
         }
     }
 
@@ -103,6 +124,7 @@ struct DictationView: View {
         message = nil
         answered = false
         lastCorrect = false
+        revealAnswer = false
         index += 1
     }
 }

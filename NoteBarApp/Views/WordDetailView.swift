@@ -227,6 +227,7 @@ struct WordEditSheet: View {
             definition = DefinitionSections.update(definition, module: module, content: contents[module] ?? "")
         }
         entry.definition = definition
+        entry.localEditedAt = Date()
         try? context.save()
 
         let book = entry.book

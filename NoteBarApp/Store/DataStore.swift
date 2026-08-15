@@ -24,6 +24,9 @@ final class Entry {
     var stage: Int?
     var mastered: Bool?
     var firstLearnedDate: String?
+    /// 本地编辑时间：非空表示这次编辑还没确认上传到 iCloud，
+    /// 扫描时优先保留本地内容并重新推送，避免被云端旧内容覆盖。
+    var localEditedAt: Date?
 
     init(
         studyKey: String, book: String, source: String, nodeId: String,

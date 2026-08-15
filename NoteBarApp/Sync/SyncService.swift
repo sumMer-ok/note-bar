@@ -130,6 +130,7 @@ final class SyncService {
         onConflictsChanged(conflicts)
 
         var changed = false
+        var pendingPush: [Entry] = []
         for snapshot in payload.snapshots {
             let previous = lastMtimes[snapshot.relative]
             if previous?.canvas == snapshot.canvasMtime, previous?.sidecar == snapshot.sidecarMtime {
@@ -141,9 +142,18 @@ final class SyncService {
                 let key = StudyKey.canvas(source: snapshot.relative, nodeId: word.nodeId)
                 let remote = snapshot.progress[key]?.withLegacyFieldsDerived()
                 if let existing = try? store.entry(forKey: key) {
-                    if existing.word != word.word { existing.word = word.word; changed = true }
-                    if existing.definition != word.definition { existing.definition = word.definition; changed = true }
-                    if existing.aliases != word.aliases { existing.aliases = word.aliases; changed = true }
+                    let textChanged = existing.word != word.word
+                        || existing.definition != word.definition
+                        || existing.aliases != word.aliases
+                    if textChanged, existing.localEditedAt != nil {
+                        // 本地编辑还没成功上传：保留本地内容，稍后重新推送，避免被云端旧版覆盖
+                        pendingPush.append(existing)
+                        changed = true
+                    } else {
+                        if existing.word != word.word { existing.word = word.word; changed = true }
+                        if existing.definition != word.definition { existing.definition = word.definition; changed = true }
+                        if existing.aliases != word.aliases { existing.aliases = word.aliases; changed = true }
+                    }
                     if existing.color != word.color { existing.color = word.color; changed = true }
                     if existing.addedDate != word.addedDate { existing.addedDate = word.addedDate; changed = true }
                     if existing.mastered != word.mastered { existing.mastered = word.mastered; changed = true }
@@ -174,7 +184,26 @@ final class SyncService {
                 try? store.context.save()
             }
         }
+        for entry in pendingPush {
+            await pushLocalEntry(entry)
+        }
         onStatusChanged("已连接：\(root.lastPathComponent) · 最近同步 \(Self.timeString(Date()))")
+    }
+
+    /// 把本地未上传的单词编辑重新写回 iCloud；成功后清除「待推送」标记
+    private func pushLocalEntry(_ entry: Entry) async {
+        guard var canvas = await readCanvas(entry.book) else { return }
+        guard CanvasEditor.updateWord(
+            data: &canvas,
+            nodeId: entry.nodeId,
+            word: entry.word,
+            definition: entry.definition,
+            aliases: entry.aliases
+        ) else { return }
+        if await writeCanvas(entry.book, data: canvas) {
+            entry.localEditedAt = nil
+            try? store.context.save()
+        }
     }
 
     /// 评分后写回边车：读磁盘 → 合并 → 原子写，全部在后台线程
@@ -185,10 +214,20 @@ final class SyncService {
         }
         Task {
             let ok = await Task.detached(priority: .utility) {
-                Self.writeProgress(progress, key: key, book: book, at: sidecarURL)
+                guard Self.writeProgress(progress, key: key, book: book, at: sidecarURL) else { return false }
+                // 读回校验：iCloud 提供器偶发不提交写入，失败时重试一次
+                guard let data = Self.readData(at: sidecarURL),
+                      let sidecar = try? JSONDecoder().decode(SidecarFile.self, from: data),
+                      let written = sidecar.words[key] else { return false }
+                return written.lastReview == progress.lastReview
             }.value
             if !ok {
-                onStatusChanged("无法写回 iCloud：本次评分未同步到电脑端，请重试或重新选择同步目录")
+                let retried = await Task.detached(priority: .utility) {
+                    Self.writeProgress(progress, key: key, book: book, at: sidecarURL)
+                }.value
+                if !retried {
+                    onStatusChanged("无法写回 iCloud：本次评分未同步到电脑端，请重试或重新选择同步目录")
+                }
             }
         }
     }
@@ -217,7 +256,21 @@ final class SyncService {
         let ok = await Task.detached(priority: .utility) {
             Self.writeAtomically(encoded, to: url)
         }.value
-        if !ok {
+        if ok {
+            // 读回校验：若提供器没有真正提交，立即重写一次
+            let committed = await Task.detached(priority: .utility) {
+                Self.readData(at: url) == encoded
+            }.value
+            if !committed {
+                let retried = await Task.detached(priority: .utility) {
+                    Self.writeAtomically(encoded, to: url)
+                }.value
+                if !retried {
+                    onStatusChanged("无法写回 iCloud：单词修改未同步到电脑端，请重试或重新选择同步目录")
+                    return false
+                }
+            }
+        } else {
             onStatusChanged("无法写回 iCloud：单词修改未同步到电脑端，请重试或重新选择同步目录")
         }
         return ok
@@ -464,30 +517,58 @@ final class SyncService {
         return false
     }
 
-    /// 使用 NSFileCoordinator 直接写到协调后的 URL。iCloud 文件提供器上
-    /// `replaceItemAt` 经常静默失败，所以改成在协调块内用 `.atomic` 写入目标路径。
+    /// iCloud 文件提供器上必须用 `replaceItemAt` 完成替换，直接 `.atomic` 写协调
+    /// 目标有时只在本地生效、不会触发上传。这里以 replaceItemAt 为主，
+    /// 失败时降级为直接覆盖，并记录错误。
     @discardableResult
     private nonisolated static func writeAtomically(_ data: Data, to url: URL) -> Bool {
         let fm = FileManager.default
         try? fm.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        let tmp = url.appendingPathExtension("nb-tmp")
         var coordinatorError: NSError?
         var writeError: Error?
+        var success = false
+        let scoped = url.startAccessingSecurityScopedResource()
+        defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+
         NSFileCoordinator().coordinate(writingItemAt: url, options: .forReplacing, error: &coordinatorError) { target in
             do {
-                try data.write(to: target, options: [.atomic])
+                try data.write(to: tmp, options: [.atomic])
+                do {
+                    _ = try fm.replaceItemAt(target, withItemAt: tmp)
+                    success = true
+                } catch {
+                    // 提供器拒绝 replaceItemAt 时，直接在协调目标上覆盖
+                    do {
+                        try data.write(to: target, options: [])
+                        try? fm.removeItem(at: tmp)
+                        success = true
+                    } catch {
+                        writeError = error
+                        try? fm.removeItem(at: tmp)
+                    }
+                }
             } catch {
                 writeError = error
+                try? fm.removeItem(at: tmp)
             }
         }
         if let coordinatorError {
             NSLog("[SyncService] write coordination failed for %@: %@", url.path, String(describing: coordinatorError))
+            // 协调失败时仍尝试直接覆盖，避免编辑完全丢失
+            do {
+                try data.write(to: url, options: [])
+                success = true
+            } catch {
+                NSLog("[SyncService] direct write failed for %@: %@", url.path, String(describing: error))
+            }
         }
         if let writeError {
             NSLog("[SyncService] write failed for %@: %@", url.path, String(describing: writeError))
         }
-        if coordinatorError == nil, writeError == nil {
+        if success {
             NSLog("[SyncService] wrote %@ (%d bytes)", url.path, data.count)
         }
-        return coordinatorError == nil && writeError == nil
+        return success
     }
 }

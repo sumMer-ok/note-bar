@@ -3,7 +3,16 @@ main.js
 *.js.map
 .DS_Store
 .superpowers/
-src/hiwords/data/
+src/hiwords/data/*
+!src/hiwords/data/dictionary.json
+!src/hiwords/data/legal-dictionary.json
+references/
+src/annotation/
+docs/
+documents/
+.trae/
+/HiWords/
+note-bar/
 release/
 .tests-dist/
 DerivedData/

@@ -105,7 +105,7 @@ export class ToolbarManager {
     el.appendChild(divider());
     el.appendChild(formatButtons.el);
 
-    // 添加 HiWords 功能按钮分隔线
+    // 添加生词本功能按钮分隔线
     el.appendChild(divider());
 
     // 翻译按钮
@@ -269,7 +269,7 @@ export class ToolbarManager {
   }
 
   /**
-   * 更新 HiWords 设置
+   * 更新生词本设置
    */
   updateHiWordsSettings(settings: HiWordsSettings) {
     this.hiwordsSettings = settings;

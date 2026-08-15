@@ -45,7 +45,7 @@ export async function playWordTTS(
         audio.src = url;
         await audio.play();
     } catch (e) {
-        console.warn('HiWords TTS play failed:', e);
+        console.warn('生词本 TTS play failed:', e);
     }
 }
 

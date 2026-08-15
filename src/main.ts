@@ -113,7 +113,7 @@ export default class NoteBarPlugin extends Plugin {
   async onload() {
     console.log("Note Bar plugin loaded");
 
-    // 加载 HiWords 设置
+    // 加载生词本设置
     await this.loadHiWordsSettings();
 
     // 初始化词库管理器
@@ -201,7 +201,7 @@ export default class NoteBarPlugin extends Plugin {
     this.initializeSidebar();
 
     // Ribbon 图标：打开/聚焦侧边栏
-    this.addRibbonIcon('book-open', 'HiWords 生词本', () => {
+    this.addRibbonIcon('book-open', '生词本', () => {
       void this.activateSidebarView();
     });
 
@@ -976,7 +976,7 @@ class NoteBarSettingTab extends PluginSettingTab {
     containerEl.createEl('h3', { text: '显示设置' });
 
     new Setting(containerEl)
-      .setName('显示 HiWords 侧边栏')
+      .setName('显示生词本侧边栏')
       .setDesc('开启后，插件启动时自动显示右侧生词本侧边栏')
       .addToggle(toggle => toggle
         .setValue(this.plugin.hiwordsSettings.showSidebar ?? true)

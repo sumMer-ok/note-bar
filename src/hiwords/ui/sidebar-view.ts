@@ -58,7 +58,7 @@ export class HiWordsSidebarView extends ItemView {
     }
 
     getDisplayText(): string {
-        return 'HiWords 生词本';
+        return '生词本';
     }
 
     getIcon(): string {
@@ -330,7 +330,7 @@ export class HiWordsSidebarView extends ItemView {
 
     private renderReviewHeader(container: HTMLElement) {
         const header = container.createDiv({ cls: 'hi-words-review-header' });
-        header.createDiv({ cls: 'hi-words-review-title', text: 'HiWords 生词本' });
+        header.createDiv({ cls: 'hi-words-review-title', text: '生词本' });
 
         const dueCount = this.getTodayReviewCount();
         const reviewBtn = header.createEl('button', {
@@ -925,7 +925,7 @@ export class HiWordsSidebarView extends ItemView {
                 evt.preventDefault();
                 evt.stopPropagation();
                 void this.app.workspace.openLinkText(linktext, sourcePath).catch(error => {
-                    console.error('HiWords 打开内部链接失败:', error);
+                    console.error('生词本 打开内部链接失败:', error);
                 });
             });
         });
@@ -949,7 +949,7 @@ export class HiWordsSidebarView extends ItemView {
                 const view = leaves[0].view as SearchViewLike;
                 view.setQuery?.(query);
                 void this.app.workspace.revealLeaf(leaves[0]).catch(error => {
-                    console.error('HiWords 打开搜索视图失败:', error);
+                    console.error('生词本 打开搜索视图失败:', error);
                 });
                 return;
             }

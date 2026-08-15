@@ -159,17 +159,20 @@ final class SyncService {
         if changed {
             try? store.context.save()
         }
-        // 清理「词库」里的重复项：只保留 Words/ 前缀的合法词库，
-        // 之前把同步目录选成 Words 时产生的裸文件名重复词库一并删除。
-        let validPrefix = "Words/"
-        if let all = try? store.context.fetch(FetchDescriptor<Entry>()) {
-            for entry in all where !entry.book.hasPrefix(validPrefix) {
-                store.context.delete(entry)
-                changed = true
+        // 清理「词库」列表：只保留本次扫描实际存在的词库。
+        // 覆盖两种情况：选错目录产生的裸文件名词库，以及此前递归扫描产生的
+        // Words/Words/... 重复词库。仅在扫描到至少一个词库时执行，避免误清空。
+        let currentBooks = Set(payload.snapshots.map(\.relative))
+        if !currentBooks.isEmpty {
+            if let all = try? store.context.fetch(FetchDescriptor<Entry>()) {
+                for entry in all where !currentBooks.contains(entry.book) {
+                    store.context.delete(entry)
+                    changed = true
+                }
             }
-        }
-        if changed {
-            try? store.context.save()
+            if changed {
+                try? store.context.save()
+            }
         }
         onStatusChanged("已连接：\(root.lastPathComponent) · 最近同步 \(Self.timeString(Date()))")
     }
@@ -217,6 +220,38 @@ final class SyncService {
         if !ok {
             onStatusChanged("无法写回 iCloud：单词修改未同步到电脑端，请重试或重新选择同步目录")
         }
+        return ok
+    }
+
+    /// 删除一个词库：移除本地词条与 iCloud 中的 Canvas / 进度边车。
+    /// 返回是否成功删除文件；本地词条总是先移除，避免继续显示。
+    @discardableResult
+    func deleteBook(_ book: String) async -> Bool {
+        if let all = try? store.context.fetch(FetchDescriptor<Entry>()) {
+            for entry in all where entry.book == book {
+                store.context.delete(entry)
+            }
+            try? store.context.save()
+        }
+        lastMtimes.removeValue(forKey: book)
+
+        guard let canvasURL = physicalURL(for: book, suffix: "", replacingExtension: nil),
+              let sidecarURL = physicalURL(for: book, suffix: ".nb-sync.json", replacingExtension: ".canvas") else {
+            return false
+        }
+        let ok = await Task.detached(priority: .utility) {
+            let fm = FileManager.default
+            var removed = true
+            for url in [canvasURL, sidecarURL] where fm.fileExists(atPath: url.path) {
+                do {
+                    try fm.removeItem(at: url)
+                } catch {
+                    NSLog("[SyncService] delete failed for %@: %@", url.path, String(describing: error))
+                    removed = false
+                }
+            }
+            return removed
+        }.value
         return ok
     }
 

@@ -156,4 +156,36 @@ final class SyncIntegrationTests: XCTestCase {
         XCTAssertEqual(written, 42)
         XCTAssertFalse(FileManager.default.fileExists(atPath: dir.appendingPathComponent("Words").path))
     }
+
+    /// 同步目录里的词库被移除后，App 应清掉本地残留的重复词库，避免一直显示旧词库
+    func testStaleBooksAreRemovedOnScan() async throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("nb-stale-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        let wordsDir = dir.appendingPathComponent("Words", isDirectory: true)
+        try FileManager.default.createDirectory(at: wordsDir, withIntermediateDirectories: true)
+        let a = #"{"nodes":[{"id":"a","type":"text","text":"apple\n\n苹果"}],"edges":[]}"#
+        let b = #"{"nodes":[{"id":"b","type":"text","text":"book\n\n书"}],"edges":[]}"#
+        try a.write(to: wordsDir.appendingPathComponent("a.canvas"), atomically: true, encoding: .utf8)
+        try b.write(to: wordsDir.appendingPathComponent("b.canvas"), atomically: true, encoding: .utf8)
+
+        let schema = Schema([Entry.self])
+        let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+        let container = try ModelContainer(for: schema, configurations: [config])
+        let store = DataStore(context: container.mainContext)
+        let sync = SyncService(store: store) { _ in }
+        sync.configure(folder: dir)
+        await sync.scan()
+
+        var entries = try container.mainContext.fetch(FetchDescriptor<Entry>())
+        XCTAssertEqual(Set(entries.map(\.book)), Set(["Words/a.canvas", "Words/b.canvas"]))
+
+        try FileManager.default.removeItem(at: wordsDir.appendingPathComponent("b.canvas"))
+        await sync.scan()
+
+        entries = try container.mainContext.fetch(FetchDescriptor<Entry>())
+        XCTAssertEqual(Set(entries.map(\.book)), Set(["Words/a.canvas"]))
+    }
 }

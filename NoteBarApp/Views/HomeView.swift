@@ -87,10 +87,16 @@ struct BookRow: View {
     @State private var offsetX: CGFloat = 0
     @State private var dragStartX: CGFloat = 0
     @State private var isTracking = false
+    @State private var confirmDelete = false
 
     private var isDefault: Bool { appState.settings.defaultBooks.contains(book) }
     private var isPinned: Bool { appState.settings.pinnedBooks.contains(book) }
     private var isOpen: Bool { offsetX < -8 }
+
+    private var displayName: String {
+        let base = (book as NSString).lastPathComponent
+        return base.hasSuffix(".canvas") ? String(base.dropLast(".canvas".count)) : base
+    }
 
     var body: some View {
         GeometryReader { geo in
@@ -173,6 +179,21 @@ struct BookRow: View {
                     .offset(x: -5, y: -8)
                     .transition(.scale.combined(with: .opacity))
             }
+        }
+        .contextMenu {
+            Button(role: .destructive) {
+                confirmDelete = true
+            } label: {
+                Label("删除词库", systemImage: "trash")
+            }
+        }
+        .alert("删除词库「\(displayName)」？", isPresented: $confirmDelete) {
+            Button("删除", role: .destructive) {
+                Task { await appState.sync.deleteBook(book) }
+            }
+            Button("取消", role: .cancel) {}
+        } message: {
+            Text("将删除该词库在 iCloud 中的 Canvas 和复习进度文件，电脑端同步后也会移除，此操作不可恢复。")
         }
         .animation(.spring(duration: 0.32), value: isPinned)
     }

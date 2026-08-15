@@ -26,7 +26,20 @@ export async function importSidecars(deps: ImporterDeps): Promise<SyncImportResu
     const mainDir = path.dirname(mainPath);
     const mainBase = path.basename(mainName);
     let selected: SidecarFile | null = await readSidecar(mainPath);
+    let selectedPath = mainPath;
     let selectedName = mainBase;
+
+    // 旧版 iPhone App 可能把边车写到 syncDir/Words/Words，取 updatedAt 较新的一份
+    const nestedPath = book.path.startsWith("Words/")
+      ? path.join(deps.syncDir, "Words", mainName)
+      : null;
+    if (nestedPath) {
+      const nested = await readSidecar(nestedPath);
+      if (nested && timeOf(nested.updatedAt) > timeOf(selected?.updatedAt)) {
+        selected = nested;
+        selectedPath = nestedPath;
+      }
+    }
 
     // 冲突副本与主文件同目录（可能是嵌套目录，不能只扫 syncDir 顶层）
     const entries = await fs.readdir(mainDir).catch(() => [] as string[]);
@@ -35,6 +48,7 @@ export async function importSidecars(deps: ImporterDeps): Promise<SyncImportResu
       const conflict = await readSidecar(path.join(mainDir, entry));
       if (conflict && timeOf(conflict.updatedAt) > timeOf(selected?.updatedAt)) {
         selected = conflict;
+        selectedPath = path.join(mainDir, entry);
         selectedName = entry;
       }
     }
@@ -46,6 +60,12 @@ export async function importSidecars(deps: ImporterDeps): Promise<SyncImportResu
       await fs.copyFile(selectedPath, mainPath);
       await fs.rename(selectedPath, `${selectedPath}.processed`).catch(() => undefined);
       result.conflictsArchived.push(book.path);
+    }
+
+    // 选中的是嵌套副本时，把它提升回规范路径，后续导出与手机都能读到
+    if (selectedPath !== mainPath && selected) {
+      await fs.mkdir(path.dirname(mainPath), { recursive: true }).catch(() => undefined);
+      await fs.copyFile(selectedPath, mainPath).catch(() => undefined);
     }
 
     if (!selected) continue;

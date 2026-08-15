@@ -66,9 +66,16 @@ export class Mirrorer {
     const src = path.join(this.opts.vaultBasePath, bookPath);
     const dst = path.join(this.opts.syncDir, bookPath);
     try {
+      // 旧版 iPhone App 曾把文件写到 syncDir/Words/Words 的错误路径。
+      // 这里把「规范路径」和「嵌套路径」里较新的一份当作镜像的真实内容，
+      // 这样即使手机还没升级，编辑也能同步到电脑端。
+      const nestedDst = bookPath.startsWith("Words/")
+        ? path.join(this.opts.syncDir, "Words", bookPath)
+        : null;
+      const dstChoice = await this.newerOf(dst, nestedDst);
       const [srcStat, dstStat] = await Promise.all([
         fs.stat(src).catch(() => null),
-        fs.stat(dst).catch(() => null),
+        dstChoice ? fs.stat(dstChoice).catch(() => null) : Promise.resolve(null),
       ]);
       if (!srcStat && !dstStat) return;
       if (srcStat && !dstStat) {
@@ -78,21 +85,63 @@ export class Mirrorer {
       }
       if (!srcStat && dstStat) {
         await fs.mkdir(path.dirname(src), { recursive: true });
-        await fs.copyFile(dst, src);
+        await fs.copyFile(dstChoice!, src);
+        await this.promoteNested(dstChoice!, dst, nestedDst);
         this.opts.onVaultChanged(bookPath);
         return;
       }
-      if (Math.abs(srcStat!.mtimeMs - dstStat!.mtimeMs) < 1000) return;
+      if (Math.abs(srcStat!.mtimeMs - dstStat!.mtimeMs) < 1000) {
+        // iCloud Drive 的 mtime 可能被抹平或缓存，用文件大小兜底判断是否有变化。
+        if (srcStat!.size !== dstStat!.size) {
+          const mirrorNewer = dstStat!.mtimeMs > srcStat!.mtimeMs;
+          if (mirrorNewer || (dstStat!.mtimeMs === srcStat!.mtimeMs && dstChoice === nestedDst)) {
+            await fs.copyFile(dstChoice!, src);
+            await this.promoteNested(dstChoice!, dst, nestedDst);
+            this.opts.onVaultChanged(bookPath);
+          } else {
+            await fs.copyFile(src, dst);
+            if (nestedDst) await fs.copyFile(src, nestedDst).catch(() => undefined);
+          }
+        } else if (dstChoice === nestedDst) {
+          // 内容一样但只有嵌套副本更新过：把它提升到规范路径
+          await this.promoteNested(dstChoice!, dst, nestedDst);
+        }
+        await this.detectCanvasConflicts(bookPath);
+        return;
+      }
       if (srcStat!.mtimeMs > dstStat!.mtimeMs) {
         await fs.copyFile(src, dst);
+        if (nestedDst) await fs.copyFile(src, nestedDst).catch(() => undefined);
       } else {
-        await fs.copyFile(dst, src);
+        await fs.copyFile(dstChoice!, src);
+        await this.promoteNested(dstChoice!, dst, nestedDst);
         this.opts.onVaultChanged(bookPath);
       }
     } catch (error) {
       console.warn("Note Bar mirrorer 同步失败:", bookPath, error);
     }
     await this.detectCanvasConflicts(bookPath);
+  }
+
+  private async newerOf(a: string, b: string | null): Promise<string | null> {
+    const [sa, sb] = await Promise.all([
+      fs.stat(a).catch(() => null),
+      b ? fs.stat(b).catch(() => null) : Promise.resolve(null),
+    ]);
+    if (sa && sb) return sb.mtimeMs > sa.mtimeMs ? b : a;
+    if (sa) return a;
+    if (sb) return b;
+    return null;
+  }
+
+  private async promoteNested(source: string, canonical: string, nestedDst: string | null): Promise<void> {
+    if (!nestedDst || source !== nestedDst) return;
+    try {
+      await fs.mkdir(path.dirname(canonical), { recursive: true });
+      await fs.copyFile(source, canonical);
+    } catch (error) {
+      console.warn("Note Bar 提升嵌套镜像失败:", error);
+    }
   }
 
   private async detectCanvasConflicts(bookPath: string): Promise<void> {

@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		04404B06D1327568E8C527C6 /* sync-vectors.json in Resources */ = {isa = PBXBuildFile; fileRef = FCF34452238F3CC751BEE0BB /* sync-vectors.json */; };
+		B1B2C3D4E5F60123456789AC /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60123456789AB /* Assets.xcassets */; };
 		05BABE97FECE8807438D816D /* BookmarkStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F86760B758C3990D8F0A448 /* BookmarkStore.swift */; };
 		0C092C2A7CF569D824914A87 /* NoteBarApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 764872AF56817AA494F1A796 /* NoteBarApp.swift */; };
 		178CB35AC202FDC2023012FA /* DefinitionModulesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB9A95F9188A5E6F0EE6F4DB /* DefinitionModulesView.swift */; };
@@ -70,12 +71,13 @@
 
 /* Begin PBXFileReference section */
 		06F5AB7AA50D0AAF0F032322 /* rabbit.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = rabbit.png; sourceTree = "<group>"; };
+		A1B2C3D4E5F60123456789AB /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		0CEC87FCA85F9D48318C559E /* AssetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssetTests.swift; sourceTree = "<group>"; };
 		137C0613FA4F5BA1D56F8633 /* WordDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WordDetailView.swift; sourceTree = "<group>"; };
 		13B39F8FB65E8D7671805100 /* DailyQuoteTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyQuoteTests.swift; sourceTree = "<group>"; };
 		1C106E5FB4CB065E404017DF /* DefinitionSectionsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefinitionSectionsTests.swift; sourceTree = "<group>"; };
 		1D1902E1ECCC2B362771FCFE /* Merge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Merge.swift; sourceTree = "<group>"; };
-		1DC370B2EA5CA0F564C051BE /* NoteBarApp.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = NoteBarApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		1DC370B2EA5CA0F564C051BE /* NoteBarApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = NoteBarApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		1F07BC0FF9F19051B79B6E82 /* BrowseView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowseView.swift; sourceTree = "<group>"; };
 		290F5A72B5720A88F9E92723 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 		2AF4283526432ADB95AD9A5C /* bear.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = bear.png; sourceTree = "<group>"; };
@@ -188,6 +190,7 @@
 			children = (
 				9CCE8521CD0139F771D6BF6F /* NoteBarApp.entitlements */,
 				49E119E786F874D0AB470E39 /* App */,
+				A1B2C3D4E5F60123456789AB /* Assets.xcassets */,
 				B0EC4C4EADBC772A6A88924B /* Assets */,
 				100BEBA0D78FA08F54C11C06 /* Engine */,
 				334A774DD041F16ED61F4CB4 /* Models */,
@@ -357,9 +360,6 @@
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
-					9CE66C58E92C12C5AEADC5F5 = {
-						DevelopmentTeam = 7D7J4PG46P;
-					};
 					BB1488923FE30696E0B61A74 = {
 						DevelopmentTeam = 7D7J4PG46P;
 					};
@@ -396,6 +396,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A37FF5563691DBF75AFBA160 /* ATTRIBUTION.md in Resources */,
+				B1B2C3D4E5F60123456789AC /* Assets.xcassets in Resources */,
 				889778D4A8311842A43DE3A9 /* ai-definition-prompt.txt in Resources */,
 				A4D97AF9B935E437FDECB337 /* bear.png in Resources */,
 				C0D7700740EF2DDFB0EBF427 /* cat.png in Resources */,
@@ -614,6 +615,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = NoteBarApp/NoteBarApp.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
+				DEVELOPMENT_TEAM = J8TC6NVX49;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -698,6 +700,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = NoteBarApp/NoteBarApp.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
+				DEVELOPMENT_TEAM = J8TC6NVX49;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;

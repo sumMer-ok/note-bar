@@ -19,6 +19,7 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.notebar.NoteBarApp
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_UISupportsDocumentBrowser: YES
         INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace: YES

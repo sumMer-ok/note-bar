@@ -50,7 +50,7 @@ final class SyncIntegrationTests: XCTestCase {
 
     func testScanRealVaultDataAndPersist() async throws {
         let sourceDir = ProcessInfo.processInfo.environment["NOTE_BAR_SYNC_DIR"]
-            ?? "/Users/shengxia/Library/Mobile Documents/com~apple~CloudDocs/NoteBar"
+            ?? Self.defaultSyncDir
         guard FileManager.default.fileExists(atPath: sourceDir) else {
             throw XCTSkip("同步目录不存在，请先运行 scripts/seed-sync-dir.mjs")
         }
@@ -109,6 +109,13 @@ final class SyncIntegrationTests: XCTestCase {
         }
         XCTAssertEqual(writtenValue, 999, "评分写回应落到边车文件")
         XCTAssertEqual(writtenStatus, "mastered", "已掌握状态应随评分写回边车")
+    }
+
+    /// 不把本机用户名硬编码进测试：优先环境变量，其次用当前用户主目录拼出 iCloud 路径。
+    /// 模拟器里 getpwuid 返回宿主机用户主目录，真机则返回 /var/mobile。
+    private static var defaultSyncDir: String {
+        let home = String(cString: getpwuid(getuid()).pointee.pw_dir)
+        return home + "/Library/Mobile Documents/com~apple~CloudDocs/NoteBar"
     }
 
     /// 用户如果直接把 iCloud 里的 Words 目录当同步目录，也要能正确读写，

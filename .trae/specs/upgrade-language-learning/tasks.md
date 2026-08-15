@@ -1,7 +1,7 @@
 # Tasks
 
 > 基于 `documents/lexis-note-bar-改进报告.md` 第五章的 P1-P6 阶段划分。
-> 每阶段完成后：`npm run build` + `tsc` 通过 → 部署测试 vault（`/Users/shengxia/Documents/Obisidian-test-value/.obsidian/plugins/note-bar/`，保留用户 `data.json`）→ 按该阶段验收条目手动验证。
+> 每阶段完成后：`npm run build` + `tsc` 通过 → 部署测试 vault（`~/Documents/Obisidian-test-value/.obsidian/plugins/note-bar/`，保留用户 `data.json`）→ 按该阶段验收条目手动验证。
 
 ## P1：FSRS-5 算法升级（G1，最高优先级，无依赖）
 
@@ -104,6 +104,6 @@
 
 # 实施与验收流程（贯穿）
 1. 每任务完成：`npm run build` + TypeScript 类型检查通过
-2. 每阶段完成：部署测试 vault（`/Users/shengxia/Documents/Obisidian-test-value/.obsidian/plugins/note-bar/`，保留用户 `data.json`）
+2. 每阶段完成：部署测试 vault（`~/Documents/Obisidian-test-value/.obsidian/plugins/note-bar/`，保留用户 `data.json`）
 3. 按该阶段"验证"条目手动验收，通过后进入下一阶段
 4. 全部完成：回归全功能（工具栏/翻译/导出/拼写），征询确认后部署正式 vault

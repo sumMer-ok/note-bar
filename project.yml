@@ -7,7 +7,6 @@ options:
 settings:
   base:
     SWIFT_VERSION: "5.0"
-    DEVELOPMENT_TEAM: "7D7J4PG46P"
 targets:
   NoteBarApp:
     type: application

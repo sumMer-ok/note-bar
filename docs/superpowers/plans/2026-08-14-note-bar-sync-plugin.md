@@ -8,7 +8,7 @@
 
 **Tech Stack:** TypeScript 4.7、Obsidian API、Node `fs`/`path`（Electron 主进程可用）、esbuild + Node 22 `node:test`（经 esbuild 编译后运行，不引入 ts-node/tsx）。
 
-**设计依据:** [2026-08-14-note-bar-ios-sync-design.md](/Users/shengxia/Documents/projects/obisdian-plugin/note-bar/docs/superpowers/specs/2026-08-14-note-bar-ios-sync-design.md)（第 2 版，已两轮源码审查）。
+**设计依据:** [2026-08-14-note-bar-ios-sync-design.md](./docs/superpowers/specs/2026-08-14-note-bar-ios-sync-design.md)（第 2 版，已两轮源码审查）。
 
 ---
 
@@ -34,7 +34,7 @@
 ## 全局约定
 
 - 边车文件名：`<词库相对路径去 .canvas>.nb-sync.json`，只存在于 iCloud 同步目录，**不写进 vault**。
-- `studyKey` 双规则与 [vocabulary-manager.ts](/Users/shengxia/Documents/projects/obisdian-plugin/note-bar/src/hiwords/core/vocabulary-manager.ts) 第 706 行回退逻辑完全一致：`definition.studyKey || `${definition.source}:${definition.nodeId}``。
+- `studyKey` 双规则与 [vocabulary-manager.ts](./src/hiwords/core/vocabulary-manager.ts) 第 706 行回退逻辑完全一致：`definition.studyKey || `${definition.source}:${definition.nodeId}``。
 - 进度合并：同 key 以 `lastReview` 较新者胜；`history` 按 `(date, quality)` 去重、按时间升序、`slice(-50)`。
 - 原子写：临时文件 + `rename`；解析失败返回 null、退避重试由调用方决定。
 - 所有文件路径用 `/`（`path.join` 已跨平台；设置里保存绝对路径时统一 `replace(/\\/g, '/')`）。
@@ -990,7 +990,7 @@ git commit -m "feat: add bidirectional canvas mirrorer with polling fallback"
 
 - [ ] **Step 1: 抽出目录选择器**
 
-创建 `src/sync/folder-picker.ts`（复用 [export-vocabulary-modal.ts](/Users/shengxia/Documents/projects/obisdian-plugin/note-bar/src/hiwords/ui/export-vocabulary-modal.ts) 第 303 行起的两通道逻辑）：
+创建 `src/sync/folder-picker.ts`（复用 [export-vocabulary-modal.ts](./src/hiwords/ui/export-vocabulary-modal.ts) 第 303 行起的两通道逻辑）：
 
 ```ts
 /** 打开系统目录选择对话框；返回绝对路径（统一 / 分隔符），取消返回 null */
@@ -1288,8 +1288,8 @@ git commit -m "feat: wire SyncManager into plugin lifecycle and rating save path
 - [ ] **Step 1: 部署到测试 vault**
 
 ```bash
-mkdir -p "/Users/shengxia/Documents/Obisidian-test-value/.obsidian/plugins/note-bar"
-cp main.js styles.css manifest.json "/Users/shengxia/Documents/Obisidian-test-value/.obsidian/plugins/note-bar/"
+mkdir -p "~/Documents/Obisidian-test-value/.obsidian/plugins/note-bar"
+cp main.js styles.css manifest.json "~/Documents/Obisidian-test-value/.obsidian/plugins/note-bar/"
 ```
 
 注意：**不要**覆盖测试 vault 的 `data.json`（保留用户数据）。

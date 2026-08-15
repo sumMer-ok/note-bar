@@ -222,9 +222,9 @@ npm run build:dictionary
 
 插件构建产物（`main.js` / `styles.css` / `manifest.json`）与词典文件（`data/`）部署到以下两个 vault：
 
-- **测试 vault**：`/Users/shengxia/Documents/Obisidian-test-value`
+- **测试 vault**：`~/Documents/Obisidian-test-value`
   - 用于功能开发验证，构建后先复制到这里测试。
-- **正式 vault（Library）**：`/Users/shengxia/Documents/Library`
+- **正式 vault（Library）**：`~/Documents/Library`
   - 实际日常使用的 vault。
 
 **部署目录**：两者的插件目录均为 `.obsidian/plugins/note-bar/`，词典文件在 `.obsidian/plugins/note-bar/data/`（`dictionary.json` 中文词典 + `legal-dictionary.json` 法律词典）。复制时保留用户数据 `data.json`，不要覆盖。

@@ -6,7 +6,7 @@
 
 **Architecture:** 分层为 Engine（FSRS/StudyKey/Merge 纯函数）→ Models（Canvas/Sidecar JSON）→ Sync（bookmark + NSFileCoordinator + 轮询）→ Store（SwiftData）→ Views（SwiftUI + 毛玻璃材质）。复习评分先落 SwiftData 再异步写边车；同步只在前台/启动/手动刷新触发（v1 无后台推送）。
 
-**Tech Stack:** Xcode 16、Swift 5、SwiftUI、SwiftData、iOS 17.0+、XCTest；无第三方依赖。设计依据：[2026-08-14-note-bar-ios-sync-design.md](/Users/shengxia/Documents/projects/obisdian-plugin/note-bar/docs/superpowers/specs/2026-08-14-note-bar-ios-sync-design.md)。
+**Tech Stack:** Xcode 16、Swift 5、SwiftUI、SwiftData、iOS 17.0+、XCTest；无第三方依赖。设计依据：[2026-08-14-note-bar-ios-sync-design.md](./docs/superpowers/specs/2026-08-14-note-bar-ios-sync-design.md)。
 
 ---
 

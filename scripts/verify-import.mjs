@@ -5,7 +5,7 @@ import { promises as fs } from "fs";
 import os from "os";
 import path from "path";
 
-const vault = "/Users/shengxia/Documents/Library";
+const vault = path.join(os.homedir(), "Documents/Library");
 const syncDir = path.join(os.homedir(), "Library/Mobile Documents/com~apple~CloudDocs/NoteBar");
 const dataJsonPath = path.join(vault, ".obsidian/plugins/note-bar/data.json");
 

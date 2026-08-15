@@ -259,7 +259,7 @@ knowledge
 1. 从 `main` 新建分支 `language-learning-v2`。
 2. 按 P1→P6 顺序实施；每阶段：
    - 改完 `npm run build` + `tsc` 类型检查通过；
-   - 部署到测试 vault（`/Users/shengxia/Documents/Obisidian-test-value/.obsidian/plugins/note-bar/`，保留用户 `data.json`）；
+   - 部署到测试 vault（`~/Documents/Obisidian-test-value/.obsidian/plugins/note-bar/`，保留用户 `data.json`）；
    - 按该阶段"验收"条目手动验证；
    - 通过后进入下一阶段。
 3. 全部完成后回归全功能（工具栏/翻译/导出/拼写），再按既有部署流程征询确认后部署正式 vault。

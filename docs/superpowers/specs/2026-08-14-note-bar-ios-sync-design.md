@@ -32,8 +32,8 @@
 
 ## 3. 现状（以源码为准）
 
-- 插件入口 [src/main.ts](/Users/shengxia/Documents/projects/obisdian-plugin/note-bar/src/main.ts)：加载 `HiWordsSettings`（含 `studyProgress`），初始化 `VocabularyManager`、`MasteredService`、`EncounterTracker`，注册侧边栏、高亮扩展、闪卡/拼写/导出等命令。
-- 进度模型：FSRS-5（[fsrs.ts](/Users/shengxia/Documents/projects/obisdian-plugin/note-bar/src/hiwords/core/fsrs.ts)，19 参数），进度存于 `data.json` 的 `studyProgress`，值类型 `StudyProgressItem`（[types.ts](/Users/shengxia/Documents/projects/obisdian-plugin/note-bar/src/hiwords/utils/types.ts)）。
+- 插件入口 [src/main.ts](./src/main.ts)：加载 `HiWordsSettings`（含 `studyProgress`），初始化 `VocabularyManager`、`MasteredService`、`EncounterTracker`，注册侧边栏、高亮扩展、闪卡/拼写/导出等命令。
+- 进度模型：FSRS-5（[fsrs.ts](./src/hiwords/core/fsrs.ts)，19 参数），进度存于 `data.json` 的 `studyProgress`，值类型 `StudyProgressItem`（[types.ts](./src/hiwords/utils/types.ts)）。
 - `StudyProgressItem` 真实字段（第 2 版以此为准）：
 
 ```ts
@@ -50,13 +50,13 @@ masteredAt?: string; updatedAt?: string
 ```
 
 - studyKey 是**双规则**：
-- `.hiwords` 文件中的卡片词条：`buildStudyKey()` 生成 `语言:类型:规范文本`（[study-key.ts](/Users/shengxia/Documents/projects/obisdian-plugin/note-bar/src/hiwords/utils/study-key.ts)，NFKC + trim + 空白折叠 + 去首尾标点 + `toLocaleLowerCase()`）；
-  - Canvas 普通 text/file 节点：**不设 studyKey**，运行时回退为 `${definition.source}:${definition.nodeId}`（[vocabulary-manager.ts](/Users/shengxia/Documents/projects/obisdian-plugin/note-bar/src/hiwords/core/vocabulary-manager.ts) 的 `buildStudyItemCache`），`source` 是 Canvas 文件的 vault 相对路径，`nodeId` 是节点 JSON 的 16 位 hex id。
-- Canvas 节点文本模板（[canvas-parser.ts](/Users/shengxia/Documents/projects/obisdian-plugin/note-bar/src/hiwords/canvas/canvas-parser.ts) `parseFromText`）：首行单词；可选第二行别名 `*a, b*`（单个星号包裹）；空行后是释义。
-- 添加日期：来自 label 为 `YYYY-MM-DD` 的 group；新词由 `findOrCreateDateGroup` 创建「今天」组（[canvas-editor.ts](/Users/shengxia/Documents/projects/obisdian-plugin/note-bar/src/hiwords/canvas/canvas-editor.ts)）。`normalizeLayout` 只整理**未分组节点**的位置，**不会创建日期组**（[layout.ts](/Users/shengxia/Documents/projects/obisdian-plugin/note-bar/src/hiwords/canvas/layout.ts)）。
-- 已掌握检测：'Mastered'/'已掌握' 组，或节点 `color === '4'`；自动毕业阈值 `DEFAULT_GRADUATED_S = 30`（[flashcard-algorithm.ts](/Users/shengxia/Documents/projects/obisdian-plugin/note-bar/src/hiwords/core/flashcard-algorithm.ts)，`s >= 30` 时置 `lifecycle='graduated'`）。
-- 闪卡会话模式：`'new'`（仅新词）/ `'review'`（仅到期）/ `'all'`（按 `studyOrder` 混合，[flashcard-queue.ts](/Users/shengxia/Documents/projects/obisdian-plugin/note-bar/src/hiwords/core/flashcard-queue.ts)）；评分四档 again/hard/good/easy；每次评分写 `history`（`slice(-50)` 保留最近 50 条，[flashcard-review-modal.ts](/Users/shengxia/Documents/projects/obisdian-plugin/note-bar/src/hiwords/ui/flashcard-review-modal.ts)）。
-- 发音：优先词条 `card.audio[variant] || card.audio.default`（`http(s)://`、`data:`、`app:` 直接使用，vault 内附件走 `getResourcePath`）；否则有道 TTS（`uk→type=1`、`us→type=2`，默认 `us`）；[tts.ts](/Users/shengxia/Documents/projects/obisdian-plugin/note-bar/src/hiwords/utils/tts.ts)。
+- `.hiwords` 文件中的卡片词条：`buildStudyKey()` 生成 `语言:类型:规范文本`（[study-key.ts](./src/hiwords/utils/study-key.ts)，NFKC + trim + 空白折叠 + 去首尾标点 + `toLocaleLowerCase()`）；
+  - Canvas 普通 text/file 节点：**不设 studyKey**，运行时回退为 `${definition.source}:${definition.nodeId}`（[vocabulary-manager.ts](./src/hiwords/core/vocabulary-manager.ts) 的 `buildStudyItemCache`），`source` 是 Canvas 文件的 vault 相对路径，`nodeId` 是节点 JSON 的 16 位 hex id。
+- Canvas 节点文本模板（[canvas-parser.ts](./src/hiwords/canvas/canvas-parser.ts) `parseFromText`）：首行单词；可选第二行别名 `*a, b*`（单个星号包裹）；空行后是释义。
+- 添加日期：来自 label 为 `YYYY-MM-DD` 的 group；新词由 `findOrCreateDateGroup` 创建「今天」组（[canvas-editor.ts](./src/hiwords/canvas/canvas-editor.ts)）。`normalizeLayout` 只整理**未分组节点**的位置，**不会创建日期组**（[layout.ts](./src/hiwords/canvas/layout.ts)）。
+- 已掌握检测：'Mastered'/'已掌握' 组，或节点 `color === '4'`；自动毕业阈值 `DEFAULT_GRADUATED_S = 30`（[flashcard-algorithm.ts](./src/hiwords/core/flashcard-algorithm.ts)，`s >= 30` 时置 `lifecycle='graduated'`）。
+- 闪卡会话模式：`'new'`（仅新词）/ `'review'`（仅到期）/ `'all'`（按 `studyOrder` 混合，[flashcard-queue.ts](./src/hiwords/core/flashcard-queue.ts)）；评分四档 again/hard/good/easy；每次评分写 `history`（`slice(-50)` 保留最近 50 条，[flashcard-review-modal.ts](./src/hiwords/ui/flashcard-review-modal.ts)）。
+- 发音：优先词条 `card.audio[variant] || card.audio.default`（`http(s)://`、`data:`、`app:` 直接使用，vault 内附件走 `getResourcePath`）；否则有道 TTS（`uk→type=1`、`us→type=2`，默认 `us`）；[tts.ts](./src/hiwords/utils/tts.ts)。
 - 测试基建：仓库当前无测试框架、无 test script（TS 4.7.4、esbuild 0.28、@types/node 16）。
 
 ## 4. 数据与文件约定
@@ -117,7 +117,7 @@ iCloud Drive 同步目录（用户指定，如 iCloud Drive/NoteBar）
 ### 4.3 studyKey 双规则（关键修正）
 
 - **普通 Canvas text/file 节点**：`studyKey = <source>:<nodeId>`。`source` = Canvas 文件在**同步目录中的相对路径**（与 vault 相对路径一致），`nodeId` = 节点 JSON 的 `id`（16 位 hex）。
-- **`.hiwords` 卡片包词条（v1 不同步，仅作边界说明）**：`studyKey = buildStudyKey(language, type, normalizedText)`。规范化流程与 [study-key.ts](/Users/shengxia/Documents/projects/obisdian-plugin/note-bar/src/hiwords/utils/study-key.ts) 完全一致；注意 JS 侧源码用的是**无参 `toLocaleLowerCase()`**（随运行环境默认 locale 变化，并非 en-US），两端移植时统一用简单小写（JS `toLowerCase()` ↔ Swift `lowercased()`），并把 i/İ、ı、全角、NFKC 等字符纳入冻结测试向量，规避语言环境差异。
+- **`.hiwords` 卡片包词条（v1 不同步，仅作边界说明）**：`studyKey = buildStudyKey(language, type, normalizedText)`。规范化流程与 [study-key.ts](./src/hiwords/utils/study-key.ts) 完全一致；注意 JS 侧源码用的是**无参 `toLocaleLowerCase()`**（随运行环境默认 locale 变化，并非 en-US），两端移植时统一用简单小写（JS `toLowerCase()` ↔ Swift `lowercased()`），并把 i/İ、ı、全角、NFKC 等字符纳入冻结测试向量，规避语言环境差异。
 - 已知行为（v1 如实保留并写入文档与 UI 提示）：
   - Canvas 文件改名/移动后 `source` 变化，旧进度键断裂（桌面现状，不迁移）；
   - 同一词删除后重加会得到新 `nodeId`，旧进度键成为孤儿、进度重置。

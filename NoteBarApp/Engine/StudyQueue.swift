@@ -1,8 +1,9 @@
 import Foundation
 
 /// 学习 / 复习队列的纯判定逻辑，供视图与单元测试复用。
-/// 语义与参考实现（kirill-markin/flashcards-open-source-app）一致：
-/// 未经过手机端首次评分的词视为「新词」，只有首次评分后才进入复习候选。
+/// 口径与桌面插件 src/hiwords/core/flashcard-queue.ts 的 getBookReviewStats 一致：
+/// - 新词 = 还没有任何学习进度的词；
+/// - 到期 = 有进度、未掌握、且无到期日或到期日 <= 今天。
 enum StudyQueue {
     static let undatedLabel = "无日期"
     private static let masteredLifecycles: Set<String> = ["graduated", "archived", "retired"]
@@ -12,16 +13,29 @@ enum StudyQueue {
         entry.status == "mastered" || masteredLifecycles.contains(entry.lifecycle ?? "")
     }
 
-    /// 手机本地尚未开始学习（firstLearnedDate 只在手机端首次评分时写入）
-    static func isLearnable(_ entry: Entry) -> Bool {
-        entry.firstLearnedDate == nil && !isMastered(entry)
+    /// 是否已有学习进度（对应桌面 studyProgress 中有记录；手机端任一进度字段非空）
+    static func hasStudyProgress(_ entry: Entry) -> Bool {
+        entry.status != nil
+            || entry.lastReview != nil
+            || entry.dueDate != nil
+            || entry.s != nil
+            || entry.d != nil
+            || entry.lapses != nil
+            || entry.history != nil
+            || entry.lifecycle != nil
+            || entry.pinned != nil
     }
 
-    /// 手机本地已开始学习且已到期，且未掌握
+    /// 新词：没有任何学习进度且未掌握
+    static func isLearnable(_ entry: Entry) -> Bool {
+        !hasStudyProgress(entry) && !isMastered(entry)
+    }
+
+    /// 到期复习：有进度、未掌握、无到期日或到期日 <= 今天
     static func isReviewable(_ entry: Entry, today: String) -> Bool {
-        entry.firstLearnedDate != nil
-            && (entry.dueDate ?? "") <= today
+        hasStudyProgress(entry)
             && !isMastered(entry)
+            && (entry.dueDate ?? "") <= today
     }
 
     /// 听写筛选：词库（可空表示全部） + 添加日期（可空表示全部日期）

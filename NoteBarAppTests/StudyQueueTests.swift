@@ -33,29 +33,37 @@ final class StudyQueueTests: XCTestCase {
     }
 
     func testUnlearnedWordIsNotReviewable() {
-        let entry = entry(firstLearnedDate: nil, dueDate: "2020-01-01", s: 5)
+        // 没有任何进度字段 = 桌面 studyProgress 无记录 → 新词，不在复习
+        let entry = entry(firstLearnedDate: nil, dueDate: nil, s: nil)
         XCTAssertFalse(StudyQueue.isReviewable(entry, today: "2026-08-17"))
         XCTAssertTrue(StudyQueue.isLearnable(entry))
     }
 
     func testLearnedDueWordIsReviewable() {
-        let entry = entry(firstLearnedDate: "2026-08-10", dueDate: "2026-08-16", s: 5)
+        // 只要同步带来了进度（此处 dueDate）就应进入复习，与是否在手机上点过学习无关
+        let entry = entry(firstLearnedDate: nil, dueDate: "2026-08-16", s: 5)
         XCTAssertTrue(StudyQueue.isReviewable(entry, today: "2026-08-17"))
         XCTAssertFalse(StudyQueue.isLearnable(entry))
     }
 
     func testLearnedFutureWordIsNotReviewable() {
-        let entry = entry(firstLearnedDate: "2026-08-10", dueDate: "2026-08-20", s: 5)
+        let entry = entry(firstLearnedDate: nil, dueDate: "2026-08-20", s: 5)
         XCTAssertFalse(StudyQueue.isReviewable(entry, today: "2026-08-17"))
     }
 
     func testMasteredWordIsExcluded() {
-        let mastered = entry(firstLearnedDate: "2026-08-10", dueDate: "2026-08-16", status: "mastered", s: 40)
+        let mastered = entry(firstLearnedDate: nil, dueDate: "2026-08-16", status: "mastered", s: 40)
         XCTAssertFalse(StudyQueue.isReviewable(mastered, today: "2026-08-17"))
         XCTAssertFalse(StudyQueue.isLearnable(mastered))
 
-        let graduated = entry(firstLearnedDate: "2026-08-10", dueDate: "2026-08-16", lifecycle: "graduated", s: 40)
+        let graduated = entry(firstLearnedDate: nil, dueDate: "2026-08-16", lifecycle: "graduated", s: 40)
         XCTAssertFalse(StudyQueue.isReviewable(graduated, today: "2026-08-17"))
+    }
+
+    func testProgressWithoutDueDateCountsAsDue() {
+        // 与桌面一致：有进度但无到期日（如 learning 阶段）视为今日到期
+        let learning = entry(firstLearnedDate: nil, dueDate: nil, status: "learning")
+        XCTAssertTrue(StudyQueue.isReviewable(learning, today: "2026-08-17"))
     }
 
     func testDictationMatchFiltersByBookAndDates() {

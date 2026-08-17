@@ -207,7 +207,6 @@ struct ReviewView: View {
     private func rate(_ dir: Direction) {
         guard let entry = current else { return }
         let before = entry.progress
-        let isNewWord = entry.s == nil
         let grade = grade(for: dir)
         let elapsed = entry.lastReview.flatMap { ISO8601DateFormatter().date(from: $0) }
             .map { max(0, (FSRS.startOfDay(Date()).timeIntervalSince($0) / 86400).rounded()) } ?? 0
@@ -225,7 +224,7 @@ struct ReviewView: View {
             progress.status = "mastered"
             if progress.masteredAt == nil { progress.masteredAt = now }
         }
-        if isNewWord, entry.firstLearnedDate == nil {
+        if entry.firstLearnedDate == nil {
             entry.firstLearnedDate = FSRS.dayString(Date())
         }
         undoStack.append((entry, before))
@@ -260,28 +259,28 @@ struct ReviewView: View {
         let scope = books.isEmpty ? all : all.filter { books.contains($0.book) }
         var candidates = scope.filter { entry in
             !excluded.contains(entry.studyKey)
-                && !["graduated", "archived", "retired"].contains(entry.lifecycle ?? "")
+                && !StudyQueue.isMastered(entry)
         }
         switch mode {
         case .review:
             candidates = candidates
-                .filter { ($0.dueDate ?? "") <= today }
+                .filter { StudyQueue.isReviewable($0, today: today) }
                 .sorted { ($0.dueDate ?? "") < ($1.dueDate ?? "") }
         case .learn:
-            candidates = candidates.filter { $0.s == nil }
+            candidates = candidates.filter { StudyQueue.isLearnable($0) }
         }
         if candidates.isEmpty && !excluded.isEmpty {
             // 没有剩余新词时，退化为允许重复当前组
             candidates = scope.filter { entry in
-                !["graduated", "archived", "retired"].contains(entry.lifecycle ?? "")
+                !StudyQueue.isMastered(entry)
             }
             switch mode {
             case .review:
                 candidates = candidates
-                    .filter { ($0.dueDate ?? "") <= today }
+                    .filter { StudyQueue.isReviewable($0, today: today) }
                     .sorted { ($0.dueDate ?? "") < ($1.dueDate ?? "") }
             case .learn:
-                candidates = candidates.filter { $0.s == nil }
+                candidates = candidates.filter { StudyQueue.isLearnable($0) }
             }
         }
         queue = Array(candidates.prefix(limit))

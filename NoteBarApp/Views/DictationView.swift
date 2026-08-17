@@ -4,6 +4,9 @@ import SwiftData
 struct DictationView: View {
     @EnvironmentObject var appState: AppState
     @Query private var all: [Entry]
+    /// 听写范围：词库为空表示全部词库；日期为空表示全部日期
+    var books: Set<String> = []
+    var dates: Set<String> = []
     @State private var queue: [Entry] = []
     @State private var index = 0
     @State private var input = ""
@@ -174,9 +177,16 @@ struct DictationView: View {
             !excluded.contains(entry.studyKey)
                 && entry.lifecycle != "retired"
                 && entry.lifecycle != "archived"
+                && StudyQueue.dictationMatch(entry, books: books, dates: dates)
         }
         var pool = active
-        if pool.isEmpty { pool = all.filter { $0.lifecycle != "retired" && $0.lifecycle != "archived" } }
+        if pool.isEmpty {
+            pool = all.filter { entry in
+                entry.lifecycle != "retired"
+                    && entry.lifecycle != "archived"
+                    && StudyQueue.dictationMatch(entry, books: books, dates: dates)
+            }
+        }
         queue = Array(pool.shuffled().prefix(appState.settings.dictationPerSession))
         resetSession()
     }

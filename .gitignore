@@ -18,3 +18,4 @@ release/
 DerivedData/
 *.xcuserstate
 xcuserdata/
+.summer/

@@ -9,13 +9,12 @@ struct HomeView: View {
         let today = FSRS.dayString(Date())
         return entries.filter { entry in
             if let book, entry.book != book { return false }
-            guard let due = entry.dueDate, due <= today else { return false }
-            return !["graduated", "archived", "retired"].contains(entry.lifecycle ?? "")
+            return StudyQueue.isReviewable(entry, today: today)
         }.count
     }
 
     private var newCount: Int {
-        entries.filter { $0.s == nil && ($0.lifecycle == nil || $0.lifecycle == "active") }.count
+        entries.filter { StudyQueue.isLearnable($0) }.count
     }
 
     private var books: [String] {
@@ -55,7 +54,7 @@ struct HomeView: View {
                         }
                         .buttonStyle(.plain)
                         NavigationLink {
-                            DictationView()
+                            DictationBookPickerView()
                         } label: {
                             HomeActionButton(title: "开始听写", icon: "pencil.and.list.clipboard", animal: "cat", delay: 1.05, color: Theme.hardGray, isActive: isActive)
                         }

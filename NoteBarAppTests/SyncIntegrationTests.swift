@@ -112,9 +112,15 @@ final class SyncIntegrationTests: XCTestCase {
     }
 
     /// 不把本机用户名硬编码进测试：优先环境变量，其次用当前用户主目录拼出 iCloud 路径。
-    /// 模拟器里 getpwuid 返回宿主机用户主目录，真机则返回 /var/mobile。
+    /// 模拟器进程的 HOME 指向宿主机用户主目录；getpwuid 非线程安全，仅作兜底。
     private static var defaultSyncDir: String {
-        let home = String(cString: getpwuid(getuid()).pointee.pw_dir)
+        if let home = ProcessInfo.processInfo.environment["HOME"] {
+            return home + "/Library/Mobile Documents/com~apple~CloudDocs/NoteBar"
+        }
+        guard let pw = getpwuid(getuid()), let dir = pw.pointee.pw_dir else {
+            return "/var/mobile/Library/Mobile Documents/com~apple~CloudDocs/NoteBar"
+        }
+        let home = String(cString: dir)
         return home + "/Library/Mobile Documents/com~apple~CloudDocs/NoteBar"
     }
 

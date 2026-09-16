@@ -48,7 +48,9 @@ export class DictionaryService {
                 model,
                 messages: [{ role: 'user', content: prompt }],
                 temperature: 0.3,
-                max_tokens: 500
+                // 4096：推理模型（deepseek-flash/reasoner 等）会把预算先花在 reasoning tokens 上，
+                // 500 会在输出正文前被截断，导致 content 为空。可用 extraParams 覆盖。
+                max_tokens: 4096
             }),
             buildHeaders: (apiKey: string) => ({ 'Authorization': `Bearer ${apiKey}` }),
             extractResponse: (data: unknown) => readStringPath(data, ['choices', 0, 'message', 'content']),
@@ -179,7 +181,13 @@ export class DictionaryService {
         body = this.mergeExtraParams(body);
         const data = await this.makeRequestWithRetry(url, headers, body);
         const content = adapter.extractResponse(data);
-        if (!content) throw new Error('API 返回了无效的响应格式');
+        if (!content) {
+            const finishReason = readStringPath(data, ['choices', 0, 'finish_reason'])
+                ?? readStringPath(data, ['candidates', 0, 'finishReason']);
+            throw new Error(finishReason === 'length' || finishReason === 'MAX_TOKENS'
+                ? 'AI 输出被截断（推理模型的思考消耗了全部 max_tokens），请在 AI 服务设置的额外参数中调大 max_tokens'
+                : 'API 返回了无效的响应格式');
+        }
         const result = content.trim();
         this.cache.set(cacheKey, { content: result, timestamp: Date.now() });
         return this.parseDefinitionResponse(result);

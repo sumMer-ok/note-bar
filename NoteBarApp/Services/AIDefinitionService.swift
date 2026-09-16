@@ -5,7 +5,7 @@ struct AIDefinitionResult: Sendable {
     var aliases: [String]
 }
 
-enum AIDefinitionError: LocalizedError {
+enum AIDefinitionError: LocalizedError, Equatable {
     case invalidWord
     case missingURL
     case missingKey
@@ -13,6 +13,7 @@ enum AIDefinitionError: LocalizedError {
     case invalidURL
     case http(Int)
     case invalidResponse
+    case truncated
 
     var errorDescription: String? {
         switch self {
@@ -23,6 +24,7 @@ enum AIDefinitionError: LocalizedError {
         case .invalidURL: return "API 地址格式无效"
         case .http(let code): return "HTTP \(code)"
         case .invalidResponse: return "API 返回了无效的响应格式"
+        case .truncated: return "AI 输出被截断（推理模型的思考消耗了全部 max_tokens），请调大模型或更换模型"
         }
     }
 }
@@ -81,7 +83,8 @@ enum AIDefinitionService {
             "model": config.model,
             "messages": [["role": "user", "content": prompt]],
             "temperature": 0.3,
-            "max_tokens": 500,
+            // 4096：推理模型会先把预算花在 reasoning tokens 上，500 会导致 content 为空
+            "max_tokens": 4096,
         ]
         if let data = config.extraParams.data(using: .utf8),
            let extra = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] {
@@ -103,6 +106,15 @@ enum AIDefinitionService {
               let message = choices.first?["message"] as? [String: Any],
               let content = message["content"] as? String else {
             throw AIDefinitionError.invalidResponse
+        }
+        return try parseContent(content, finishReason: choices.first?["finish_reason"] as? String)
+    }
+
+    /// 空内容说明请求成功但正文没吐出来：finish_reason=length 即被 max_tokens 截断（推理模型常见）。
+    /// 直接报错，避免把空字符串当作生成结果写回释义。
+    static func parseContent(_ content: String, finishReason: String?) throws -> AIDefinitionResult {
+        guard !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw finishReason == "length" ? AIDefinitionError.truncated : AIDefinitionError.invalidResponse
         }
         return parse(content)
     }

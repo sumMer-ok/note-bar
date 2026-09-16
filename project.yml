@@ -34,6 +34,9 @@ targets:
     platform: iOS
     sources:
       - NoteBarAppTests
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
     dependencies:
       - target: NoteBarApp
     resources:
@@ -43,5 +46,8 @@ targets:
     platform: iOS
     sources:
       - NoteBarAppUITests
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
     dependencies:
       - target: NoteBarApp

@@ -38,4 +38,14 @@ final class AIDefinitionServiceTests: XCTestCase {
         XCTAssertEqual(result.definition, "这是一段纯文本释义")
         XCTAssertTrue(result.aliases.isEmpty)
     }
+
+    func testEmptyContentIsRejected() {
+        XCTAssertThrowsError(try AIDefinitionService.parseContent("", finishReason: "length")) { error in
+            XCTAssertEqual(error as? AIDefinitionError, .truncated)
+        }
+        XCTAssertThrowsError(try AIDefinitionService.parseContent("   \n ", finishReason: "stop")) { error in
+            XCTAssertEqual(error as? AIDefinitionError, .invalidResponse)
+        }
+        XCTAssertEqual(try AIDefinitionService.parseContent("释义", finishReason: "stop").definition, "释义")
+    }
 }

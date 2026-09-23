@@ -59,7 +59,15 @@ note-bar/
 │   │   ├── services/          # 本地词典、AI 词典、翻译服务
 │   │   ├── ui/                # 弹窗、侧边栏、阅读模式高亮
 │   │   └── utils/             # Trie、句子提取、高亮工具、类型等
-│   └── utils/                 # 通用工具（editor-formatter、position-calc）
+│   ├── utils/                 # 通用工具（editor-formatter、position-calc）
+│   └── sync/                  # 手机同步 + 跨应用加词收件箱
+│       ├── sync-manager.ts    # 同步编排：Canvas 镜像 + 边车导入导出 + 收件箱消费
+│       ├── mirrorer.ts        # Canvas 双向镜像与冲突副本识别
+│       ├── sync-exporter.ts / sync-importer.ts / sidecar-store.ts / merge.ts / study-key.ts
+│       ├── inbox-types.ts     # 跨应用加词收件箱协议类型与单行解析
+│       ├── inbox-store.ts     # 收件箱路径约定、原子写、失败归档、消费状态
+│       ├── inbox-importer.ts  # 收件箱消费循环（目标词库解析、幂等去重、失败归档、坏行保留）
+│       └── inbox-vocabulary-adapter.ts  # 收件箱端口 → VocabularyManager
 ├── HiWords/                   # 上游参考子项目（完整独立插件）
 └── documents/                 # 项目规划文档
 ```
@@ -144,6 +152,14 @@ note-bar/
 - 命令：`Note Bar: 导出单词本为 Excel`
 - 按添加日期（含“无日期”选项）过滤单词本。
 - 输出 UTF-8 BOM CSV，文件名形如 `单词本-export-2026-07-25.csv`。
+
+### 3.10 跨应用加词收件箱 `src/sync/inbox-*.ts`
+
+- `inbox-types.ts`：协议类型与单行解析（`InboxEntry` / `parseInboxLine` / `normalizeAliases`）。
+- `inbox-store.ts`：路径约定、原子写、失败归档、消费状态（`note-bar-inbox.state.json`）。
+- `inbox-importer.ts`：消费循环（目标词库解析、幂等去重、失败归档、坏行保留）。
+- `inbox-vocabulary-adapter.ts`：把收件箱端口映射到 `VocabularyManager`（只允许 `import type`，保证可单测）。
+- 协议文件：`note-bar-inbox.jsonl`（助手追加写）/ `note-bar-inbox.failed.jsonl` / `note-bar-inbox.state.json`。
 
 ## 4. 构建流程
 
@@ -237,6 +253,7 @@ npm run build:dictionary
 - **点击来源跳转**：在释义弹窗中点击来源可定位到 Canvas 对应节点并进入编辑状态。
 - **导出 CSV**：支持按日期过滤导出单词本为 Excel（CSV 格式）。
 - **分支 `words-remember`**：当前工作分支，用于后续“记单词”相关功能开发。
+- **跨应用加词收件箱**：macOS 划词助手写入 JSONL，插件消费落库；新增 `crossAppInbox` 设置与 `Note Bar: 导入跨应用词条` 命令。
 
 ## 8. 快速参考
 

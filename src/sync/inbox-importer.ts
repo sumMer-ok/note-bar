@@ -1,6 +1,15 @@
 import type { InboxEntry } from "./inbox-types";
 import { normalizeAliases, parseInboxLine } from "./inbox-types";
-import { inboxPathFor, readInboxText, writeInboxAtomic } from "./inbox-store";
+import {
+  appendLines,
+  inboxFailedPathFor,
+  inboxPathFor,
+  inboxStatePathFor,
+  readInboxState,
+  readInboxText,
+  writeInboxAtomic,
+  writeInboxState,
+} from "./inbox-store";
 
 /** 落库端口：生产由 inbox-vocabulary-adapter 实现，测试注入假实现 */
 export interface InboxVocabularyPort {
@@ -32,6 +41,9 @@ export interface InboxImportResult {
   duplicatesDropped: number;
 }
 
+/** processedIds 环形窗口上限，防止状态文件无限增长 */
+export const PROCESSED_ID_LIMIT = 500;
+
 /** 目标词库 = 条目指定 ∩ 已启用；为空则回落到默认词库 ∩ 已启用 */
 function resolveTargets(entry: InboxEntry, options: InboxImportOptions): string[] {
   const enabled = new Set(options.books);
@@ -56,16 +68,20 @@ async function buildEffectiveEntry(
   return { ...entry, definition, aliases };
 }
 
+type ApplyOutcome =
+  | { kind: "done" }
+  | { kind: "archive"; reason: string };
+
 /** 处理单条：任一目标词库成功即视为已处理（部分失败计入 failed 但不阻塞） */
 async function applyEntry(
   entry: InboxEntry,
   options: InboxImportOptions,
   result: InboxImportResult
-): Promise<"done" | "retry"> {
+): Promise<ApplyOutcome> {
   const targets = resolveTargets(entry, options);
   if (targets.length === 0) {
     result.failed++;
-    return "retry";
+    return { kind: "archive", reason: "no-target-book" };
   }
 
   const effective = await buildEffectiveEntry(entry, options.port);
@@ -100,12 +116,13 @@ async function applyEntry(
     }
   }
 
-  return touched > 0 ? "done" : "retry";
+  if (touched > 0) return { kind: "done" };
+  return { kind: "archive", reason: "apply-failed" };
 }
 
 /**
- * 消费收件箱：逐行解析 → 落库 → 成功行移除、坏行与重试行保留。
- * 后续任务会在失败分支上追加归档与幂等状态，本任务先保证正向通路与坏行容错。
+ * 消费收件箱：逐行解析 → 落库 → 成功行移除、坏行保留。
+ * 失败条目归档到 .failed.jsonl 并从收件箱移除，避免下一轮无限重试同一条失败条目。
  */
 export async function importInbox(options: InboxImportOptions): Promise<InboxImportResult> {
   const result: InboxImportResult = {
@@ -118,14 +135,21 @@ export async function importInbox(options: InboxImportOptions): Promise<InboxImp
   };
 
   const filePath = inboxPathFor(options.syncDir);
+  const statePath = inboxStatePathFor(options.syncDir);
   const text = await readInboxText(filePath);
   if (text.length === 0) return result;
+
+  const state = await readInboxState(statePath);
+  const processed = new Set(state.processedIds);
 
   const endsWithNewline = text.endsWith("\n");
   const rawLines = text.split("\n");
   if (endsWithNewline) rawLines.pop();
 
   const remaining: string[] = [];
+  const archived: string[] = [];
+  const now = options.now ? options.now() : new Date();
+
   for (const rawLine of rawLines) {
     const parsed = parseInboxLine(rawLine);
     if (!parsed.ok) {
@@ -133,12 +157,34 @@ export async function importInbox(options: InboxImportOptions): Promise<InboxImp
       remaining.push(rawLine);
       continue;
     }
+
+    // 助手写入成功但自身崩溃后重试时，靠 id 幂等丢弃重复投递
+    if (processed.has(parsed.entry.id)) {
+      result.duplicatesDropped++;
+      continue;
+    }
+
     const outcome = await applyEntry(parsed.entry, options, result);
-    if (outcome === "retry") remaining.push(rawLine);
+    if (outcome.kind === "archive") {
+      archived.push(
+        JSON.stringify({
+          ...parsed.entry,
+          reason: outcome.reason,
+          archivedAt: now.toISOString(),
+        })
+      );
+      continue;
+    }
+    processed.add(parsed.entry.id);
   }
 
+  await appendLines(inboxFailedPathFor(options.syncDir), archived);
   if (remaining.length !== rawLines.length) {
     await writeInboxAtomic(filePath, remaining.length > 0 ? `${remaining.join("\n")}\n` : "");
   }
+
+  const processedIds = [...processed].slice(-PROCESSED_ID_LIMIT);
+  await writeInboxState(statePath, { processedIds, lastRunAt: now.toISOString() });
+
   return result;
 }

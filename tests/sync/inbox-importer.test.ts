@@ -4,7 +4,15 @@ import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { INBOX_VERSION, type InboxEntry } from "../../src/sync/inbox-types";
-import { inboxPathFor, readInboxText, writeInboxAtomic } from "../../src/sync/inbox-store";
+import {
+  appendLines,
+  inboxFailedPathFor,
+  inboxPathFor,
+  inboxStatePathFor,
+  readInboxState,
+  readInboxText,
+  writeInboxAtomic,
+} from "../../src/sync/inbox-store";
 import { importInbox, type InboxImportOptions, type InboxVocabularyPort } from "../../src/sync/inbox-importer";
 
 interface AddCall { bookPath: string; entry: InboxEntry }
@@ -196,7 +204,7 @@ test("坏行原样保留在收件箱，不影响其他条目处理", async () =>
   });
 });
 
-test("全部落库失败时条目留在收件箱等待重试", async () => {
+test("全部落库失败时条目归档到 failed 文件并移出收件箱", async () => {
   await withSyncDir(async (dir) => {
     const { port } = makePort({ failAddFor: ["Words/AI Agent.canvas"] });
     const original = `${line({ id: "1", word: "sue" })}\n`;
@@ -206,11 +214,14 @@ test("全部落库失败时条目留在收件箱等待重试", async () => {
 
     assert.equal(result.failed, 1);
     assert.equal(result.added, 0);
-    assert.equal(await readInboxText(inboxPathFor(dir)), original);
+    assert.equal(await readInboxText(inboxPathFor(dir)), "");
+    const archived = JSON.parse((await readInboxText(inboxFailedPathFor(dir))).trim());
+    assert.equal(archived.id, "1");
+    assert.equal(archived.reason, "apply-failed");
   });
 });
 
-test("没有可用目标词库时判失败并保留条目", async () => {
+test("没有可用目标词库时判失败并归档（reason=no-target-book）", async () => {
   await withSyncDir(async (dir) => {
     const { port } = makePort();
     await writeInboxAtomic(inboxPathFor(dir), `${line({ id: "1", word: "sue" })}\n`);
@@ -224,7 +235,10 @@ test("没有可用目标词库时判失败并保留条目", async () => {
     });
 
     assert.equal(result.failed, 1);
-    assert.equal(await readInboxText(inboxPathFor(dir)), `${line({ id: "1", word: "sue" })}\n`);
+    assert.equal(await readInboxText(inboxPathFor(dir)), "");
+    const archived = JSON.parse((await readInboxText(inboxFailedPathFor(dir))).trim());
+    assert.equal(archived.id, "1");
+    assert.equal(archived.reason, "no-target-book");
   });
 });
 
@@ -259,5 +273,73 @@ test("一条条目可同时落多个词库", async () => {
 
     assert.equal(result.added, 2);
     assert.equal(added.length, 2);
+  });
+});
+
+test("失败的条目归档到 failed 文件并从收件箱移除", async () => {
+  await withSyncDir(async (dir) => {
+    const { port } = makePort({ failAddFor: ["Words/AI Agent.canvas"] });
+    await writeInboxAtomic(inboxPathFor(dir), `${line({ id: "bad-1", word: "sue" })}\n`);
+
+    const result = await importInbox(baseOptions(dir, port));
+
+    assert.equal(result.failed, 1);
+    assert.equal(await readInboxText(inboxPathFor(dir)), "");
+    const failed = await readInboxText(inboxFailedPathFor(dir));
+    const archived = JSON.parse(failed.trim());
+    assert.equal(archived.id, "bad-1");
+    assert.equal(archived.reason, "apply-failed");
+    assert.equal(typeof archived.archivedAt, "string");
+  });
+});
+
+test("成功处理的 id 记入状态文件，重复投递被幂等丢弃", async () => {
+  await withSyncDir(async (dir) => {
+    const { port, added } = makePort();
+    const payload = line({ id: "dup-1", word: "sue" });
+    await writeInboxAtomic(inboxPathFor(dir), `${payload}\n`);
+    await importInbox(baseOptions(dir, port));
+    assert.equal(added.length, 1);
+
+    await writeInboxAtomic(inboxPathFor(dir), `${payload}\n`);
+    const second = await importInbox(baseOptions(dir, port));
+
+    assert.equal(second.added, 0);
+    assert.equal(second.duplicatesDropped, 1);
+    assert.equal(added.length, 1);
+    assert.equal(await readInboxText(inboxPathFor(dir)), "");
+
+    const state = await readInboxState(inboxStatePathFor(dir));
+    assert.deepEqual(state.processedIds, ["dup-1"]);
+    assert.equal(typeof state.lastRunAt, "string");
+  });
+});
+
+test("processedIds 环形上限 500，最旧的被挤出", async () => {
+  await withSyncDir(async (dir) => {
+    const { port } = makePort();
+    const lines = Array.from({ length: 501 }, (_, i) => line({ id: `id-${i}`, word: `w${i}` }));
+    await writeInboxAtomic(inboxPathFor(dir), `${lines.join("\n")}\n`);
+
+    await importInbox(baseOptions(dir, port));
+
+    const state = await readInboxState(inboxStatePathFor(dir));
+    assert.equal(state.processedIds.length, 500);
+    assert.equal(state.processedIds.includes("id-0"), false);
+    assert.equal(state.processedIds.includes("id-500"), true);
+  });
+});
+
+test("坏行不计入幂等状态，仍保留在收件箱", async () => {
+  await withSyncDir(async (dir) => {
+    const { port } = makePort();
+    await writeInboxAtomic(inboxPathFor(dir), "{broken\n");
+
+    const result = await importInbox(baseOptions(dir, port));
+
+    assert.equal(result.badLines, 1);
+    assert.equal(await readInboxText(inboxPathFor(dir)), "{broken\n");
+    const state = await readInboxState(inboxStatePathFor(dir));
+    assert.deepEqual(state.processedIds, []);
   });
 });

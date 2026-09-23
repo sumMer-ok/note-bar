@@ -1,2 +1,100 @@
-<!doctype html><html lang="zh"><head><meta charset="utf-8"><title>加入词库</title></head>
-<body><p>占位表单，Task 7 替换。</p></body></html>
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<style>
+  :root { color-scheme: light dark; }
+  body { font: 13px -apple-system, "PingFang SC", sans-serif; margin: 0; padding: 12px;
+         background: var(--bg, #fff); color: var(--fg, #111); }
+  h1 { font-size: 13px; margin: 0 0 8px; font-weight: 600; }
+  .word { font-size: 16px; font-weight: 600; margin-bottom: 6px; }
+  label { display: block; margin: 8px 0 3px; font-size: 12px; opacity: .75; }
+  input, textarea, select { width: 100%; box-sizing: border-box; font: inherit; padding: 4px 6px;
+                            border: 1px solid rgba(128,128,128,.4); border-radius: 5px;
+                            background: rgba(128,128,128,.08); color: inherit; }
+  textarea { height: 62px; resize: vertical; }
+  .books { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+  .books label { display: flex; align-items: center; gap: 4px; margin: 0; font-size: 12px; opacity: 1; }
+  .row { display: flex; gap: 10px; align-items: flex-end; }
+  .row > div { flex: 1; }
+  .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+  button { font: inherit; padding: 4px 12px; border-radius: 5px; border: 1px solid rgba(128,128,128,.4);
+           background: rgba(128,128,128,.12); cursor: pointer; }
+  button.primary { background: #4c6ef5; border-color: #4c6ef5; color: #fff; }
+  .src { font-size: 11px; opacity: .6; margin-top: 8px; }
+</style>
+</head>
+<body>
+  <h1>加入词库</h1>
+  <div class="word" id="word"></div>
+
+  <label for="definition">释义</label>
+  <textarea id="definition" placeholder="可留空，插件会用本地词典补全"></textarea>
+
+  <div class="row">
+    <div>
+      <label for="aliases">别名（逗号分隔）</label>
+      <input id="aliases" placeholder="如 considerations, consider">
+    </div>
+    <div style="flex:0 0 96px">
+      <label for="color">卡片颜色</label>
+      <select id="color">
+        <option value="">默认</option>
+        <option value="1">红</option><option value="2">橙</option><option value="3">黄</option>
+        <option value="4">绿</option><option value="5">青</option><option value="6">紫</option>
+      </select>
+    </div>
+  </div>
+
+  <label>目标单词本（仅 .canvas）</label>
+  <div class="books" id="books"></div>
+
+  <label for="sentence">例句（来自选区上下文）</label>
+  <input id="sentence" readonly>
+
+  <div class="actions">
+    <button id="cancel">取消</button>
+    <button class="primary" id="submit">加入词库</button>
+  </div>
+  <div class="src" id="src"></div>
+
+<script>
+  const post = (payload) => window.webkit.messageHandlers.nbh.postMessage(payload);
+  let init = null;
+
+  window.nbhInit = (payload) => {
+    init = payload;
+    document.getElementById('word').textContent = payload.word;
+    document.getElementById('sentence').value = payload.sentence || '';
+    document.getElementById('definition').value = payload.definition || '';
+    document.getElementById('aliases').value = (payload.aliases || []).join(', ');
+    document.getElementById('src').textContent =
+      `来源：${payload.originApp || '未知应用'}｜取词方式：${payload.source}`;
+    const box = document.getElementById('books');
+    box.innerHTML = '';
+    for (const book of payload.books) {
+      const wrap = document.createElement('label');
+      const cb = document.createElement('input');
+      cb.type = 'checkbox'; cb.value = book.path; cb.checked = book.defaultChecked;
+      wrap.appendChild(cb);
+      wrap.appendChild(document.createTextNode(book.name));
+      box.appendChild(wrap);
+    }
+  };
+
+  document.getElementById('submit').onclick = () => {
+    const books = [...document.querySelectorAll('#books input:checked')].map(i => i.value);
+    post({ action: 'submit', books,
+           definition: document.getElementById('definition').value,
+           aliases: document.getElementById('aliases').value,
+           color: document.getElementById('color').value,
+           sentence: document.getElementById('sentence').value });
+  };
+  document.getElementById('cancel').onclick = () => post({ action: 'cancel' });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') post({ action: 'cancel' });
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) document.getElementById('submit').click();
+  });
+</script>
+</body>
+</html>

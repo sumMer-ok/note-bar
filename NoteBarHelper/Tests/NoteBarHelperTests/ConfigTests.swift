@@ -45,4 +45,25 @@ final class ConfigTests: XCTestCase {
         let missing = FileManager.default.temporaryDirectory.appendingPathComponent("nope-\(UUID().uuidString).json")
         XCTAssertEqual(HelperConfig.load(from: missing).hotkey, HelperConfig.fallbackHotkey)
     }
+
+    /// 设置窗口保存的路径：改热键 / vault / 收件箱覆盖后必须能原样读回
+    func testHelperConfigSavePersistsEditedFields() throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("helper-\(UUID().uuidString).json")
+        var cfg = HelperConfig(vaultPath: "/tmp/vault", inboxDirOverride: nil, hotkey: "alt+shift+d")
+        cfg.save(to: url)
+
+        cfg.hotkey = "cmd+shift+1"
+        cfg.vaultPath = "/Users/x/Documents/Library"
+        cfg.inboxDirOverride = "/tmp/nb-inbox"
+        cfg.save(to: url)
+
+        let reloaded = HelperConfig.load(from: url)
+        XCTAssertEqual(reloaded.hotkey, "cmd+shift+1")
+        XCTAssertEqual(reloaded.vaultPath, "/Users/x/Documents/Library")
+        XCTAssertEqual(reloaded.inboxDirOverride, "/tmp/nb-inbox")
+
+        cfg.inboxDirOverride = nil
+        cfg.save(to: url)
+        XCTAssertNil(HelperConfig.load(from: url).inboxDirOverride, "清空覆盖值后应留空而不是报错")
+    }
 }

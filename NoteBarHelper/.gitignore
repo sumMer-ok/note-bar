@@ -1,0 +1,3 @@
+# SwiftPM 构建产物与打包输出（原本每次 git status 都出现两个未跟踪目录）
+.build/
+dist/

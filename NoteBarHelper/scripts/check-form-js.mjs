@@ -90,4 +90,35 @@ assert('color' in submit && 'books' in submit, 'submit 仍带 color/books');
 // 9) nbhStatus 入口
 api.nbhStatus('一句话', true);
 assert(els['ai-status'].className.includes('err'), 'nbhStatus 支持错误样式');
+
+// 10) 样式回归护栏：全局 width:100% 绝不能命中复选框。
+// 现场 bug：`input, textarea, select { width: 100% }` 把 checkbox 拉成整行宽，
+// 后面的词库名被挤成竖排一列一个字；1 个词库看不出来，3 个就暴露。
+const styleBlock = [...html.matchAll(/<style>([\s\S]*?)<\/style>/g)].map(m => m[1]).join('\n')
+  .replace(/\/\*[\s\S]*?\*\//g, '');   // 去掉注释，否则 /* ... */ 会粘在后面的选择器上
+const rules = [...styleBlock.matchAll(/(^|\n)\s*([^{}]+)\{([^{}]*)\}/g)]
+  .map(m => ({ selector: m[2].trim().replace(/\s+/g, ' '), body: m[3] }));
+const widthFullOnCheckbox = rules.filter(r =>
+  r.body.includes('width: 100%') &&
+  r.selector.split(',').some(part => part.trim() === 'input'));
+assert(widthFullOnCheckbox.length === 0, '全局 width:100% 不得命中裸 input（复选框会被拉成整行宽）');
+
+const checkboxRule = rules.find(r => r.selector.split(',').some(p => p.trim() === 'input[type="checkbox"]'));
+assert(!!checkboxRule, '存在 input[type="checkbox"] 的显式尺寸规则');
+assert(/width:\s*13px/.test(checkboxRule?.body ?? '') && /flex:\s*0 0 auto/.test(checkboxRule?.body ?? ''),
+       '复选框固定 13px 且不参与 flex 伸缩');
+
+const booksRule = rules.find(r => r.selector === '.books');
+assert(/display:\s*flex/.test(booksRule?.body ?? '') && /flex-wrap:\s*wrap/.test(booksRule?.body ?? ''),
+       '.books 仍是可换行的 flex 容器');
+const booksLabelRule = rules.find(r => r.selector === '.books label');
+assert(/white-space:\s*nowrap/.test(booksLabelRule?.body ?? '') && /display:\s*inline-flex/.test(booksLabelRule?.body ?? ''),
+       '.books label 仍是 inline-flex + nowrap（词库名不逐字折行）');
+
+// 复选框的 DOM 结构也没变：label > input[type=checkbox] + 文本
+const firstBook = els.books.children[0];
+const bookInput = firstBook?.children?.[0];
+assert(bookInput?.type === 'checkbox' && firstBook.children.length === 2,
+       '词库项仍是 label > input + 文本（CSS 的 :not([type=checkbox]) 依赖它）');
+
 console.log(process.exitCode ? 'JS 检查失败' : 'JS 检查全部通过');

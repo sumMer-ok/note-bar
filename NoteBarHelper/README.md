@@ -117,11 +117,15 @@ swift test
   NOTEBAR_TEST_WORD=consideration swift test --filter testRealDictionary
   ```
 
-- 浮窗表单（`Resources/form.html`）的 JS 冒烟检查（用最小 DOM 桩，不需要开窗口）：
+- 浮窗表单（`Resources/form.html`）的 JS + 样式冒烟检查（用最小 DOM 桩，不需要开窗口）：
 
   ```bash
   node scripts/check-form-js.mjs Sources/NoteBarHelper/Resources/form.html
   ```
+
+  它除了验证 `nbhInit`/`nbhFill`/`nbhFillAI`/submit 载荷形状，还会守住两条现场踩过的坑：
+  「全局 `width:100%` 不得命中裸 `input`」（否则复选框被拉成整行宽、词库名被挤成竖排一列一个字）
+  与「`.books label` 必须 `inline-flex` + `nowrap`」。
 
 - 跨语言协议由 `Tests/Fixtures/inbox-sample.jsonl` 保证：先跑 `swift test` 生成样本，
   再在仓库根跑 `npm test`（`tests/sync/inbox-helper-contract.test.ts` 用插件侧 `parseInboxLine` 解析该样本）。

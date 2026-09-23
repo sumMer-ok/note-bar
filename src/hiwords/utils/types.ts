@@ -264,6 +264,15 @@ export interface MobileSyncSettings {
     pollIntervalSec: number;
 }
 
+/** 跨应用加词收件箱设置（macOS 划词助手写入，插件消费落库） */
+export interface CrossAppInboxSettings {
+    enabled: boolean;
+    /** 收件箱所在目录；留空时回落到 mobileSync.syncDir */
+    syncDir: string;
+    /** 词条已存在时的处理策略 */
+    duplicatePolicy: "skip" | "update";
+}
+
 /** 相遇记录：同一单词在插件内的相遇次数统计（key 为 wordKey，即 studyKey 或 word 小写） */
 export interface EncounterData {
     /** 悬停查看释义次数 */
@@ -321,6 +330,8 @@ export interface HiWordsSettings {
     studyProgress?: Record<string, StudyProgressItem>;
     /** 手机同步（iOS App） */
     mobileSync?: MobileSyncSettings;
+    /** 跨应用加词收件箱（macOS 划词助手） */
+    crossAppInbox?: CrossAppInboxSettings;
     flashcard?: FlashcardSettings;
     showDefinitionOnHover: boolean;
     enableAutoHighlight: boolean;

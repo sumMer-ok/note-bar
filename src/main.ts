@@ -93,6 +93,11 @@ const DEFAULT_HIWORDS_SETTINGS: HiWordsSettings = {
     syncDir: '',
     pollIntervalSec: 15,
   },
+  crossAppInbox: {
+    enabled: false,
+    syncDir: '',
+    duplicatePolicy: 'skip',
+  },
 };
 
 interface HiWordsRefreshHooks {
@@ -220,6 +225,24 @@ export default class NoteBarPlugin extends Plugin {
       name: '开始闪卡复习',
       callback: () => {
         new FlashcardBookPickerModal(this.app, this).open();
+      }
+    });
+
+    // 命令：导入跨应用词条（手动兜底触发）
+    this.addCommand({
+      id: 'note-bar-import-inbox',
+      name: '导入跨应用词条',
+      callback: () => {
+        void (async () => {
+          const result = await this.syncManager?.importInboxNow();
+          if (!result) {
+            new Notice('请先配置收件箱目录（或启用手机同步）');
+            return;
+          }
+          new Notice(
+            `收件箱：新增 ${result.added}，更新 ${result.updated}，跳过 ${result.skipped}，失败 ${result.failed}，坏行 ${result.badLines}`
+          );
+        })();
       }
     });
 
@@ -1117,6 +1140,51 @@ class NoteBarSettingTab extends PluginSettingTab {
           const result = await this.plugin.syncManager?.importAll();
           new Notice(`导入完成：合并 ${result?.mergedKeys ?? 0} 个进度键`);
         })
+      );
+
+    // 跨应用加词收件箱
+    containerEl.createEl('h3', { text: '跨应用加词（macOS 划词助手）' });
+    const crossAppInbox = this.plugin.hiwordsSettings.crossAppInbox ?? {
+      enabled: false,
+      syncDir: "",
+      duplicatePolicy: "skip" as const,
+    };
+    this.plugin.hiwordsSettings.crossAppInbox = crossAppInbox;
+
+    new Setting(containerEl)
+      .setName("启用跨应用加词")
+      .setDesc("监听收件箱文件，把 macOS 划词助手提交的词条写入词库")
+      .addToggle((toggle) =>
+        toggle.setValue(crossAppInbox.enabled).onChange(async (value) => {
+          crossAppInbox.enabled = value;
+          await this.plugin.saveHiWordsSettings();
+        })
+      );
+
+    new Setting(containerEl)
+      .setName("收件箱目录")
+      .setDesc("留空则与手机同步目录一致；收件箱文件名为 note-bar-inbox.jsonl")
+      .addButton((button) =>
+        button.setButtonText("选择目录").onClick(async () => {
+          const dir = await pickDirectory();
+          if (!dir) return;
+          crossAppInbox.syncDir = dir;
+          await this.plugin.saveHiWordsSettings();
+        })
+      );
+
+    new Setting(containerEl)
+      .setName("词条已存在时")
+      .setDesc("跳过：保留既有释义；更新释义：用收件箱条目覆盖")
+      .addDropdown((dropdown) =>
+        dropdown
+          .addOption("skip", "跳过")
+          .addOption("update", "更新释义")
+          .setValue(crossAppInbox.duplicatePolicy)
+          .onChange(async (value) => {
+            crossAppInbox.duplicatePolicy = value === "update" ? "update" : "skip";
+            await this.plugin.saveHiWordsSettings();
+          })
       );
   }
 }

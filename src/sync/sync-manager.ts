@@ -59,7 +59,8 @@ export class SyncManager {
     // 先导入手机进度，再把合并结果导出回边车
     await this.importAll();
     await this.exportAll(true);
-    this.startInboxWatch(cfg.syncDir, cfg.pollIntervalSec || 15);
+    const inboxDir = this.plugin.hiwordsSettings.crossAppInbox?.syncDir || cfg.syncDir;
+    this.startInboxWatch(inboxDir, cfg.pollIntervalSec || 15);
     await this.importInboxNow();
   }
 
@@ -184,7 +185,8 @@ export class SyncManager {
   /** 消费一次收件箱；未启用手机同步或未配置目录时返回 null */
   async importInboxNow(): Promise<InboxImportResult | null> {
     const cfg = this.config;
-    if (!cfg?.syncDir || !this.plugin.vocabularyManager) return null;
+    const inboxDir = this.plugin.hiwordsSettings.crossAppInbox?.syncDir || cfg?.syncDir;
+    if (!inboxDir || !this.plugin.vocabularyManager) return null;
 
     const books = this.plugin.hiwordsSettings.vocabularyBooks
       .filter((book) => book.enabled && book.path.endsWith(".canvas"))
@@ -196,7 +198,7 @@ export class SyncManager {
     });
 
     const result = await importInbox({
-      syncDir: cfg.syncDir,
+      syncDir: inboxDir,
       books,
       defaultBooks: this.plugin.hiwordsSettings.defaultVocabularyBookPaths ?? [],
       duplicatePolicy: this.plugin.hiwordsSettings.crossAppInbox?.duplicatePolicy ?? "skip",

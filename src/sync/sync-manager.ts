@@ -1,7 +1,10 @@
 import { Notice } from "obsidian";
 import { watch, type FSWatcher } from "fs";
 import type NoteBarPlugin from "../main";
+import { getLocalDictionaryService } from "../hiwords/services/local-dictionary-service";
 import { Mirrorer } from "./mirrorer";
+import { createInboxVocabularyPort } from "./inbox-vocabulary-adapter";
+import { importInbox, type InboxImportResult } from "./inbox-importer";
 import { exportProgressToSidecars } from "./sync-exporter";
 import { importSidecars } from "./sync-importer";
 import type { SyncExportResult, SyncImportResult } from "./types";
@@ -13,6 +16,9 @@ export class SyncManager {
   private importTimer: ReturnType<typeof setTimeout> | null = null;
   private importPollTimer: ReturnType<typeof setInterval> | null = null;
   private sidecarWatcher: FSWatcher | null = null;
+  private inboxWatcher: FSWatcher | null = null;
+  private inboxPollTimer: ReturnType<typeof setInterval> | null = null;
+  private inboxTimer: ReturnType<typeof setTimeout> | null = null;
   private exportResolve: (() => void) | null = null;
   private running = false;
   readonly conflicts: string[] = [];
@@ -53,6 +59,8 @@ export class SyncManager {
     // 先导入手机进度，再把合并结果导出回边车
     await this.importAll();
     await this.exportAll(true);
+    this.startInboxWatch(cfg.syncDir, cfg.pollIntervalSec || 15);
+    await this.importInboxNow();
   }
 
   stop(): void {
@@ -72,6 +80,16 @@ export class SyncManager {
     }
     this.sidecarWatcher?.close();
     this.sidecarWatcher = null;
+    this.inboxWatcher?.close();
+    this.inboxWatcher = null;
+    if (this.inboxPollTimer) {
+      clearInterval(this.inboxPollTimer);
+      this.inboxPollTimer = null;
+    }
+    if (this.inboxTimer) {
+      clearTimeout(this.inboxTimer);
+      this.inboxTimer = null;
+    }
     // 挂起中的防抖导出直接结束，避免 Promise 永不 settle
     this.exportResolve?.();
     this.exportResolve = null;
@@ -159,6 +177,69 @@ export class SyncManager {
       this.importTimer = null;
       void this.importAll().catch((error) => {
         console.warn("Note Bar 自动导入失败:", error);
+      });
+    }, 1500);
+  }
+
+  /** 消费一次收件箱；未启用手机同步或未配置目录时返回 null */
+  async importInboxNow(): Promise<InboxImportResult | null> {
+    const cfg = this.config;
+    if (!cfg?.syncDir || !this.plugin.vocabularyManager) return null;
+
+    const books = this.plugin.hiwordsSettings.vocabularyBooks
+      .filter((book) => book.enabled && book.path.endsWith(".canvas"))
+      .map((book) => book.path);
+
+    const port = createInboxVocabularyPort({
+      manager: this.plugin.vocabularyManager,
+      dictionary: getLocalDictionaryService(this.plugin.app),
+    });
+
+    const result = await importInbox({
+      syncDir: cfg.syncDir,
+      books,
+      defaultBooks: this.plugin.hiwordsSettings.defaultVocabularyBookPaths ?? [],
+      duplicatePolicy: this.plugin.hiwordsSettings.crossAppInbox?.duplicatePolicy ?? "skip",
+      port,
+    });
+
+    if (result.added > 0 || result.updated > 0) {
+      this.plugin.refreshHighlighter();
+      new Notice(`跨应用加词：新增 ${result.added} 条，更新 ${result.updated} 条`);
+    }
+    if (result.failed > 0) {
+      new Notice(`跨应用加词：${result.failed} 条落库失败，已归档到 inbox.failed`);
+    }
+    return result;
+  }
+
+  /** 监听收件箱变化（fs.watch + 轮询兜底），与边车监听同一模式 */
+  private startInboxWatch(syncDir: string, pollIntervalSec: number): void {
+    try {
+      this.inboxWatcher = watch(syncDir, { recursive: true }, (_event, fileName) => {
+        if (fileName && fileName.toString().includes("note-bar-inbox.jsonl")) {
+          this.scheduleInboxImport();
+        }
+      });
+      this.inboxWatcher.on("error", () => {
+        // iCloud 未物化文件下 fs.watch 不可靠，轮询兜底已覆盖
+      });
+    } catch {
+      // 轮询兜底已覆盖
+    }
+
+    this.inboxPollTimer = setInterval(() => {
+      this.scheduleInboxImport();
+    }, Math.max(1, pollIntervalSec) * 1000);
+  }
+
+  private scheduleInboxImport(): void {
+    if (!this.running) return;
+    if (this.inboxTimer) clearTimeout(this.inboxTimer);
+    this.inboxTimer = setTimeout(() => {
+      this.inboxTimer = null;
+      void this.importInboxNow().catch((error) => {
+        console.warn("Note Bar 跨应用加词导入失败:", error);
       });
     }, 1500);
   }

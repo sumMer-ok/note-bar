@@ -4,7 +4,22 @@ import { VocabularyManager } from '../core/vocabulary-manager';
 import { DictionaryService } from '../services/dictionary-service';
 import { LocalDictionaryService, getLocalDictionaryService } from '../services/local-dictionary-service';
 import { getEncounterTracker } from '../core/encounter-tracker';
-import { normalizeDefinitionSections } from '../utils/definition-sections';
+import {
+    DEFINITION_SECTION_LABELS,
+    DefinitionSectionKind,
+    DefinitionSectionMap,
+    joinDefinitionSections,
+    parseDefinitionSections,
+    resolveDefinitionSectionOrder,
+} from '../utils/definition-sections';
+
+/** 4 个释义输入框的占位提示 */
+const SECTION_PLACEHOLDERS: Record<DefinitionSectionKind, string> = {
+    dictionary: '输入词典释义...',
+    legal: "输入 Black's Law Dictionary 释义...",
+    ai: '输入 AI 释义（可点击 ✨ 自动填充）...',
+    notes: '输入自定义笔记（记忆法、例句、易混词...）...',
+};
 
 /**
  * 添加或编辑词汇的模态框
@@ -170,10 +185,20 @@ export class AddWordModal extends Modal {
             aliasesInput.value = this.definition.aliases.join(', ');
         }
 
-        // 定义输入
+        // 定义输入：4 个独立分节输入框（词典释义 / 法律英语释义 / AI 释义 / 自定义笔记）
         const definitionContainer = contentEl.createDiv({ cls: 'hiwords-form-item' });
         const definitionLabelContainer = definitionContainer.createDiv({ cls: 'hiwords-definition-label-container' });
         definitionLabelContainer.createEl('label', { text: '释义', cls: 'hiwords-form-item-label' });
+
+        // 分节顺序来自设置（缺省保持历史顺序），弹窗里的 4 个框按该顺序排列，保存时也按该顺序拼回
+        const sectionOrder = resolveDefinitionSectionOrder(this.settings.definitionSectionOrder);
+        // 打开弹窗时把已有 definition 按 kind 分别回填；无标题内容归入「词典释义」
+        const initialSections = parseDefinitionSections(
+            this.isEditMode && this.definition
+                ? (this.definition.rawDefinition || this.definition.definition || '')
+                : (this.prefilledDefinition || '')
+        );
+        const sectionInputs = {} as Record<DefinitionSectionKind, HTMLTextAreaElement>;
 
         const autoFillActionsContainer = definitionLabelContainer.createDiv({ cls: 'hiwords-auto-fill-actions' });
 
@@ -188,7 +213,7 @@ export class AddWordModal extends Modal {
                 new Notice('请先输入单词');
                 return;
             }
-            const found = await this.autoFillFromDictionary(queryWord, aliasesInput, definitionInput, true);
+            const found = await this.autoFillFromDictionary(queryWord, aliasesInput, sectionInputs, true);
             if (!found) {
                 new Notice('本地词库中未找到该单词');
             }
@@ -225,32 +250,21 @@ export class AddWordModal extends Modal {
                         try { await this.localDictionary.loadChineseDictionary(cnCfg.path); } catch (e) { console.warn(e); }
                     }
                     const localResult = this.localDictionary.lookupSync(queryWord);
-                    const currentDefinition = definitionInput.value.trim();
+                    const aiInput = sectionInputs.ai;
                     const currentAliases = aliasesInput.value.trim();
 
-                    if (localResult) {
-                        if (!currentAliases && localResult.aliases.length > 0) {
-                            aliasesInput.value = localResult.aliases.join(', ');
-                        }
-                        const localDefinition = this.formatDefinitions(localResult.definitions);
-                        // 词典释义在前，AI 释义排在后面
-                        const aiSection = `--- AI 释义 ---\n${aiDefinition}`;
-                        if (currentDefinition) {
-                            definitionInput.value = `${currentDefinition}\n\n${aiSection}`;
-                        } else {
-                            definitionInput.value = localDefinition
-                                ? `${localDefinition}\n\n${aiSection}`
-                                : aiSection;
-                        }
-                    } else {
-                        definitionInput.value = `--- AI 释义 ---\n${aiDefinition}`;
-                        if (!currentAliases) {
-                            const aliasesToFill = aiAliases.length > 0 ? aiAliases : await this.deriveAliases(queryWord);
-                            if (aliasesToFill.length > 0) {
-                                aliasesInput.value = aliasesToFill.join(', ');
-                            }
+                    // AI 释义只落「AI 释义」框（词典释义/法律释义框由本地词典自动填充负责）
+                    if (currentAliases.length === 0) {
+                        const aliasesToFill = localResult && localResult.aliases.length > 0
+                            ? localResult.aliases
+                            : (aiAliases.length > 0 ? aiAliases : await this.deriveAliases(queryWord));
+                        if (aliasesToFill.length > 0) {
+                            aliasesInput.value = aliasesToFill.join(', ');
                         }
                     }
+
+                    const currentAi = aiInput.value.trim();
+                    aiInput.value = currentAi ? `${currentAi}\n\n${aiDefinition}` : aiDefinition;
                     new Notice('释义获取成功');
                 } catch (error) {
                     console.error('Failed to fetch definition:', error);
@@ -267,50 +281,60 @@ export class AddWordModal extends Modal {
         const noteBtn = autoFillActionsContainer.createDiv({ cls: 'hiwords-auto-fill-btn' });
         const noteIcon = noteBtn.createDiv({ cls: 'hiwords-auto-fill-icon' });
         setIcon(noteIcon, 'pencil');
-        noteBtn.setAttribute('aria-label', '插入自定义笔记');
+        noteBtn.setAttribute('aria-label', '跳到自定义笔记');
         noteBtn.addEventListener('click', () => {
-            const current = definitionInput.value;
-            const prefix = current.trim() ? '\n\n' : '';
-            definitionInput.value = `${current}${prefix}--- 自定义笔记 ---\n`;
-            definitionInput.focus();
-            const end = definitionInput.value.length;
-            definitionInput.selectionStart = end;
-            definitionInput.selectionEnd = end;
+            // 「自定义笔记」已成为独立输入框，这里只做跳转与聚焦
+            const notesInput = sectionInputs.notes;
+            if (!notesInput) return;
+            notesInput.focus();
+            const end = notesInput.value.length;
+            notesInput.selectionStart = end;
+            notesInput.selectionEnd = end;
         });
 
-        const definitionInput = definitionContainer.createEl('textarea', {
-            placeholder: '输入词汇释义...',
-            cls: 'setting-item-input hiwords-word-definition-input'
+        // 4 个分节输入框（顺序 = 设置里的分节顺序）
+        const sectionListContainer = definitionContainer.createDiv({ cls: 'hiwords-definition-sections' });
+        sectionOrder.forEach(kind => {
+            const sectionItem = sectionListContainer.createDiv({ cls: 'hiwords-definition-section' });
+            const sectionInputId = `hiwords-definition-section-${kind}`;
+            const sectionLabel = sectionItem.createEl('label', {
+                text: DEFINITION_SECTION_LABELS[kind],
+                cls: 'hiwords-form-item-label'
+            });
+            const textarea = sectionItem.createEl('textarea', {
+                placeholder: SECTION_PLACEHOLDERS[kind],
+                cls: 'setting-item-input hiwords-word-definition-input'
+            });
+            textarea.rows = 4;
+            textarea.id = sectionInputId;
+            sectionLabel.htmlFor = sectionInputId;
+            textarea.value = initialSections[kind] ?? '';
+            sectionInputs[kind] = textarea;
         });
-        definitionInput.rows = 5;
-
-        if (this.isEditMode && this.definition) {
-            definitionInput.value = this.definition.rawDefinition || this.definition.definition;
-        } else if (this.prefilledDefinition) {
-            definitionInput.value = this.prefilledDefinition;
-        }
 
         // Auto-fill from local dictionary when word input loses focus
         if (!this.isEditMode && wordInput) {
             const inputEl = wordInput;
             inputEl.addEventListener('blur', () => {
-                void this.autoFillFromDictionary(inputEl.value.trim(), aliasesInput, definitionInput, false);
+                void this.autoFillFromDictionary(inputEl.value.trim(), aliasesInput, sectionInputs, false);
             });
 
             // Auto-fill immediately if word is pre-filled
             if (this.word) {
                 activeWindow.setTimeout(() => {
-                    void this.autoFillFromDictionary(this.word, aliasesInput, definitionInput, false);
+                    void this.autoFillFromDictionary(this.word, aliasesInput, sectionInputs, false);
                 }, 100);
             }
         }
 
         activeWindow.setTimeout(() => {
-            if (!this.isEditMode && this.word) {
-                definitionInput.focus();
-            } else if (this.isEditMode && this.definition) {
-                definitionInput.focus();
-            }
+            const shouldFocusDefinition = this.isEditMode || (!this.isEditMode && !!this.word);
+            if (!shouldFocusDefinition) return;
+            // 优先聚焦第一个已有内容的分节，否则聚焦顺序里的第一个
+            const firstFilled = sectionOrder
+                .map(kind => sectionInputs[kind])
+                .find(input => input && input.value.trim().length > 0);
+            (firstFilled ?? sectionInputs[sectionOrder[0]])?.focus();
         }, 50);
 
         // 按钮
@@ -363,8 +387,12 @@ export class AddWordModal extends Modal {
             const selectedBooks = bookCheckboxes
                 .filter(item => item.checkbox.checked)
                 .map(item => item.path);
-            // 保存时统一规范化顺序：词典释义 → 法律词典释义 → AI 释义 → 自定义笔记
-            const definition = normalizeDefinitionSections(definitionInput.value);
+            // 保存时按当前分节顺序把 4 个框拼回一个 definition 字符串（保留既有分节标题写法）
+            const sectionValues: Partial<DefinitionSectionMap> = {};
+            for (const kind of sectionOrder) {
+                sectionValues[kind] = sectionInputs[kind]?.value ?? '';
+            }
+            const definition = joinDefinitionSections(sectionValues, sectionOrder);
             const colorValue = colorSelect.value ? parseInt(colorSelect.value) : undefined;
             const aliasesText = aliasesInput.value.trim();
 
@@ -434,10 +462,13 @@ export class AddWordModal extends Modal {
         };
     }
 
+    /**
+     * 本地词典自动填充：只落「词典释义」「法律英语释义」两个框，且不覆盖已有内容。
+     */
     private async autoFillFromDictionary(
         queryWord: string,
         aliasesInput: HTMLInputElement,
-        definitionInput: HTMLTextAreaElement,
+        sectionInputs: Record<DefinitionSectionKind, HTMLTextAreaElement>,
         showNotice = true
     ): Promise<boolean> {
         const cnConfig = this.settings.chineseDictionary;
@@ -477,17 +508,11 @@ export class AddWordModal extends Modal {
             aliasesInput.value = result.aliases.join(', ');
         }
 
-        if (!definitionInput.value.trim()) {
-            const parts: string[] = [];
-            if (result.definitions.length > 0) {
-                parts.push(this.formatDefinitions(result.definitions));
-            }
-            if (result.legalDefinitions && result.legalDefinitions.length > 0) {
-                parts.push(this.formatLegalDefinitions(result.legalDefinitions, result.legalPos, result.legalYear));
-            }
-            if (parts.length > 0) {
-                definitionInput.value = parts.join('\n\n');
-            }
+        if (!sectionInputs.dictionary.value.trim() && result.definitions.length > 0) {
+            sectionInputs.dictionary.value = this.formatDefinitions(result.definitions);
+        }
+        if (!sectionInputs.legal.value.trim() && result.legalDefinitions && result.legalDefinitions.length > 0) {
+            sectionInputs.legal.value = this.formatLegalDefinitions(result.legalDefinitions, result.legalPos, result.legalYear);
         }
 
         if (showNotice) {
@@ -496,15 +521,19 @@ export class AddWordModal extends Modal {
         return true;
     }
 
+    /**
+     * 格式化法律词典释义。分节标题由「法律英语释义」输入框在保存时统一补上，这里只产出正文
+     * （首行为词性/年份元信息，与既有 Canvas 数据里 `--- Black's Law Dictionary --- n. (2024)` 的写法一致）。
+     */
     private formatLegalDefinitions(definitions: string[], pos?: string, year?: string): string {
-        const header = '--- Black\'s Law Dictionary ---';
         const meta: string[] = [];
         if (pos) meta.push(pos);
         if (year) meta.push(`(${year})`);
-        const metaStr = meta.length > 0 ? ` ${meta.join(' ')}` : '';
-        return header + metaStr + '\n' + definitions
+        const metaStr = meta.join(' ');
+        const body = definitions
             .map((def, idx) => `${idx + 1}. ${def}`)
             .join('\n');
+        return metaStr ? `${metaStr}\n${body}` : body;
     }
 
     private formatDefinitions(definitions: string[]): string {

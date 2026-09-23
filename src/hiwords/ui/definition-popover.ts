@@ -4,6 +4,7 @@ import type { VocabularyManager } from '../core/vocabulary-manager';
 import type { MasteredService } from '../core/mastered-service';
 import { playWordTTS, WordDefinition } from '../utils';
 import { renderWordCard } from './word-card-renderer';
+import { AddWordModal } from './add-word-modal';
 import { getEncounterTracker, formatYYYYMMDD } from '../core/encounter-tracker';
 
 interface HoverLinkWorkspace {
@@ -44,6 +45,7 @@ export class DefinitionPopover extends Component {
         this.eventHandlers = {
             mouseover: (event: Event) => this.handleMouseOver(event as MouseEvent),
             mouseout: (event: Event) => this.handleMouseOut(event as MouseEvent),
+            click: (event: Event) => this.handleClick(event as MouseEvent),
             scroll: (() => this.removeTooltip()).bind(this),
             resize: (() => this.removeTooltip()).bind(this),
         };
@@ -119,8 +121,27 @@ export class DefinitionPopover extends Component {
     private registerEvents() {
         this.registerDomEvent(document, 'mouseover', this.eventHandlers.mouseover);
         this.registerDomEvent(document, 'mouseout', this.eventHandlers.mouseout);
+        this.registerDomEvent(document, 'click', this.eventHandlers.click);
         this.registerDomEvent(window, 'scroll', this.eventHandlers.scroll as EventListener, { passive: true });
         this.registerDomEvent(window, 'resize', this.eventHandlers.resize as EventListener);
+    }
+
+    /**
+     * 点击原文中的高亮词同样弹出释义弹窗（悬停显示释义关闭时也能用），
+     * 弹窗里提供「编辑」入口直接进入 AddWordModal 编辑模式。
+     */
+    private handleClick(event: MouseEvent) {
+        const raw = event.target as HTMLElement | null;
+        const target = raw?.closest?.('.hi-words-highlight') as HTMLElement | null;
+        if (!target) return;
+        if (this.currentTargetEl === target && this.activeTooltip) return;
+
+        const word = target.getAttribute('data-word');
+        const definition = target.getAttribute('data-definition');
+        if (!word || !definition) return;
+
+        this.currentTargetEl = target;
+        void this.createTooltip(target, word, definition);
     }
 
     private handleMouseOut(event: MouseEvent) {
@@ -366,6 +387,27 @@ export class DefinitionPopover extends Component {
 
                     tooltip.appendChild(sourceEl);
                 }
+
+                // 编辑入口：直接打开 AddWordModal 编辑模式（.hiwords 结构化词库沿用弹窗内的只读提示）
+                const editButton = document.createElement('button');
+                editButton.className = 'hi-words-tooltip-edit';
+                editButton.textContent = '编辑';
+                editButton.setAttribute('aria-label', '编辑该词条');
+                editButton.style.marginTop = '6px';
+                editButton.style.padding = '3px 10px';
+                editButton.style.fontSize = '12px';
+                editButton.style.borderRadius = '4px';
+                editButton.style.border = '1px solid var(--background-modifier-border)';
+                editButton.style.background = 'var(--interactive-normal)';
+                editButton.style.color = 'var(--text-normal)';
+                editButton.style.cursor = 'pointer';
+
+                editButton.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.openEditModal(detailDef);
+                });
+
+                tooltip.appendChild(editButton);
             }
         }
 
@@ -437,6 +479,33 @@ export class DefinitionPopover extends Component {
             this.currentTooltipComponent = null;
         }
         this.currentTargetEl = null;
+    }
+
+    /**
+     * 从原文高亮词的弹窗直接进入编辑：打开 AddWordModal 编辑模式。
+     * 保存后复用既有刷新路径（重载词库缓存 + 刷新高亮与侧边栏），保证 Canvas 节点、词库缓存与高亮一致。
+     */
+    private openEditModal(wordDef: WordDefinition) {
+        const vocabularyManager = this.vocabularyManager;
+        if (!vocabularyManager) return;
+
+        this.removeTooltip();
+
+        new AddWordModal(
+            this.app,
+            this.plugin.hiwordsSettings,
+            vocabularyManager,
+            wordDef.word,
+            '',
+            true,
+            '',
+            wordDef,
+            () => {
+                void vocabularyManager.loadAllVocabularyBooks()
+                    .then(() => this.plugin.refreshHighlighter())
+                    .catch(error => console.error('Note Bar: 编辑保存后刷新词库失败:', error));
+            }
+        ).open();
     }
 
     private async navigateToSource(wordDef: WordDefinition) {

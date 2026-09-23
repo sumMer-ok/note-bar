@@ -14,6 +14,12 @@ import { shouldHighlightFile } from "./hiwords/utils/highlight-utils";
 import { LocalDictionaryService, getLocalDictionaryService } from "./hiwords/services/local-dictionary-service";
 import { EncounterTracker, setEncounterTracker } from "./hiwords/core/encounter-tracker";
 import type { HiWordsSettings, VocabularyBookDisplaySettings, WordDefinition } from "./hiwords/utils/types";
+import type { DefinitionSectionKind } from "./hiwords/utils/definition-sections";
+import {
+  DEFAULT_DEFINITION_SECTION_ORDER,
+  DEFINITION_SECTION_LABELS,
+  resolveDefinitionSectionOrder,
+} from "./hiwords/utils/definition-sections";
 import { pickDirectory } from "./sync/folder-picker";
 import { SyncManager } from "./sync/sync-manager";
 import { isInboxEnabled } from "./sync/inbox-config";
@@ -65,6 +71,7 @@ const DEFAULT_HIWORDS_SETTINGS: HiWordsSettings = {
   highlightPaths: '',
   fileNodeParseMode: 'filename-with-alias',
   enableSectionTabs: true,
+  definitionSectionOrder: [...DEFAULT_DEFINITION_SECTION_ORDER],
   sidebarDefaultDisplayMode: 'detail',
   selectionTranslate: {
     enabled: true,
@@ -433,6 +440,18 @@ export default class NoteBarPlugin extends Plugin {
   async loadHiWordsSettings() {
     const savedData = await this.loadData();
     this.hiwordsSettings = Object.assign({}, DEFAULT_HIWORDS_SETTINGS, savedData || {});
+
+    // 释义分节顺序：旧数据缺失/残缺/含非法值时补齐成一份完整合法的顺序
+    const savedOrder = this.hiwordsSettings.definitionSectionOrder;
+    const resolvedOrder = resolveDefinitionSectionOrder(savedOrder);
+    if (
+      !savedOrder ||
+      savedOrder.length !== resolvedOrder.length ||
+      savedOrder.some((kind, index) => kind !== resolvedOrder[index])
+    ) {
+      this.hiwordsSettings.definitionSectionOrder = resolvedOrder;
+      await this.saveData(this.hiwordsSettings);
+    }
     // 升级旧版默认 AI 释义提示词：旧版本未明确 JSON 格式，易导致模型返回错误格式
     const aiDef = this.hiwordsSettings.aiDefinition;
     if (aiDef) {
@@ -1065,6 +1084,51 @@ class NoteBarSettingTab extends PluginSettingTab {
           await this.plugin.saveHiWordsSettings();
           this.plugin.refreshHighlighter();
         }));
+
+    // 释义分节顺序：「加入词库」弹窗 4 个释义输入框的排列顺序，也是保存时写回的分节顺序
+    containerEl.createEl('h3', { text: '释义分节顺序' });
+
+    new Setting(containerEl)
+      .setName('释义输入框顺序')
+      .setDesc('「加入词库」弹窗里 4 个释义输入框的排列顺序，新保存的词条按该顺序写入；已有词条不会被自动改写');
+
+    const sectionOrderList = containerEl.createDiv({ cls: 'hiwords-definition-order-list' });
+    const currentSectionOrder = resolveDefinitionSectionOrder(this.plugin.hiwordsSettings.definitionSectionOrder);
+
+    const moveSection = async (kind: DefinitionSectionKind, delta: number) => {
+      const order = resolveDefinitionSectionOrder(this.plugin.hiwordsSettings.definitionSectionOrder);
+      const from = order.indexOf(kind);
+      const to = from + delta;
+      if (from < 0 || to < 0 || to >= order.length) return;
+      order[from] = order[to];
+      order[to] = kind;
+      this.plugin.hiwordsSettings.definitionSectionOrder = order;
+      await this.plugin.saveHiWordsSettings();
+      this.display();
+    };
+
+    currentSectionOrder.forEach((kind, index) => {
+      const row = sectionOrderList.createDiv({ cls: 'setting-item hiwords-definition-order-row' });
+      row.style.display = 'flex';
+      row.style.alignItems = 'center';
+      row.style.padding = '4px 0';
+
+      const label = row.createSpan({ text: `${index + 1}. ${DEFINITION_SECTION_LABELS[kind]}` });
+      label.style.flex = '1';
+
+      const upBtn = row.createEl('button', { text: '↑' });
+      upBtn.setAttribute('aria-label', `上移「${DEFINITION_SECTION_LABELS[kind]}」`);
+      upBtn.style.marginRight = '6px';
+      upBtn.style.padding = '2px 10px';
+      upBtn.disabled = index === 0;
+      upBtn.onclick = () => void moveSection(kind, -1);
+
+      const downBtn = row.createEl('button', { text: '↓' });
+      downBtn.setAttribute('aria-label', `下移「${DEFINITION_SECTION_LABELS[kind]}」`);
+      downBtn.style.padding = '2px 10px';
+      downBtn.disabled = index === currentSectionOrder.length - 1;
+      downBtn.onclick = () => void moveSection(kind, 1);
+    });
 
     // 手机同步设置
     containerEl.createEl('h3', { text: '手机同步（iOS App）' });

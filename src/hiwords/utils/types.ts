@@ -1,4 +1,5 @@
 import type { AllCanvasNodeData, CanvasData as ObsidianCanvasData } from 'obsidian/canvas';
+import type { DefinitionSectionKind } from './definition-sections';
 
 export type CanvasNode = AllCanvasNodeData;
 export type CanvasData = ObsidianCanvasData;
@@ -356,6 +357,8 @@ export interface HiWordsSettings {
     highlightPaths?: string;
     fileNodeParseMode?: 'filename' | 'content' | 'filename-with-alias';
     enableSectionTabs?: boolean;
+    /** 释义 4 个分节的显示/保存顺序（默认 词典释义 → 法律英语释义 → AI 释义 → 自定义笔记）；只影响新保存的词条 */
+    definitionSectionOrder?: DefinitionSectionKind[];
     sidebarDefaultDisplayMode?: 'detail' | 'word';
     selectionTranslate: SelectionTranslateSettings;
     hideDefinitions?: boolean;

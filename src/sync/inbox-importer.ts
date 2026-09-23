@@ -121,10 +121,33 @@ async function applyEntry(
 }
 
 /**
+ * 同一收件箱文件同时只允许一次消费。
+ * 启动立即消费、fs.watch 事件与手动命令可能并发触发；两次并发消费会各自读到同一批行，
+ * 导致同一单词被写入两次（Canvas 出现重复词条），故按收件箱路径做在途去重。
+ */
+const inFlightImports = new Map<string, Promise<InboxImportResult>>();
+
+/**
  * 消费收件箱：逐行解析 → 落库 → 成功行移除、坏行保留。
  * 失败条目归档到 .failed.jsonl 并从收件箱移除，避免下一轮无限重试同一条失败条目。
+ * 并发的重复调用共享同一次消费结果，不会重复落库。
  */
-export async function importInbox(options: InboxImportOptions): Promise<InboxImportResult> {
+export function importInbox(options: InboxImportOptions): Promise<InboxImportResult> {
+  const key = inboxPathFor(options.syncDir);
+  const running = inFlightImports.get(key);
+  if (running) return running;
+
+  const run = runImportInbox(options);
+  inFlightImports.set(key, run);
+  void run
+    .finally(() => {
+      if (inFlightImports.get(key) === run) inFlightImports.delete(key);
+    })
+    .catch(() => undefined);
+  return run;
+}
+
+async function runImportInbox(options: InboxImportOptions): Promise<InboxImportResult> {
   const result: InboxImportResult = {
     added: 0,
     updated: 0,

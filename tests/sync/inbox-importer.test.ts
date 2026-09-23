@@ -343,3 +343,28 @@ test("坏行不计入幂等状态，仍保留在收件箱", async () => {
     assert.deepEqual(state.processedIds, []);
   });
 });
+
+test("并发消费同一收件箱只落库一次", async () => {
+  await withSyncDir(async (dir) => {
+    const { port, added } = makePort();
+    // 让单次落库足够慢，确保第二次调用与第一次真正重叠
+    const slowPort: InboxVocabularyPort = {
+      ...port,
+      async addWord(bookPath, entry) {
+        await new Promise((resolve) => setTimeout(resolve, 30));
+        return port.addWord(bookPath, entry);
+      },
+    };
+    await writeInboxAtomic(inboxPathFor(dir), `${line({ id: "race-1", word: "sue" })}\n`);
+
+    const [first, second] = await Promise.all([
+      importInbox(baseOptions(dir, slowPort)),
+      importInbox(baseOptions(dir, slowPort)),
+    ]);
+
+    assert.equal(added.length, 1, "并发消费只能落库一次，否则 Canvas 会出现重复词条");
+    assert.equal(first === second, true, "并发调用应共享同一次消费结果");
+    assert.equal(first.added, 1);
+    assert.equal(await readInboxText(inboxPathFor(dir)), "");
+  });
+});

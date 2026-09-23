@@ -83,6 +83,11 @@ export class SyncManager {
     this.stopInbox();
     this.inboxRunning = true;
     this.startInboxWatch(inboxDir, this.config?.pollIntervalSec || 15);
+    // 启动时立即消费一次：助手可能在 Obsidian 未运行时写入过条目，不必等首个事件或下一轮轮询。
+    // importInbox 对同一收件箱做了在途去重，因此与 watch 事件重叠也不会重复落库。
+    void this.importInboxNow().catch((error) => {
+      console.warn("Note Bar 跨应用加词首次消费失败:", error);
+    });
   }
 
   /** 停止收件箱监听与轮询；可重复调用 */

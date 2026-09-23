@@ -4352,3 +4352,43 @@
   transition: background 0.15s, color 0.15s;
 }
 
+/* ── 释义分节：弹窗里 4 个独立输入框 ───────────────────────────── */
+.hiwords-definition-sections {
+  display: flex;
+  flex-direction: column;
+}
+
+.hiwords-definition-section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* 分节之间用细分隔线区分，避免 4 个框糊成一片 */
+.hiwords-definition-section + .hiwords-definition-section {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--background-modifier-border);
+}
+
+/* 设置页的顺序调整列表：去掉 Obsidian setting-item 的逐行上边框，行内按钮固定宽度防抖动 */
+.hiwords-definition-order-list {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 8px;
+}
+
+.hiwords-definition-order-row {
+  border-top: none;
+}
+
+.hiwords-definition-order-row button {
+  min-width: 34px;
+}
+
+/* 释义弹窗里的「编辑」入口 */
+.hi-words-tooltip-edit:hover {
+  background: var(--interactive-hover) !important;
+}
+
+

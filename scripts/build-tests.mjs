@@ -13,7 +13,9 @@ await esbuild.build({
   platform: "node",
   target: "es2018",
   bundle: true,
-  external: [...builtins, "obsidian", "electron"],
+  // obsidian 在测试运行时没有宿主：改指向最小替身，生产构建仍保持 external
+  alias: { obsidian: "./tests/stubs/obsidian.ts" },
+  external: [...builtins, "electron"],
   logLevel: "info",
 });
 

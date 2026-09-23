@@ -11,7 +11,8 @@ public enum InboxWriter {
     /// 单行 JSON，不含内嵌换行；插件按行解析
     public static func encodeLine(_ entry: InboxEntry) throws -> String {
         let encoder = JSONEncoder()
-        encoder.outputFormatting = [.withoutEscapingSlashes]
+        // .sortedKeys：JSONEncoder 默认不保证键序；键序漂移会让提交进仓库的契约样本每次跑测试都变脏
+        encoder.outputFormatting = [.withoutEscapingSlashes, .sortedKeys]
         guard let data = try? encoder.encode(entry),
               var line = String(data: data, encoding: .utf8) else {
             throw InboxWriterError.encodeFailed

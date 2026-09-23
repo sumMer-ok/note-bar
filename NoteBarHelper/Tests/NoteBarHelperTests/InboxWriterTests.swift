@@ -11,7 +11,7 @@ final class InboxWriterTests: XCTestCase {
     private func sampleEntry(word: String = "consideration", id: String = UUID().uuidString) -> InboxEntry {
         InboxEntry(
             v: 1,
-            id: UUID().uuidString,
+            id: id,
             createdAt: "2026-09-23T12:00:00.000Z",
             source: "wps-macos",
             word: word,

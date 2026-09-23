@@ -5,6 +5,7 @@ import { getLocalDictionaryService } from "../hiwords/services/local-dictionary-
 import { Mirrorer } from "./mirrorer";
 import { createInboxVocabularyPort } from "./inbox-vocabulary-adapter";
 import { importInbox, type InboxImportResult } from "./inbox-importer";
+import { isInboxEnabled, resolveInboxDir } from "./inbox-config";
 import { exportProgressToSidecars } from "./sync-exporter";
 import { importSidecars } from "./sync-importer";
 import type { SyncExportResult, SyncImportResult } from "./types";
@@ -21,6 +22,8 @@ export class SyncManager {
   private inboxTimer: ReturnType<typeof setTimeout> | null = null;
   private exportResolve: (() => void) | null = null;
   private running = false;
+  /** 收件箱监听是否在跑：独立于手机同步，双方各自开关 */
+  private inboxRunning = false;
   readonly conflicts: string[] = [];
 
   constructor(private readonly plugin: NoteBarPlugin) {}
@@ -59,9 +62,42 @@ export class SyncManager {
     // 先导入手机进度，再把合并结果导出回边车
     await this.importAll();
     await this.exportAll(true);
-    const inboxDir = this.plugin.hiwordsSettings.crossAppInbox?.syncDir || cfg.syncDir;
-    this.startInboxWatch(inboxDir, cfg.pollIntervalSec || 15);
-    await this.importInboxNow();
+    // 收件箱是否消费由 crossAppInbox.enabled 单独决定
+    this.startInbox();
+  }
+
+  /**
+   * 启动收件箱监听（fs.watch + 轮询兜底）。
+   * 与手机同步互相独立：手机同步关闭时仍可单独消费收件箱，反之收件箱开关关闭时不监听。
+   */
+  startInbox(): void {
+    if (!isInboxEnabled(this.plugin.hiwordsSettings)) {
+      this.stopInbox();
+      return;
+    }
+    const inboxDir = resolveInboxDir(this.plugin.hiwordsSettings);
+    if (!inboxDir) {
+      this.stopInbox();
+      return;
+    }
+    this.stopInbox();
+    this.inboxRunning = true;
+    this.startInboxWatch(inboxDir, this.config?.pollIntervalSec || 15);
+  }
+
+  /** 停止收件箱监听与轮询；可重复调用 */
+  stopInbox(): void {
+    this.inboxWatcher?.close();
+    this.inboxWatcher = null;
+    if (this.inboxPollTimer) {
+      clearInterval(this.inboxPollTimer);
+      this.inboxPollTimer = null;
+    }
+    if (this.inboxTimer) {
+      clearTimeout(this.inboxTimer);
+      this.inboxTimer = null;
+    }
+    this.inboxRunning = false;
   }
 
   stop(): void {
@@ -81,16 +117,7 @@ export class SyncManager {
     }
     this.sidecarWatcher?.close();
     this.sidecarWatcher = null;
-    this.inboxWatcher?.close();
-    this.inboxWatcher = null;
-    if (this.inboxPollTimer) {
-      clearInterval(this.inboxPollTimer);
-      this.inboxPollTimer = null;
-    }
-    if (this.inboxTimer) {
-      clearTimeout(this.inboxTimer);
-      this.inboxTimer = null;
-    }
+    this.stopInbox();
     // 挂起中的防抖导出直接结束，避免 Promise 永不 settle
     this.exportResolve?.();
     this.exportResolve = null;
@@ -182,10 +209,10 @@ export class SyncManager {
     }, 1500);
   }
 
-  /** 消费一次收件箱；未启用手机同步或未配置目录时返回 null */
+  /** 消费一次收件箱；开关关闭或未配置目录时返回 null */
   async importInboxNow(): Promise<InboxImportResult | null> {
-    const cfg = this.config;
-    const inboxDir = this.plugin.hiwordsSettings.crossAppInbox?.syncDir || cfg?.syncDir;
+    if (!isInboxEnabled(this.plugin.hiwordsSettings)) return null;
+    const inboxDir = resolveInboxDir(this.plugin.hiwordsSettings);
     if (!inboxDir || !this.plugin.vocabularyManager) return null;
 
     const books = this.plugin.hiwordsSettings.vocabularyBooks
@@ -210,7 +237,7 @@ export class SyncManager {
       new Notice(`跨应用加词：新增 ${result.added} 条，更新 ${result.updated} 条`);
     }
     if (result.failed > 0) {
-      new Notice(`跨应用加词：${result.failed} 条落库失败，已归档到 inbox.failed`);
+      new Notice(`跨应用加词：${result.failed} 条目标词库写入失败（失败条目见 inbox.failed）`);
     }
     return result;
   }
@@ -236,7 +263,7 @@ export class SyncManager {
   }
 
   private scheduleInboxImport(): void {
-    if (!this.running) return;
+    if (!this.inboxRunning) return;
     if (this.inboxTimer) clearTimeout(this.inboxTimer);
     this.inboxTimer = setTimeout(() => {
       this.inboxTimer = null;

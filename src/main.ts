@@ -16,6 +16,7 @@ import { EncounterTracker, setEncounterTracker } from "./hiwords/core/encounter-
 import type { HiWordsSettings, VocabularyBookDisplaySettings, WordDefinition } from "./hiwords/utils/types";
 import { pickDirectory } from "./sync/folder-picker";
 import { SyncManager } from "./sync/sync-manager";
+import { isInboxEnabled } from "./sync/inbox-config";
 
 const DEFAULT_AI_DEFINITION_PROMPT = '你是一个英汉词典编纂助手。请为单词 "{{word}}" 生成词条（上下文句子，可能为空：{{sentence}}）。\n\n输出要求（必须严格遵守）：\n1. 只输出一个 JSON 对象，不要输出任何其他内容：不要 markdown 代码块、不要 ```json 标记、不要注释、不要解释性文字、不要前后缀说明。\n2. JSON 只包含两个字段：\n   - "aliases"：字符串数组。如果该单词是词形变化（-ing / -ed / -s / -es / -ies / -er / -est 等），必须包含其原形（lemma）及常见变形；如果本身就是原形，可返回常见变形或空数组。例如 suing 返回 ["sue", "sued", "sues"]；went 返回 ["go", "goes", "going", "gone"]；better 返回 ["good"]；books 返回 ["book"]。\n   - "definition"：字符串，内容依次为：\n     1）音标（英式/美式）\\n2）中文释义（含词性标注）\\n3）英文释义\\n4）例句\n     其中序号之间的换行使用 JSON 转义符 \\n，不要使用 markdown 列表符号。\n3. 必须是合法 JSON：键和字符串值使用英文双引号；不要有尾随逗号；字符串内部不要有未转义的换行；不要使用单引号。\n\n只输出下面格式的 JSON 对象本身（不要包含任何其他文字）：\n{"aliases": ["sustain", "sustained", "sustaining", "sustains"], "definition": "1）英/ sə\'steɪn / 美/ sə\'steɪn /\\n2）v. 维持，保持；遭受，经受；支持，支撑\\nn. （乐）延音\\n3）to cause or allow something to continue for a period of time\\n4）The economy looks set to sustain its growth into next year."}';
 
@@ -169,6 +170,11 @@ export default class NoteBarPlugin extends Plugin {
           await this.syncManager?.start();
         }
 
+        // 收件箱独立于手机同步：只要开着「跨应用加词」就单独启动监听
+        if (isInboxEnabled(this.hiwordsSettings)) {
+          this.syncManager?.startInbox();
+        }
+
         // 延迟加载相遇记录（与词库加载同一时机，避免阻塞启动）
         await this.encounterTracker?.load();
 
@@ -236,7 +242,7 @@ export default class NoteBarPlugin extends Plugin {
         void (async () => {
           const result = await this.syncManager?.importInboxNow();
           if (!result) {
-            new Notice('请先配置收件箱目录（或启用手机同步）');
+            new Notice('请先在设置中启用「跨应用加词」并选择收件箱目录');
             return;
           }
           new Notice(
@@ -1158,6 +1164,9 @@ class NoteBarSettingTab extends PluginSettingTab {
         toggle.setValue(crossAppInbox.enabled).onChange(async (value) => {
           crossAppInbox.enabled = value;
           await this.plugin.saveHiWordsSettings();
+          // 开关直接决定是否监听并消费收件箱
+          if (value) this.plugin.syncManager?.startInbox();
+          else this.plugin.syncManager?.stopInbox();
         })
       );
 
@@ -1170,6 +1179,8 @@ class NoteBarSettingTab extends PluginSettingTab {
           if (!dir) return;
           crossAppInbox.syncDir = dir;
           await this.plugin.saveHiWordsSettings();
+          // 目录变化后必须重启监听，否则 fs.watch 仍盯着旧目录
+          this.plugin.syncManager?.startInbox();
         })
       );
 

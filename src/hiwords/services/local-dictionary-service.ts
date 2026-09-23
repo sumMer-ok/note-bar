@@ -125,6 +125,14 @@ export class LocalDictionaryService {
         await this.loadChineseDictionary(this.cnDictPath);
     }
 
+    /** 确保法律词典已加载（内部使用） */
+    private async ensureLegalLoaded(): Promise<void> {
+        if (this.legalDictionary) return;
+        if (!this.app || !this.legalDictPath) return;
+        if (this.legalLoadPromise) return this.legalLoadPromise;
+        await this.loadLegalDictionary(this.legalDictPath);
+    }
+
     /** 查中文词典（异步，自动加载） */
     async lookup(word: string): Promise<DictionaryLookupResult | null> {
         await this.ensureCnLoaded();
@@ -154,8 +162,14 @@ export class LocalDictionaryService {
         return this.legalDictionary[key] ?? null;
     }
 
-    /** 查中文 + 法律词典（合并结果，不自动加载） */
+    /**
+     * 查中文 + 法律词典（合并结果）。
+     * 这里必须按需自动加载已验证的词典：收件箱（跨应用加词）等非 UI 入口直接调用本方法，
+     * 若词典尚未加载就会静默返回 null，表现为「词条进了词库却没有释义和别名」。
+     */
     async lookupAll(word: string): Promise<DictionaryLookupResult | null> {
+        await this.ensureCnLoaded().catch(() => undefined);
+        await this.ensureLegalLoaded().catch(() => undefined);
         const cn = this.lookupSync(word);
         const legal = await this.lookupLegal(word);
         if (!cn && !legal) return null;

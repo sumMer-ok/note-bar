@@ -61,11 +61,24 @@ export function createInboxVocabularyPort(deps: InboxAdapterDeps): InboxVocabula
       if (!dictionary) return undefined;
       const result = await dictionary.lookupAll(word);
       if (!result) return undefined;
+
+      const dictLines: string[] = [];
+      if (result.phonetic) dictLines.push(result.phonetic);
+      if (result.definitions.length > 0) dictLines.push(result.definitions.join("\n"));
+
       const parts: string[] = [];
-      if (result.phonetic) parts.push(result.phonetic);
-      if (result.definitions.length > 0) parts.push(result.definitions.join("\n"));
+      if (dictLines.length > 0) parts.push(dictLines.join("\n"));
+
+      // 法律词典单独成节；分节标题必须与插件侧 normalizeDefinitionSections 的约定一致
+      const legal = result.legalDefinitions ?? [];
+      if (legal.length > 0) {
+        const head = result.legalPos ? `${result.legalPos}. ` : "";
+        const year = result.legalYear ? `（${result.legalYear}）` : "";
+        parts.push(`--- Black's Law Dictionary ---\n${head}${legal.join("\n")}${year}`);
+      }
+
       return {
-        definition: parts.length > 0 ? parts.join("\n") : undefined,
+        definition: parts.length > 0 ? parts.join("\n\n") : undefined,
         aliases: result.aliases,
       };
     },

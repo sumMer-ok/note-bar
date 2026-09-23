@@ -139,3 +139,30 @@ test("lookupDefinition 只有音标而无释义时仍返回音标", async () => 
   });
   assert.equal((await port.lookupDefinition("sue"))?.definition, "英/ suː /");
 });
+
+test("lookupDefinition 把法律词典单独成节，标题与插件侧分节约定一致", async () => {
+  const dictionary = {
+    async lookupAll(word: string) {
+      return {
+        word,
+        phonetic: "英/ rɪˈvəʊk /",
+        definitions: ["vt. 撤销；废除"],
+        aliases: ["revoked"],
+        legalDefinitions: ["To annul or make void by recalling or taking back."],
+        legalPos: "vb",
+        legalYear: "18c",
+      };
+    },
+  };
+  const port = createInboxVocabularyPort({
+    manager: { getWordDefinitionsByBook: async () => [], addWordToMultipleCanvas: async () => true, updateWordInCanvas: async () => true } as any,
+    dictionary: dictionary as any,
+  });
+
+  const filled = await port.lookupDefinition("revoke");
+  assert.equal(
+    filled?.definition,
+    "英/ rɪˈvəʊk /\nvt. 撤销；废除\n\n--- Black's Law Dictionary ---\nvb. To annul or make void by recalling or taking back.（18c）"
+  );
+  assert.deepEqual(filled?.aliases, ["revoked"]);
+});

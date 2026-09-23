@@ -163,9 +163,30 @@ test("未带释义时用本地词典补全，并合并词典别名", async () =>
   });
 });
 
-test("条目自带释义时不查询词典", async () => {
+test("释义自带时仍会补别名，且不覆盖自带释义", async () => {
   await withSyncDir(async (dir) => {
     const { port, added } = makePort();
+    const withDictionary: InboxVocabularyPort = {
+      ...port,
+      async lookupDefinition() {
+        return { definition: "词典释义", aliases: ["Sued"] };
+      },
+    };
+    await writeInboxAtomic(
+      inboxPathFor(dir),
+      `${line({ id: "1", word: "sue", definition: "自带释义" })}\n`
+    );
+
+    await importInbox(baseOptions(dir, withDictionary));
+
+    assert.equal(added[0].entry.definition, "自带释义", "自带释义优先，不被词典覆盖");
+    assert.deepEqual(added[0].entry.aliases, ["sued"], "缺失的别名由词典补上并规范化");
+  });
+});
+
+test("释义与别名都齐全时不查询词典", async () => {
+  await withSyncDir(async (dir) => {
+    const { port } = makePort();
     let lookups = 0;
     const counting: InboxVocabularyPort = {
       ...port,
@@ -176,13 +197,12 @@ test("条目自带释义时不查询词典", async () => {
     };
     await writeInboxAtomic(
       inboxPathFor(dir),
-      `${line({ id: "1", word: "sue", definition: "自带释义" })}\n`
+      `${line({ id: "1", word: "sue", definition: "自带释义", aliases: ["sued"] })}\n`
     );
 
     await importInbox(baseOptions(dir, counting));
 
-    assert.equal(lookups, 0);
-    assert.equal(added[0].entry.definition, "自带释义");
+    assert.equal(lookups, 0, "两者都齐全时不必查词典");
   });
 });
 

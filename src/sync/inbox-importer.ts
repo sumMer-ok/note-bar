@@ -52,7 +52,7 @@ function resolveTargets(entry: InboxEntry, options: InboxImportOptions): string[
   return options.defaultBooks.filter((book) => enabled.has(book));
 }
 
-/** 释义与别名的规范化只在这里发生：自带释义优先，否则查本地词典 */
+/** 释义与别名的规范化只在这里发生：自带内容优先，缺失的部分才由本地词典补 */
 async function buildEffectiveEntry(
   entry: InboxEntry,
   port: InboxVocabularyPort
@@ -60,9 +60,10 @@ async function buildEffectiveEntry(
   let aliases = normalizeAliases(entry.aliases);
   let definition = entry.definition && entry.definition.trim().length > 0 ? entry.definition : undefined;
 
-  if (!definition) {
+  // 只要还有缺口就查词典：助手通常只提交单词本身，别名与释义都要靠这里补
+  if (!definition || !aliases) {
     const filled = await port.lookupDefinition(entry.word).catch(() => undefined);
-    definition = filled?.definition;
+    if (!definition) definition = filled?.definition;
     if (!aliases) aliases = normalizeAliases(filled?.aliases);
   }
   return { ...entry, definition, aliases };

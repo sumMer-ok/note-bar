@@ -224,9 +224,17 @@ export class SyncManager {
       .filter((book) => book.enabled && book.path.endsWith(".canvas"))
       .map((book) => book.path);
 
+    // 自备词典路径：插件的设置初始化排在收件箱启动之后，这条链路不能依赖启动顺序，
+    // 否则词典路径尚未配置时 lookupAll 会静默返回 null，表现为「词条进了词库却没有释义和别名」。
+    const dictService = getLocalDictionaryService(this.plugin.app);
+    const cnDict = this.plugin.hiwordsSettings.chineseDictionary;
+    if (cnDict?.enabled && cnDict.path) dictService.setCnDictionaryPath(cnDict.path);
+    const legalDict = this.plugin.hiwordsSettings.legalDictionary;
+    if (legalDict?.enabled && legalDict.path) dictService.setLegalDictionaryPath(legalDict.path);
+
     const port = createInboxVocabularyPort({
       manager: this.plugin.vocabularyManager,
-      dictionary: getLocalDictionaryService(this.plugin.app),
+      dictionary: dictService,
     });
 
     const result = await importInbox({

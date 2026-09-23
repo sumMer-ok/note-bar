@@ -1,0 +1,263 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { mkdtemp, rm } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { INBOX_VERSION, type InboxEntry } from "../../src/sync/inbox-types";
+import { inboxPathFor, readInboxText, writeInboxAtomic } from "../../src/sync/inbox-store";
+import { importInbox, type InboxImportOptions, type InboxVocabularyPort } from "../../src/sync/inbox-importer";
+
+interface AddCall { bookPath: string; entry: InboxEntry }
+interface UpdateCall { bookPath: string; nodeId: string; entry: InboxEntry }
+
+function makePort(seed?: { existing?: Record<string, string>; failAddFor?: string[] }) {
+  const existing = new Map(Object.entries(seed?.existing ?? {}));
+  const failAddFor = new Set(seed?.failAddFor ?? []);
+  const added: AddCall[] = [];
+  const updated: UpdateCall[] = [];
+  const port: InboxVocabularyPort = {
+    async findExisting(bookPath, word) {
+      const nodeId = existing.get(`${bookPath}::${word.toLowerCase()}`);
+      return nodeId ? { nodeId } : null;
+    },
+    async addWord(bookPath, entry) {
+      if (failAddFor.has(bookPath)) return false;
+      added.push({ bookPath, entry });
+      return true;
+    },
+    async updateWord(bookPath, nodeId, entry) {
+      updated.push({ bookPath, nodeId, entry });
+      return true;
+    },
+    async lookupDefinition() {
+      return undefined;
+    },
+  };
+  return { port, added, updated };
+}
+
+function line(entry: Partial<InboxEntry> & { id: string; word: string }): string {
+  return JSON.stringify({ v: INBOX_VERSION, ...entry });
+}
+
+async function withSyncDir<T>(fn: (dir: string) => Promise<T>): Promise<T> {
+  const dir = await mkdtemp(path.join(os.tmpdir(), "nb-inbox-imp-"));
+  try {
+    return await fn(dir);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+}
+
+function baseOptions(syncDir: string, port: InboxVocabularyPort): InboxImportOptions {
+  return {
+    syncDir,
+    books: ["Words/Common Law.canvas", "Words/AI Agent.canvas"],
+    defaultBooks: ["Words/AI Agent.canvas"],
+    duplicatePolicy: "skip",
+    port,
+  };
+}
+
+test("按条目指定的词库落库，处理成功后从收件箱移除", async () => {
+  await withSyncDir(async (dir) => {
+    const { port, added } = makePort();
+    await writeInboxAtomic(
+      inboxPathFor(dir),
+      `${line({ id: "1", word: "consideration", books: ["Words/Common Law.canvas"] })}\n`
+    );
+
+    const result = await importInbox(baseOptions(dir, port));
+
+    assert.equal(result.added, 1);
+    assert.equal(result.failed, 0);
+    assert.equal(added.length, 1);
+    assert.equal(added[0].bookPath, "Words/Common Law.canvas");
+    assert.equal(added[0].entry.word, "consideration");
+    assert.equal(await readInboxText(inboxPathFor(dir)), "");
+  });
+});
+
+test("未指定词库时回落到 defaultBooks，且只落在已启用词库上", async () => {
+  await withSyncDir(async (dir) => {
+    const { port, added } = makePort();
+    await writeInboxAtomic(inboxPathFor(dir), `${line({ id: "1", word: "sue" })}\n`);
+
+    await importInbox(baseOptions(dir, port));
+
+    assert.deepEqual(added.map((call) => call.bookPath), ["Words/AI Agent.canvas"]);
+  });
+});
+
+test("条目指定的词库若未启用则忽略该词库，仍可回落到默认词库", async () => {
+  await withSyncDir(async (dir) => {
+    const { port, added } = makePort();
+    await writeInboxAtomic(
+      inboxPathFor(dir),
+      `${line({ id: "1", word: "sue", books: ["Words/Unknown.canvas"] })}\n`
+    );
+
+    await importInbox(baseOptions(dir, port));
+
+    assert.deepEqual(added.map((call) => call.bookPath), ["Words/AI Agent.canvas"]);
+  });
+});
+
+test("skip 策略下已存在的词不重复添加", async () => {
+  await withSyncDir(async (dir) => {
+    const { port, added, updated } = makePort({
+      existing: { "Words/AI Agent.canvas::sue": "node-1" },
+    });
+    await writeInboxAtomic(inboxPathFor(dir), `${line({ id: "1", word: "sue" })}\n`);
+
+    const result = await importInbox(baseOptions(dir, port));
+
+    assert.equal(result.skipped, 1);
+    assert.equal(result.added, 0);
+    assert.equal(added.length, 0);
+    assert.equal(updated.length, 0);
+    assert.equal(await readInboxText(inboxPathFor(dir)), "");
+  });
+});
+
+test("update 策略下改写既有节点", async () => {
+  await withSyncDir(async (dir) => {
+    const { port, updated } = makePort({ existing: { "Words/AI Agent.canvas::sue": "node-1" } });
+    await writeInboxAtomic(
+      inboxPathFor(dir),
+      `${line({ id: "1", word: "sue", definition: "v. 起诉" })}\n`
+    );
+
+    const result = await importInbox({ ...baseOptions(dir, port), duplicatePolicy: "update" });
+
+    assert.equal(result.updated, 1);
+    assert.equal(updated.length, 1);
+    assert.equal(updated[0].nodeId, "node-1");
+    assert.equal(updated[0].entry.definition, "v. 起诉");
+  });
+});
+
+test("未带释义时用本地词典补全，并合并词典别名", async () => {
+  await withSyncDir(async (dir) => {
+    const { port, added } = makePort();
+    const withDictionary: InboxVocabularyPort = {
+      ...port,
+      async lookupDefinition() {
+        return { definition: "v. 起诉；控告", aliases: ["Sued", "sues"] };
+      },
+    };
+    await writeInboxAtomic(inboxPathFor(dir), `${line({ id: "1", word: "sue" })}\n`);
+
+    await importInbox(baseOptions(dir, withDictionary));
+
+    assert.equal(added[0].entry.definition, "v. 起诉；控告");
+    assert.deepEqual(added[0].entry.aliases, ["sued", "sues"]);
+  });
+});
+
+test("条目自带释义时不查询词典", async () => {
+  await withSyncDir(async (dir) => {
+    const { port, added } = makePort();
+    let lookups = 0;
+    const counting: InboxVocabularyPort = {
+      ...port,
+      async lookupDefinition() {
+        lookups++;
+        return undefined;
+      },
+    };
+    await writeInboxAtomic(
+      inboxPathFor(dir),
+      `${line({ id: "1", word: "sue", definition: "自带释义" })}\n`
+    );
+
+    await importInbox(baseOptions(dir, counting));
+
+    assert.equal(lookups, 0);
+    assert.equal(added[0].entry.definition, "自带释义");
+  });
+});
+
+test("坏行原样保留在收件箱，不影响其他条目处理", async () => {
+  await withSyncDir(async (dir) => {
+    const { port, added } = makePort();
+    const bad = "{not json";
+    await writeInboxAtomic(
+      inboxPathFor(dir),
+      `${bad}\n${line({ id: "1", word: "sue" })}\n${"   "}\n`
+    );
+
+    const result = await importInbox(baseOptions(dir, port));
+
+    assert.equal(result.added, 1);
+    assert.equal(result.badLines, 2);
+    assert.equal(added.length, 1);
+    assert.equal(await readInboxText(inboxPathFor(dir)), `${bad}\n   \n`);
+  });
+});
+
+test("全部落库失败时条目留在收件箱等待重试", async () => {
+  await withSyncDir(async (dir) => {
+    const { port } = makePort({ failAddFor: ["Words/AI Agent.canvas"] });
+    const original = `${line({ id: "1", word: "sue" })}\n`;
+    await writeInboxAtomic(inboxPathFor(dir), original);
+
+    const result = await importInbox(baseOptions(dir, port));
+
+    assert.equal(result.failed, 1);
+    assert.equal(result.added, 0);
+    assert.equal(await readInboxText(inboxPathFor(dir)), original);
+  });
+});
+
+test("没有可用目标词库时判失败并保留条目", async () => {
+  await withSyncDir(async (dir) => {
+    const { port } = makePort();
+    await writeInboxAtomic(inboxPathFor(dir), `${line({ id: "1", word: "sue" })}\n`);
+
+    const result = await importInbox({
+      syncDir: dir,
+      books: [],
+      defaultBooks: ["Words/AI Agent.canvas"],
+      duplicatePolicy: "skip",
+      port,
+    });
+
+    assert.equal(result.failed, 1);
+    assert.equal(await readInboxText(inboxPathFor(dir)), `${line({ id: "1", word: "sue" })}\n`);
+  });
+});
+
+test("收件箱不存在时直接返回零结果", async () => {
+  await withSyncDir(async (dir) => {
+    const { port } = makePort();
+    const result = await importInbox(baseOptions(dir, port));
+    assert.deepEqual(result, {
+      added: 0,
+      updated: 0,
+      skipped: 0,
+      failed: 0,
+      badLines: 0,
+      duplicatesDropped: 0,
+    });
+  });
+});
+
+test("一条条目可同时落多个词库", async () => {
+  await withSyncDir(async (dir) => {
+    const { port, added } = makePort();
+    await writeInboxAtomic(
+      inboxPathFor(dir),
+      `${line({
+        id: "1",
+        word: "sue",
+        books: ["Words/Common Law.canvas", "Words/AI Agent.canvas"],
+      })}\n`
+    );
+
+    const result = await importInbox(baseOptions(dir, port));
+
+    assert.equal(result.added, 2);
+    assert.equal(added.length, 2);
+  });
+});

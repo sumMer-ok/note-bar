@@ -64,7 +64,7 @@
 
   window.nbhInit = (payload) => {
     init = payload;
-    document.getElementById('word').textContent = payload.word;
+    document.getElementById('word').textContent = payload.word || '（未取到文本）';
     document.getElementById('sentence').value = payload.sentence || '';
     document.getElementById('definition').value = payload.definition || '';
     document.getElementById('aliases').value = (payload.aliases || []).join(', ');
@@ -95,6 +95,10 @@
     if (e.key === 'Escape') post({ action: 'cancel' });
     if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) document.getElementById('submit').click();
   });
+
+  // 脚本就绪后立刻通知原生端：原生端会等这个信号再推初始化数据，
+  // 否则 window.nbhInit 尚未定义，evaluateJavaScript 会静默失败（面板一片空白）。
+  post({ action: 'ready' });
 </script>
 </body>
 </html>

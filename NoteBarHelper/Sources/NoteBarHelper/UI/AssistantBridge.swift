@@ -14,6 +14,13 @@ public enum AssistantMessage {
     case submit(AssistantFormPayload)
     case cancel
 
+    /// 页面就绪信号：只用于对齐加载时序，**绝不能转发给上层**——
+    /// 上层收到任何消息都会关闭面板，一旦转发就会「弹窗一闪而过」。
+    public static func isReadySignal(body: Any) -> Bool {
+        guard let dict = body as? [String: Any] else { return false }
+        return dict["action"] as? String == "ready"
+    }
+
     public init?(body: Any, fallbackWord: String, fallbackSentence: String?) {
         guard let dict = body as? [String: Any], let action = dict["action"] as? String else { return nil }
         if action == "cancel" { self = .cancel; return }

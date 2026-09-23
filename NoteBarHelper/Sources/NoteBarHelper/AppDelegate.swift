@@ -69,7 +69,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
-        panel?.close()
+        closeAssistantPanel()
         let p = AssistantPanel()
         let bridge = AssistantWebView(fallbackWord: result.text,
                                       fallbackSentence: nil) { [weak self] message in
@@ -77,9 +77,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
                          source: result.source, word: result.text)
         }
         let view = bridge.load()
-        view.frame = p.contentView?.bounds ?? .zero
-        view.autoresizingMask = [.width, .height]
-        p.contentView?.addSubview(view)
+        p.attach(content: view)
         p.positionNearMouse()
         p.makeKeyAndOrderFront(nil)
 
@@ -88,9 +86,17 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         bridge.pushInit(vaultInitJSON(vault: vault, result: result))
     }
 
+    /// 关闭浮窗，并解开 WKWebView 与 JS 桥之间的引用环（否则每次取词都会泄漏一个 WKWebView）
+    private func closeAssistantPanel() {
+        web?.tearDown()
+        web = nil
+        panel?.close()
+        panel = nil
+    }
+
     private func handle(message: AssistantMessage, vault: VaultConfig, inboxDir: String,
                         source: SelectionSource, word: String) {
-        defer { panel?.close(); panel = nil; web = nil }
+        defer { closeAssistantPanel() }
         guard case let .submit(payload) = message else { return }
 
         let frontApp = NSWorkspace.shared.frontmostApplication?.localizedName

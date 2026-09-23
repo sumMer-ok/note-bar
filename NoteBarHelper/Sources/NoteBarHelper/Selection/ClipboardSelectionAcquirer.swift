@@ -3,7 +3,7 @@ import CoreGraphics
 
 /// 剪贴板快照：按 item 保存「类型 → 原始数据」。
 /// 只保存字符串是不够的——恢复前会 clearContents，那样会把用户剪贴板里的图片/文件/富文本一并清掉。
-public struct PasteboardPayload: Equatable {
+public struct PasteboardPayload: Equatable, Sendable {
     public let items: [[String: Data]]
 
     public init(items: [[String: Data]]) { self.items = items }

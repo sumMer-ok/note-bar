@@ -9,12 +9,16 @@
   h1 { font-size: 13px; margin: 0 0 8px; font-weight: 600; }
   .word { font-size: 16px; font-weight: 600; margin-bottom: 6px; }
   label { display: block; margin: 8px 0 3px; font-size: 12px; opacity: .75; }
-  input, textarea, select { width: 100%; box-sizing: border-box; font: inherit; padding: 4px 6px;
+  /* 复选框必须排除在 width:100% 之外：否则它会被拉成整行宽，把后面的文字挤成竖排一列一个字 */
+  input:not([type="checkbox"]), textarea, select { width: 100%; box-sizing: border-box; font: inherit; padding: 4px 6px;
                             border: 1px solid rgba(128,128,128,.4); border-radius: 5px;
                             background: rgba(128,128,128,.08); color: inherit; }
+  input[type="checkbox"] { width: 13px; height: 13px; margin: 0; flex: 0 0 auto; accent-color: #4c6ef5; }
   textarea { height: 62px; resize: vertical; }
-  .books { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
-  .books label { display: flex; align-items: center; gap: 4px; margin: 0; font-size: 12px; opacity: 1; }
+  .books { display: flex; flex-wrap: wrap; gap: 8px 14px; margin-top: 4px; align-items: center; }
+  /* 词库项允许换行到下一行，但自身不被压缩、名字不逐字折行 */
+  .books label { display: inline-flex; align-items: center; gap: 5px; margin: 0; font-size: 12px; opacity: 1;
+                 flex: 0 0 auto; white-space: nowrap; }
   .row { display: flex; gap: 10px; align-items: flex-end; }
   .row > div { flex: 1; }
   .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }

@@ -96,17 +96,22 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         "取词（\(config.hotkey)）"
     }
 
+    /// 刷新 vault 快照。菜单栏「重载 vault 配置」、设置保存、**每次打开浮窗**都走这一段，
+    /// 只有读盘失败才保留旧快照（现场 bug：用户在助手启动后新增词库，浮窗一直用启动那一刻的快照，
+    /// 3 个词库只列出 1 个）。裁决是纯函数 `decideVaultRefresh`，这里只负责读盘与打日志。
     private func reloadVault() {
         guard !config.vaultPath.isEmpty else {
             Diag.log("未配置 vaultPath，请编辑 \(HelperConfig.defaultURL.path) 后点「重载 vault 配置」")
             return
         }
-        do {
-            let loaded = try loadVaultConfig(vaultPath: config.vaultPath)
+        let attempt = Result { try loadVaultConfig(vaultPath: config.vaultPath) }
+        switch decideVaultRefresh(cached: vault, attempt: attempt) {
+        case .adopt(let loaded, let logLines):
             vault = loaded
-            Diag.log("已载入 \(loaded.enabledCanvasBooks.count) 个启用词库，收件箱=\(config.resolveInboxDir(vault: loaded) ?? "未配置")")
-        } catch {
-            Diag.log("读取 vault 配置失败：\(error)")
+            logLines.forEach { Diag.log($0) }
+        case .keep(let cached, let logLines):
+            vault = cached
+            logLines.forEach { Diag.log($0) }
         }
     }
 
@@ -144,6 +149,9 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func presentAssistant(result: SelectionResult) {
+        // 每次打开浮窗前重读一次 vault 配置：用户可能在助手运行期间新增/重命名了词库，
+        // 不刷新就会一直列出启动那一刻的快照（读盘失败时 reloadVault 保留旧快照，不会因此打不开浮窗）。
+        reloadVault()
         guard let vault else {
             Diag.log("尚未载入 vault 配置，无法打开浮窗")
             NSSound.beep()

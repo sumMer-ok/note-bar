@@ -8,7 +8,7 @@ final class InboxWriterTests: XCTestCase {
         return url
     }
 
-    private func sampleEntry(word: String = "consideration") -> InboxEntry {
+    private func sampleEntry(word: String = "consideration", id: String = UUID().uuidString) -> InboxEntry {
         InboxEntry(
             v: 1,
             id: UUID().uuidString,
@@ -63,9 +63,10 @@ final class InboxWriterTests: XCTestCase {
             .appendingPathComponent("Fixtures")
         try FileManager.default.createDirectory(at: fixtureDir, withIntermediateDirectories: true)
         let fixture = fixtureDir.appendingPathComponent("inbox-sample.jsonl")
+        // id 固定：该样本会提交进仓库，必须逐字节稳定，否则每次跑测试都会让工作区变脏
         let lines = [
-            try InboxWriter.encodeLine(sampleEntry(word: "consideration")),
-            try InboxWriter.encodeLine(sampleEntry(word: "stipulation")),
+            try InboxWriter.encodeLine(sampleEntry(word: "consideration", id: "fixture-0001")),
+            try InboxWriter.encodeLine(sampleEntry(word: "stipulation", id: "fixture-0002")),
         ].joined(separator: "\n") + "\n"
         try lines.write(to: fixture, atomically: true, encoding: .utf8)
         XCTAssertTrue(FileManager.default.fileExists(atPath: fixture.path))

@@ -12,6 +12,7 @@ public struct AssistantFormPayload {
 /// JS 桥收到的消息；解析失败一律返回 nil（宁可无操作，不写脏数据）
 public enum AssistantMessage {
     case submit(AssistantFormPayload)
+    case aiExplain(AIExplainRequest)
     case cancel
 
     /// 页面就绪信号：只用于对齐加载时序，**绝不能转发给上层**——
@@ -24,6 +25,14 @@ public enum AssistantMessage {
     public init?(body: Any, fallbackWord: String, fallbackSentence: String?) {
         guard let dict = body as? [String: Any], let action = dict["action"] as? String else { return nil }
         if action == "cancel" { self = .cancel; return }
+
+        // 「AI 释义」按钮：用表单里当前的单词/例句（用户可能改过单词框）
+        if action == "aiExplain" {
+            guard let word = Self.nonEmpty(dict["word"] as? String) ?? Self.nonEmpty(fallbackWord) else { return nil }
+            self = .aiExplain(AIExplainRequest(word: word,
+                                               sentence: Self.nonEmpty(dict["sentence"] as? String) ?? fallbackSentence))
+            return
+        }
 
         let books = (dict["books"] as? [String]) ?? []
         let aliasesRaw = (dict["aliases"] as? String) ?? ""
@@ -43,5 +52,21 @@ public enum AssistantMessage {
             color: (colorRaw?.isEmpty == false) ? colorRaw : nil,
             books: books
         ))
+    }
+
+    private static func nonEmpty(_ value: String?) -> String? {
+        guard let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty else { return nil }
+        return trimmed
+    }
+}
+
+/// 「AI 释义」按钮的请求
+public struct AIExplainRequest: Equatable {
+    public let word: String
+    public let sentence: String?
+
+    public init(word: String, sentence: String?) {
+        self.word = word
+        self.sentence = sentence
     }
 }

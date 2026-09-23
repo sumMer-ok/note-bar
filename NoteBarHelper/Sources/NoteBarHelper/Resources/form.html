@@ -21,10 +21,17 @@
                  flex: 0 0 auto; white-space: nowrap; }
   .row { display: flex; gap: 10px; align-items: flex-end; }
   .row > div { flex: 1; }
+  .label-row { display: flex; align-items: baseline; justify-content: space-between; margin: 8px 0 3px; }
+  .label-row label { margin: 0; }
   .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
   button { font: inherit; padding: 4px 12px; border-radius: 5px; border: 1px solid rgba(128,128,128,.4);
            background: rgba(128,128,128,.12); cursor: pointer; }
   button.primary { background: #4c6ef5; border-color: #4c6ef5; color: #fff; }
+  button.small { padding: 2px 8px; font-size: 11px; }
+  button:disabled { opacity: .5; cursor: default; }
+  .status { font-size: 11px; margin-top: 5px; min-height: 14px; white-space: pre-wrap; }
+  .status.err { color: #e03131; }
+  .status.info { opacity: .7; }
   .src { font-size: 11px; opacity: .6; margin-top: 8px; }
 </style>
 </head>
@@ -32,8 +39,12 @@
   <h1>加入词库</h1>
   <div class="word" id="word"></div>
 
-  <label for="definition">释义</label>
+  <div class="label-row">
+    <label for="definition">释义</label>
+    <button class="small" id="ai" title="用 vault 里配置的 AI 服务生成别名与释义">AI 释义</button>
+  </div>
   <textarea id="definition" placeholder="可留空，插件会用本地词典补全"></textarea>
+  <div class="status" id="ai-status"></div>
 
   <div class="row">
     <div>
@@ -99,6 +110,52 @@
     if (e.key === 'Escape') post({ action: 'cancel' });
     if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) document.getElementById('submit').click();
   });
+
+  // —— 原生端补充入口 ——
+
+  const setStatus = (text, cls) => {
+    const el = document.getElementById('ai-status');
+    el.textContent = text || '';
+    el.className = 'status' + (cls ? ' ' + cls : '');
+  };
+
+  // 本地词典预填：只填还空着的字段，绝不覆盖用户已经输入/修改过的内容
+  window.nbhFill = (payload) => {
+    if (!payload) return;
+    const def = document.getElementById('definition');
+    const aliases = document.getElementById('aliases');
+    if (payload.definition && !def.value.trim()) def.value = payload.definition;
+    if (payload.aliases && !aliases.value.trim()) aliases.value = payload.aliases;
+    setStatus('已从本地词典预填', 'info');
+  };
+
+  // AI 释义结果：成功回填别名/释义，失败显示可见错误
+  window.nbhFillAI = (payload) => {
+    if (!payload) return;
+    if (payload.error) { setStatus('AI 释义失败：' + payload.error, 'err'); setAIButtonLoading(false); return; }
+    const def = document.getElementById('definition');
+    const aliases = document.getElementById('aliases');
+    if (payload.definition) def.value = payload.definition;
+    if (payload.aliases && !aliases.value.trim()) aliases.value = payload.aliases;
+    setStatus('AI 释义已填入', 'info');
+    setAIButtonLoading(false);
+  };
+
+  window.nbhStatus = (text, isError) => setStatus(text, isError ? 'err' : 'info');
+
+  const setAIButtonLoading = (loading) => {
+    const button = document.getElementById('ai');
+    button.disabled = loading;
+    button.textContent = loading ? '查询中…' : 'AI 释义';
+  };
+
+  document.getElementById('ai').onclick = () => {
+    setAIButtonLoading(true);
+    setStatus('正在请求 AI 服务…', 'info');
+    post({ action: 'aiExplain',
+           word: document.getElementById('word').textContent,
+           sentence: document.getElementById('sentence').value });
+  };
 
   // 脚本就绪后立刻通知原生端：原生端会等这个信号再推初始化数据，
   // 否则 window.nbhInit 尚未定义，evaluateJavaScript 会静默失败（面板一片空白）。

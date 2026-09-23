@@ -106,9 +106,22 @@ public final class AssistantWebView: NSObject, WKScriptMessageHandler, WKNavigat
     private func flushInitIfPossible() {
         guard pageReady, let json = pendingInit else { return }
         pendingInit = nil
-        webView.evaluateJavaScript("window.nbhInit(\(json));") { _, error in
+        evaluate("window.nbhInit(\(json));")
+    }
+
+    /// 面板打开后向页面推数据（词典预填、AI 结果）；页面未就绪时静默丢弃并记日志
+    public func push(script: String) {
+        guard pageReady else {
+            Diag.log("面板页面尚未就绪，丢弃一次 JS 调用：\(script.prefix(60))")
+            return
+        }
+        evaluate(script)
+    }
+
+    private func evaluate(_ script: String) {
+        webView.evaluateJavaScript(script) { _, error in
             if let error {
-                NSLog("NoteBarHelper: nbhInit 执行失败：%@", String(describing: error))
+                Diag.log("面板 JS 执行失败：\(error)（脚本片段：\(script.prefix(80))）")
             }
         }
     }

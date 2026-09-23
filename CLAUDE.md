@@ -66,6 +66,7 @@ note-bar/
 │       ├── sync-exporter.ts / sync-importer.ts / sidecar-store.ts / merge.ts / study-key.ts
 │       ├── inbox-types.ts     # 跨应用加词收件箱协议类型与单行解析
 │       ├── inbox-store.ts     # 收件箱路径约定、原子写、失败归档、消费状态
+│       ├── inbox-config.ts    # 收件箱开关与目录解析（isInboxEnabled / resolveInboxDir）
 │       ├── inbox-importer.ts  # 收件箱消费循环（目标词库解析、幂等去重、失败归档、坏行保留）
 │       └── inbox-vocabulary-adapter.ts  # 收件箱端口 → VocabularyManager
 ├── HiWords/                   # 上游参考子项目（完整独立插件）
@@ -158,8 +159,10 @@ note-bar/
 - `inbox-types.ts`：协议类型与单行解析（`InboxEntry` / `parseInboxLine` / `normalizeAliases`）。
 - `inbox-store.ts`：路径约定、原子写、失败归档、消费状态（`note-bar-inbox.state.json`）。
 - `inbox-importer.ts`：消费循环（目标词库解析、幂等去重、失败归档、坏行保留）。
+- `inbox-config.ts`：开关与目录解析（`isInboxEnabled` / `resolveInboxDir`，只允许 `import type`，保证可单测）。
 - `inbox-vocabulary-adapter.ts`：把收件箱端口映射到 `VocabularyManager`（只允许 `import type`，保证可单测）。
 - 协议文件：`note-bar-inbox.jsonl`（助手追加写）/ `note-bar-inbox.failed.jsonl` / `note-bar-inbox.state.json`。
+- 收件箱是否被消费只由 `crossAppInbox.enabled` 决定（`importInboxNow()` 与 `SyncManager.startInbox()` 都按它闸门），手机同步开启但该开关关闭时不消费；收件箱也能脱离手机同步独立运行，`startInbox()` / `stopInbox()` 由设置项与启动流程单独调用，切换收件箱目录会重启 `fs.watch` 监听。
 
 ## 4. 构建流程
 

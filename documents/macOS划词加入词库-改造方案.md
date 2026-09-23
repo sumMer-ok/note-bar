@@ -241,7 +241,8 @@
 
 - P0（收件箱链路）：未执行（需人工）。端到端验收需在测试 vault 中重载插件并观测 Canvas 落库，尚未执行，验收记录文件 `documents/p0-验收记录-跨应用加词.md` 尚未创建。
 - P0（WPS AX 可读性探针）：未执行（需人工）。判定需在 macOS 上用 Accessibility Inspector 实测 WPS for Mac 选区属性，尚未执行。
-- P1（插件侧收件箱）：已完成。`inbox-types.ts` / `inbox-store.ts` / `inbox-importer.ts` / `inbox-vocabulary-adapter.ts` 四个模块与单测落地，`SyncManager` 已接监听与消费，`crossAppInbox` 设置项与 `Note Bar: 导入跨应用词条` 命令已注册；`npm test` 47 项通过，`npx tsc -noEmit -skipLibCheck` 与 `npm run build` 通过。
+- P1（插件侧收件箱）：已完成。`inbox-types.ts` / `inbox-store.ts` / `inbox-importer.ts` / `inbox-vocabulary-adapter.ts` / `inbox-config.ts` 五个模块与单测落地，`SyncManager` 已接监听与消费，`crossAppInbox` 设置项与 `Note Bar: 导入跨应用词条` 命令已注册；`npm test` 54 项通过，`npx tsc -noEmit -skipLibCheck` 与 `npm run build` 通过。
+- P1 复核修复（2026-09-23 复审后）：原方案三处设计缺口已修好——① `crossAppInbox.enabled` 之前不产生任何闸门作用，现在 `isInboxEnabled()` 同时闸住 `importInboxNow()`（关闭时返回 null，手动命令提示"请先在设置中启用…"）与 `SyncManager.startInbox()`；② 收件箱原只在 `SyncManager.start()`（需手机同步开启）里接线，现在 `sync-manager` 新增公开的 `startInbox()` / `stopInbox()`，`main.ts` 在 layout ready 时按开关独立启动，手机同步关闭也能消费；③ 收件箱目录改动后只存设置、`fs.watch` 仍盯旧目录，现在目录选择后立即调用 `startInbox()` 重建监听。另新增集成测试 `tests/sync/inbox-canvas-integration.test.ts`（配套 `tests/stubs/obsidian.ts` 替身 + `scripts/build-tests.mjs` 的 esbuild `alias`），用真实 `importInbox` + `createInboxVocabularyPort` + `CanvasEditor` 在临时 vault 上验证"外部写入 → Canvas 节点落库"，断言节点文本三段格式、当天日期分组、`color` 字符串、收件箱清空与状态文件；该测试不覆盖 `VocabularyManager` 与 `SyncManager` 接线（见测试文件顶部边界说明）。失败文案也校正为"目标词库写入失败"（多目标词库下部分失败仍按成功归档）。
 - P2（macOS 助手）：等待 P0 探针结论后另立计划。
 
 **不做（non-goals）**

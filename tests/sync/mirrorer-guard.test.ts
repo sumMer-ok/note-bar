@@ -223,6 +223,35 @@ test("冲突副本识别：新命名 .conflict-* 与旧命名 <book> <n>.canvas 
   }
 });
 
+test("节点数骤降告警：结构合法但骤减的副本仍会提示（不阻断，用户可能真在批量删词）", async () => {
+  const h = await createHarness();
+  try {
+    const bigNodes = Array.from({ length: 10 }, (_, index) => ({
+      id: `n${index}`,
+      type: "text",
+      x: 0,
+      y: index * 140,
+      width: 260,
+      height: 120,
+      text: `word-${index}`,
+    }));
+    const smallNodes = bigNodes.slice(0, 3);
+    await writeFile(h.vaultFile, JSON.stringify({ nodes: bigNodes, edges: [] }), "utf8");
+    await writeFile(h.syncFile, JSON.stringify({ nodes: smallNodes, edges: [] }), "utf8");
+    await utimes(h.syncFile, new Date(Date.now() + 60000), new Date(Date.now() + 60000));
+
+    await h.mirrorer.syncOnce();
+
+    assert.deepEqual(JSON.parse(await readFile(h.vaultFile, "utf8")).nodes.length, 3, "结构合法 ⇒ 仍按 mtime 采纳");
+    assert.ok(
+      h.conflicts.some((message) => message.includes("节点数骤降") && message.includes("10") && message.includes("3")),
+      `应提示节点数骤降，实际：${h.conflicts.join(" / ")}`
+    );
+  } finally {
+    await h.cleanup();
+  }
+});
+
 test("镜像复制写审计：actor=mirror，含前后字节数与 sha1 前 12 位", async () => {
   const h = await createHarness();
   try {

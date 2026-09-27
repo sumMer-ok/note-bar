@@ -3,6 +3,7 @@ import * as path from "path";
 import type { VocabularyBook } from "../hiwords/utils";
 import {
   isConflictCopyName,
+  isSuspiciousShrink,
   suspectCanvasName,
   validateCanvasText,
   type CanvasValidationResult,
@@ -216,6 +217,7 @@ export class Mirrorer {
     await fs.copyFile(candidate, src);
     const after = await this.readText(src);
     await this.recordAudit(bookPath, before, after);
+    this.warnOnSuspiciousShrink(bookPath, before, after, "采纳副本");
     await this.promoteNested(candidate, dst, nestedDst);
     this.opts.onVaultChanged(bookPath);
   }
@@ -228,6 +230,28 @@ export class Mirrorer {
     if (nestedDst && nestedDst !== dst) await fs.copyFile(src, nestedDst).catch(() => undefined);
     const after = await this.readText(dst);
     await this.recordAudit(bookPath, before, after);
+    this.warnOnSuspiciousShrink(bookPath, before, after, "推出 vault");
+  }
+
+  /**
+   * 节点数骤降的额外防御（P0-2）：两侧都是合法 JSON，但新版本比旧版本少 40% 以上节点。
+   * 结构合法 ⇒ 不阻断（可能是用户真的批量删词，且阻断会每轮轮询反复告警），
+   * 但必须让用户看见，并留在审计里。
+   */
+  private warnOnSuspiciousShrink(
+    bookPath: string,
+    previous: string | null,
+    next: string | null,
+    direction: string
+  ): void {
+    if (previous === null || next === null) return;
+    const previousVerdict = validateCanvasText(previous);
+    const nextVerdict = validateCanvasText(next);
+    if (!previousVerdict.ok || !nextVerdict.ok) return;
+    if (!isSuspiciousShrink(nextVerdict.nodeCount, previousVerdict.nodeCount)) return;
+    this.opts.onConflict(
+      `镜像节点数骤降（${direction}）：${bookPath} 由 ${previousVerdict.nodeCount} 个节点变为 ${nextVerdict.nodeCount} 个，请确认不是截断`
+    );
   }
 
   /** 把校验失败的候选原样另存到同步目录（绝不删除、绝不覆盖 vault） */

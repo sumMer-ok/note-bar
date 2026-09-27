@@ -1,0 +1,1323 @@
+{
+  "edges" : [
+
+  ],
+  "metadata" : {
+    "frontmatter" : {
+
+    },
+    "startNode" : "1994d52af955bf6b",
+    "version" : "1.0-1.0"
+  },
+  "nodes" : [
+    {
+      "height" : 3204,
+      "id" : "31b2f77b62551da7",
+      "label" : "2026-07-25",
+      "type" : "group",
+      "width" : 1160,
+      "x" : 1280,
+      "y" : 20
+    },
+    {
+      "height" : 3996,
+      "id" : "f9a21d876f123962",
+      "label" : "2026-07-28",
+      "type" : "group",
+      "width" : 580,
+      "x" : 3100,
+      "y" : 0
+    },
+    {
+      "height" : 3336,
+      "id" : "54355fccd5dc5052",
+      "label" : "2026-08-03",
+      "type" : "group",
+      "width" : 580,
+      "x" : 5580,
+      "y" : 0
+    },
+    {
+      "height" : 2280,
+      "id" : "979b9ef3ab7903f6",
+      "label" : "2026-08-06",
+      "type" : "group",
+      "width" : 580,
+      "x" : 6820,
+      "y" : 0
+    },
+    {
+      "height" : 2016,
+      "id" : "bfede6fdcad95755",
+      "label" : "2026-07-26",
+      "type" : "group",
+      "width" : 580,
+      "x" : 2480,
+      "y" : 0
+    },
+    {
+      "color" : "4",
+      "height" : 1884,
+      "id" : "280e87c9b6eabc48",
+      "label" : "Mastered",
+      "type" : "group",
+      "width" : 580,
+      "x" : 660,
+      "y" : -300
+    },
+    {
+      "height" : 1752,
+      "id" : "4826931ff4c3752d",
+      "label" : "2026-08-04",
+      "type" : "group",
+      "width" : 580,
+      "x" : 6200,
+      "y" : 0
+    },
+    {
+      "height" : 1488,
+      "id" : "04d8e2eff551a43b",
+      "label" : "2026-08-07",
+      "type" : "group",
+      "width" : 580,
+      "x" : 7440,
+      "y" : 0
+    },
+    {
+      "height" : 1224,
+      "id" : "322a622cdbcb32cb",
+      "label" : "2026-07-31",
+      "type" : "group",
+      "width" : 580,
+      "x" : 3720,
+      "y" : 0
+    },
+    {
+      "height" : 1224,
+      "id" : "8ab36f0481401cd7",
+      "label" : "2026-08-01",
+      "type" : "group",
+      "width" : 580,
+      "x" : 4340,
+      "y" : 0
+    },
+    {
+      "height" : 564,
+      "id" : "8b371e5a48a3a421",
+      "label" : "2026-08-02",
+      "type" : "group",
+      "width" : 580,
+      "x" : 4960,
+      "y" : 0
+    },
+    {
+      "color" : "4",
+      "height" : 120,
+      "id" : "46f271734f914f2a",
+      "text" : "judiciary\n*judiciaries*\n\n1. n. 司法部；法官；司法制度\n2. adj. 司法的；法官的；法院的",
+      "type" : "text",
+      "width" : 260,
+      "x" : 3396,
+      "y" : 3588
+    },
+    {
+      "color" : "2",
+      "height" : 120,
+      "id" : "1fbec7f01c35e01c",
+      "text" : "ministerial\n\n1. adj. 部长的；内阁的；公使的；牧师的\n\n--- AI 释义 ---\n1）英\/ ˌmɪnɪˈstɪəriəl \/  美\/ ˌmɪnɪˈstɪriəl \/\n2）\nadj.部长的，大臣的；行政性的，执行性的；（神学）牧师的，神职的\n3）relating to or involving a government minister or the ministry; also used to describe tasks or duties that are clerical or administrative in nature, often without requiring independent judgment\n4）The commission were ministerial details, and failing to carry them out did not imply any substantive decision.",
+      "type" : "text",
+      "width" : 260,
+      "x" : 3396,
+      "y" : 3720
+    },
+    {
+      "color" : "2",
+      "height" : 120,
+      "id" : "042f6f87dc1f324c",
+      "text" : "inadvertence\n*inadvertences*\n\n1. n. 不注意；怠慢，疏忽\n\n--- AI 释义 ---\n1）英\/ ˌɪnədˈvɜːtəns \/  美\/ ˌɪnədˈvɜːrtəns \/\n2）n.疏忽，不经心；无意之举\n3）the fact of being unintentional or resulting from lack of attention; an oversight or mistake made carelessly\n4）Through inadvertence, a few commissions were not delivered to the new officeholders.",
+      "type" : "text",
+      "width" : 260,
+      "x" : 3124,
+      "y" : 3324
+    },
+    {
+      "color" : "1",
+      "height" : 120,
+      "id" : "446a1a0015cedc60",
+      "text" : "mandamus\n*mandamuss*\n\n1. n. 命令书；书面训令\n2. vt. 发训令（过去式mandamused，过去分词mandamused，现在分词mandamusing，第三人称单数mandamuses）\n\n--- AI 释义 ---\n1）英\/ mænˈdeɪməs \/  美\/ mænˈdeɪməs \/\n2）\nn.（法律）执行职务令，命令状（上级法院向下级法院、官员或机构发出的履行法定职责的命令）\n3）a judicial writ issued as a command to an inferior court, public official, or corporation to perform a specified act that is required by law as part of their duty\n4）The party sought a writ of mandamus in the Supreme Court to compel the lower court to hear the case.",
+      "type" : "text",
+      "width" : 260,
+      "x" : 3124,
+      "y" : 3456
+    },
+    {
+      "color" : "2",
+      "height" : 120,
+      "id" : "9072dcea670c4484",
+      "text" : "ceded\n*cede*\n\n1. vt. 屈服；让与；割让（cede的过去式）",
+      "type" : "text",
+      "width" : 260,
+      "x" : 3124,
+      "y" : 3852
+    },
+    {
+      "color" : "5",
+      "height" : 120,
+      "id" : "9845ae962d7d5c47",
+      "text" : "syllogism\n*syllogisms*\n\n1. n. 三段论；推论\n\n--- AI 释义 ---\n1）英\/ˈsɪlədʒɪzəm\/ 美\/ˈsɪlədʒɪzəm\/\n2）n.三段论，演绎推理\n3）a deductive scheme of a formal argument consisting of a major and a minor premise and a conclusion\n4）Thus Marshall neatly concludes the syllogism.",
+      "type" : "text",
+      "width" : 260,
+      "x" : 3396,
+      "y" : 3852
+    },
+    {
+      "color" : "4",
+      "height" : 120,
+      "id" : "4ce96796fc37fb16",
+      "text" : "acquiescing\n*acquiesce, acquiescings*\n\n1. v. 默认，默许( acquiesce的现在分词 )\n\n--- AI 释义 ---\n1）英\/ ˌækwiˈesɪŋ \/ 美\/ ˌækwiˈesɪŋ \/\n2）v.默许，默认，顺从，勉强同意\n3）to accept something without protest, but often without enthusiasm or agreement\n4）He would be acquiescing in an assumption of power by the executive.",
+      "type" : "text",
+      "width" : 260,
+      "x" : 3124,
+      "y" : 3588
+    },
+    {
+      "color" : "2",
+      "height" : 120,
+      "id" : "71c286f9f4c3b208",
+      "text" : "sidestep\n*sidestepped, sidestepping, sidesteps*\n\n1. n. 台阶；横跨的一步\n2. vt. 回避；横跨一步躲避\n3. vi. 回避问题；侧向跨步\n\n--- AI 释义 ---\n1）英\/ ˈsaɪdstep \/  美\/ ˈsaɪdstep \/\n2）v.回避，避开；侧步避开\n3）to avoid dealing with something, especially a difficult or controversial issue, by not addressing it directly\n4）The chief justice sought to sidestep the controversy by claiming the power of judicial review for the Court but exercising it in a way that denied Marbury his commission.",
+      "type" : "text",
+      "width" : 260,
+      "x" : 3124,
+      "y" : 3720
+    },
+    {
+      "color" : "3",
+      "height" : 120,
+      "id" : "c7cd653f24814486",
+      "text" : "takes precedence over\n*take precedence over, taked precedence over*\n\n1. 优先于；地位高于；比…重要\n\n--- AI 释义 ---\n1）英\/ teɪks ˈpresɪdəns ˈəʊvə \/  美\/ teɪks ˈpresɪdəns ˈoʊvər \/\n2）优先于，比……重要",
+      "type" : "text",
+      "width" : 260,
+      "x" : 3124,
+      "y" : 3060
+    },
+    {
+      "color" : "3",
+      "height" : 120,
+      "id" : "13ec056e6de81e96",
+      "text" : "discord\n*discords, discording, discorded*\n\n1. n. 不和；不调和；嘈杂声\n2. vi. 不一致；刺耳\n3. n. (Discord)人名；(法)迪斯科尔\n\n--- AI 释义 ---\n1）英\/ ˈdɪskɔːrd \/  美\/ ˈdɪskɔːrd \/\n2）\nn. 不一致，不和谐；纷争，冲突；（音乐）不协和音\nv. 不一致，不和谐\n3）disagreement or conflict between people or things\n4）When new insight reveals discord, it often leads to a re-evaluation of previous assumptions.",
+      "type" : "text",
+      "width" : 260,
+      "x" : 3124,
+      "y" : 2928
+    },
+    {
+      "color" : "2",
+      "height" : 120,
+      "id" : "96ca598ec9d8aa0e",
+      "text" : "commissions\n*commission*\n\n1. n. [会计] 佣金，[会计] 手续费；现金奖励情况（commission的复数）",
+      "type" : "text",
+      "width" : 260,
+      "x" : 3396,
+      "y" : 3456
+    },
+    {
+      "height" : 120,
+      "id" : "a2394147a854387d",
+      "text" : "artifact\n*artifacts*\n\n1. n. 人工制品；手工艺品",
+      "type" : "text",
+      "width" : 260,
+      "x" : 3396,
+      "y" : 2400
+    },
+    {
+      "color" : "5",
+      "height" : 120,
+      "id" : "fd7a3fa8e0367500",
+      "text" : "restate\n*restated, restating, restates*\n\n1. vt. 重申；重新叙述；重讲",
+      "type" : "text",
+      "width" : 260,
+      "x" : 3396,
+      "y" : 2664
+    },
+    {
+      "height" : 120,
+      "id" : "692eca9613159e53",
+      "text" : "pornography\n*pornographies*\n\n1. n. 色情文学；色情描写",
+      "type" : "text",
+      "width" : 260,
+      "x" : 3396,
+      "y" : 2532
+    },
+    {
+      "color" : "2",
+      "height" : 120,
+      "id" : "b64fb4f58c95978e",
+      "text" : "inaugurated\n*inaugurate*\n\n1. v. 开始；开幕（inaugurate的过去分词）；使正式就任\n\n--- AI 释义 ---\n1）英\/ ɪˈnɔːɡjəreɪtɪd \/  美\/ ɪˈnɔːɡjəreɪtɪd \/\n2）\nadj.新就职的；新成立的；新开始的\nv.（inaugurate的过去分词）为……举行就职典礼；开创；开始\n3）having recently been formally installed in a position of authority, especially as part of a ceremony\n4）That night, and the next day the newly inaugurated President Jefferson began his term.",
+      "type" : "text",
+      "width" : 260,
+      "x" : 3396,
+      "y" : 3324
+    },
+    {
+      "color" : "3",
+      "height" : 120,
+      "id" : "3ff1c423cf7dd9e4",
+      "text" : "analogize\n*analogizing, analogizes, analogized*\n\n1. vt. 类推；以类推来说明\n2. vi. 类推；作类比推理",
+      "type" : "text",
+      "width" : 260,
+      "x" : 3396,
+      "y" : 2928
+    },
+    {
+      "color" : "4",
+      "height" : 120,
+      "id" : "cc3173ae212f52a5",
+      "text" : "statesmen\n*statesman*\n\n1. n. 政治家; 政治家( statesman的名词复数 )",
+      "type" : "text",
+      "width" : 260,
+      "x" : 3396,
+      "y" : 2796
+    },
+    {
+      "color" : "2",
+      "height" : 120,
+      "id" : "4e47b58a9c4f5644",
+      "text" : "partisan\n*partisans*\n\n1. n. 游击队；虔诚信徒；党羽\n2. adj. 党派的；效忠的；偏袒的；盲目推崇的\n\n--- AI 释义 ---\n1）英\/ pɑːtɪˈzæn \/ 美\/ ˈpɑːrtɪzən \/\n2）n. 支持者，拥护者；游击队员 adj. 党派性的，有偏袒的\n3）a strong supporter of a party, cause, or person, especially one who shows blind or prejudiced allegiance\n4）Partisan politics often leads to gridlock as each side refuses to compromise.",
+      "type" : "text",
+      "width" : 260,
+      "x" : 3396,
+      "y" : 3060
+    },
+    {
+      "color" : "2",
+      "height" : 120,
+      "id" : "b4a1870a8dfe57c9",
+      "text" : "vacancy\n*vacancies*\n\n1. n. 空缺；空位；空白；空虚",
+      "type" : "text",
+      "width" : 260,
+      "x" : 3396,
+      "y" : 3192
+    },
+    {
+      "color" : "2",
+      "height" : 120,
+      "id" : "322040ba39ab33a7",
+      "text" : "intrigue\n*intrigues, intrigued, intriguing*\n\n1. n. 阴谋；诡计；复杂的事；私通\n2. vt. 用诡计取得；激起...的兴趣\n3. vi. 私通；密谋",
+      "type" : "text",
+      "width" : 260,
+      "x" : 3124,
+      "y" : 3192
+    },
+    {
+      "height" : 120,
+      "id" : "d557828afe4dc9a1",
+      "text" : "abide by\n\n1. na. 坚持；服从\n2. [网络] 遵守；信守；遵循",
+      "type" : "text",
+      "width" : 260,
+      "x" : 3396,
+      "y" : 2004
+    },
+    {
+      "height" : 120,
+      "id" : "9a38d6700a2bfa95",
+      "text" : "specter\n*specters*\n\n1. n. 幽灵；妖怪；恐怖之物",
+      "type" : "text",
+      "width" : 260,
+      "x" : 3396,
+      "y" : 2136
+    },
+    {
+      "color" : "4",
+      "height" : 120,
+      "id" : "a65c5271ea725f82",
+      "text" : "render\n*rendered, renders, rendering*\n\n1. n. 打底；交纳；粉刷\n2. vt. 致使；提出；实施；着色；以…回报\n3. vi. 给予补偿\n4. n. (Render)人名；(英、德)伦德尔\n\n--- AI 释义 ---\n1）英\/ ˈrɛndər \/  美\/ ˈrɛndər \/\n2）\nv.提供，给予；作出（判断、决定等）；使成为；翻译；表达，表现；渲染；递交，提交；支付，偿还；演出，演奏；熬制（脂肪）\nn.缴纳；渲染；抹灰底层\n3）to give or provide something, or to make a judgment or decision\n4）The initial problem of our ability to render a historical judgment about original intent or understanding remains.",
+      "type" : "text",
+      "width" : 260,
+      "x" : 3396,
+      "y" : 2268
+    },
+    {
+      "height" : 120,
+      "id" : "7efabf033872011e",
+      "text" : "resort to\n\n1. na. 使用(武力)\n2. [网络] 诉诸于；求助于；采取",
+      "type" : "text",
+      "width" : 260,
+      "x" : 3124,
+      "y" : 2136
+    },
+    {
+      "color" : "4",
+      "height" : 120,
+      "id" : "bd9b238448fc0f49",
+      "text" : "superseding\n*supersede, supersedings*\n\n1. v. 取代，接替( supersede的现在分词 )\n\n--- AI 释义 ---\n1）英\/ ˌsuːpəˈsiːdɪŋ \/  美\/ ˌsuːpərˈsiːdɪŋ \/\n2）\nv.取代，替代；接替；使无效\n3）to take the place of something\/somebody, especially because it is old-fashioned or no longer valid\n4）The new system supersedes the previous one, making it obsolete.",
+      "type" : "text",
+      "width" : 260,
+      "x" : 3124,
+      "y" : 2268
+    },
+    {
+      "height" : 120,
+      "id" : "e4ac9c49db841119",
+      "text" : "dig up\n\n1. na. 查出；找到；开垦(荒地等)；采掘(山芋等)\n2. [网络] 挖出；掘起；发现",
+      "type" : "text",
+      "width" : 260,
+      "x" : 3124,
+      "y" : 2532
+    },
+    {
+      "color" : "1",
+      "height" : 120,
+      "id" : "fbce45c669d2e1df",
+      "text" : "delegated\n*delegate*\n\n1. v. 授权（delegate的过去分词）；委托；派…代表\n\n--- AI 释义 ---\n1）英\/ˈdelɪɡeɪtɪd\/  美\/ˈdeləɡeɪtɪd\/\n2）v.授权，委托；委派……为代表\n3）to give someone else a particular job, duty, or right to act on your behalf\n4）On behalf of the people, delegated powers to the federal government.",
+      "type" : "text",
+      "width" : 260,
+      "x" : 3124,
+      "y" : 2004
+    },
+    {
+      "color" : "2",
+      "height" : 120,
+      "id" : "cfdd3f54925bf7af",
+      "text" : "superfluous\n\n1. adj. 多余的；不必要的；奢侈的\n\n--- AI 释义 ---\n1）英\/ suːˈpɜːfluəs \/  美\/ suːˈpɜːrfluəs \/\n2）adj.多余的，过剩的，不必要的\n3）more than is needed or wanted; unnecessary\n4）But the due process clauses would be superfluous if all they did was to restate the protections of the Fourth,",
+      "type" : "text",
+      "width" : 260,
+      "x" : 3124,
+      "y" : 2664
+    },
+    {
+      "color" : "6",
+      "height" : 120,
+      "id" : "24b14b4487981858",
+      "text" : "obedience\n*obediences*\n\n1. n. 顺从；服从；遵守\n2. n. (Obedience)人名；(英)奥贝丁丝\n\n--- AI 释义 ---\n1）英\/ əˈbiːdiəns \/  美\/ oʊˈbiːdiəns \/\n2）\nn.服从，顺从；遵守，遵从\n3）the fact or condition of following orders, rules, or requests from someone in authority\n4）The soldiers were rewarded for their unquestioning obedience to their commander.",
+      "type" : "text",
+      "width" : 260,
+      "x" : 3124,
+      "y" : 2796
+    },
+    {
+      "color" : "2",
+      "height" : 120,
+      "id" : "65081207619da258",
+      "text" : "ratified\n*ratify*\n\n1. adj. 批准的\n2. vt. 批准（ratify的过去式）\n\n--- AI 释义 ---\n1）英\/ ˈrætɪfaɪd \/  美\/ ˈrætɪfaɪd \/\n2）\nv.正式批准，签署生效\n3）to formally approve or confirm something, usually by vote or official agreement\n4）The treaty was ratified by all participating nations after lengthy debates.",
+      "type" : "text",
+      "width" : 260,
+      "x" : 3124,
+      "y" : 2400
+    },
+    {
+      "color" : "1",
+      "height" : 120,
+      "id" : "eccc3f7078ebc138",
+      "text" : "seizure\n*seizures*\n\n1. n. 没收；夺取；捕获；（疾病的）突然发作\n\n--- AI 释义 ---\n1）英\/ ˈsiːʒə(r) \/  美\/ ˈsiːʒər \/\n2）\nn.  seizure（财产、物品等的）扣押，没收，查封；（疾病的）突然发作，阵发；（情感的）突然迸发；癫痫发作；夺取，占领\n3）the act of taking control of something, especially by force or legal authority\n4）The Fourth Amendment protects citizens against unreasonable searches and seizures.",
+      "type" : "text",
+      "width" : 260,
+      "x" : 2776,
+      "y" : 1740
+    },
+    {
+      "color" : "2",
+      "height" : 120,
+      "id" : "aaf3c07b0a471365",
+      "text" : "strike down\n\n1. na. 打倒；杀；(将鱼)装桶保藏；使生(病)\n2. [网络] 击倒；打翻；打垮",
+      "type" : "text",
+      "width" : 260,
+      "x" : 2776,
+      "y" : 1608
+    },
+    {
+      "color" : "2",
+      "height" : 120,
+      "id" : "114fe1e1e7a5e6fb",
+      "text" : "compliance\n*compliances*\n\n1. n. 顺从，服从；承诺\n\n--- AI 释义 ---\n1）英\/ kəmˈplaɪəns \/  美\/ kəmˈplaɪəns \/\n2）\nn.遵从，服从；顺从，听话；合规，符合（规定、法律等）\n3）the act of obeying a law, rule, or request, or the state of being obedient\n4）Because the Court cannot coerce compliance with its decisions, its constitutional authority is supported by our culture’s tradition of respect.",
+      "type" : "text",
+      "width" : 260,
+      "x" : 3396,
+      "y" : 1740
+    },
+    {
+      "color" : "2",
+      "height" : 120,
+      "id" : "7485f60fec6d63ee",
+      "text" : "mandating\n*mandate*\n\n1. 委托\n2. 批准（mandate的现在分词）\n\n--- AI 释义 ---\n1）英\/ˈmændeɪtɪŋ\/ 美\/ˈmændeɪtɪŋ\/\n2）v.强制执行，命令，授权（mandate的现在分词）\n3）to officially require or order something to be done\n4）The government is mandating the purchase of health insurance for all citizens.",
+      "type" : "text",
+      "width" : 260,
+      "x" : 3396,
+      "y" : 1872
+    },
+    {
+      "color" : "2",
+      "height" : 120,
+      "id" : "40687682be6665da",
+      "text" : "coerce\n*coerced, coercing, coerces*\n\n1. vt. 强制，迫使\n\n--- AI 释义 ---\n1）英\/ kəʊˈɜːs \/  美\/ koʊˈɜːrs \/\n2）v.强制，胁迫，迫使\n3）to force someone to do something that they do not want to do, especially by using threats or pressure\n4）Because the Court cannot coerce compliance with its decisions, its constitutional authority is supported by our culture’s tradition of respect.",
+      "type" : "text",
+      "width" : 260,
+      "x" : 3124,
+      "y" : 1740
+    },
+    {
+      "color" : "2",
+      "height" : 120,
+      "id" : "7f2315fe75fa3dda",
+      "text" : "trimester\n*trimesters*\n\n1. n. 三个月；一学期",
+      "type" : "text",
+      "width" : 260,
+      "x" : 3124,
+      "y" : 1872
+    },
+    {
+      "color" : "4",
+      "height" : 120,
+      "id" : "271f37d6fbf78cef",
+      "text" : "trampling\n*trample, tramplings*\n\n1. n. 践踏；踩踏\n2. v. 蹂躏（trample的ing形式）",
+      "type" : "text",
+      "width" : 260,
+      "x" : 3124,
+      "y" : 1608
+    },
+    {
+      "color" : "3",
+      "height" : 120,
+      "id" : "a78ee6445b6024ee",
+      "text" : "absurd\n*absurds*\n\n1. n. 荒诞；荒诞作品\n2. adj. 荒谬的；可笑的\n\n--- AI 释义 ---\n1）英\/ əbˈsɜːd \/  美\/ əbˈsɜːrd \/\n2）\nadj.荒谬的，荒唐的；可笑的，滑稽的；不合理的，愚蠢的\n3）completely unreasonable, illogical, or inappropriate; ridiculous\n4）It was absurd to think that he could finish the job in one day.",
+      "type" : "text",
+      "width" : 260,
+      "x" : 3396,
+      "y" : 1608
+    },
+    {
+      "height" : 120,
+      "id" : "b7cf76f024e95bb4",
+      "text" : "acquiesced\n*acquiesce*\n\n1. v. 默认，默许( acquiesce的过去式和过去分词 )\n\n--- AI 释义 ---\n1）英\/ˌækwiˈest\/  美\/ˌækwiˈest\/\n2）v.默许，顺从，默认\n3）to accept or agree to something without protest, often reluctantly\n4）The political system had acquiesced to the authoritarian measures.",
+      "type" : "text",
+      "width" : 260,
+      "x" : 3124,
+      "y" : 1080
+    },
+    {
+      "color" : "2",
+      "height" : 120,
+      "id" : "7d298a1dc0f290b7",
+      "text" : "eradicate\n*eradicated, eradicating, eradicates*\n\n1. vt. 根除，根绝；消灭\n\n--- AI 释义 ---\n1）英\/ ɪˈrædɪkeɪt \/  美\/ ɪˈrædɪkeɪt \/\n2）v.根除，消灭，杜绝\n3）to destroy or get rid of something completely, especially something bad\n4）The government is determined to eradicate illiteracy through education reform.",
+      "type" : "text",
+      "width" : 260,
+      "x" : 3124,
+      "y" : 1212
+    },
+    {
+      "height" : 120,
+      "id" : "aa059597fd7d4b26",
+      "text" : "eccentrics\n*eccentric*\n\n1. n. 古怪的，怪癖的，异乎寻常的( eccentric的名词复数 )\n\n--- AI 释义 ---\n1）英\/ɪkˈsentrɪks\/ 美\/ɪkˈsentrɪks\/\n2）n.行为古怪的人，怪人\n3）people who behave in unusual or odd ways that are different from most people\n4）dissidents, and eccentrics from the democratic process.",
+      "type" : "text",
+      "width" : 260,
+      "x" : 3396,
+      "y" : 420
+    },
+    {
+      "color" : "2",
+      "height" : 120,
+      "id" : "d6eb01113bb0122a",
+      "text" : "majesty\n*majesties*\n\n1. n. 威严；最高权威，王权；雄伟；权威\n\n--- AI 释义 ---\n1）英\/ˈmædʒəsti\/ 美\/ˈmædʒəsti\/\n2）n.庄严，威严；雄伟，壮丽；陛下\n3）the quality of being impressive, grand, or majestic; supreme authority or power\n4）Your opinion, all other opinions must yield to the majesty of that authoritative adjudication.",
+      "type" : "text",
+      "width" : 260,
+      "x" : 3124,
+      "y" : 948
+    },
+    {
+      "color" : "2",
+      "height" : 120,
+      "id" : "21c5d0086ac23368",
+      "text" : "sentiment\n*sentiments*\n\n1. n. 感情，情绪；情操；观点；多愁善感",
+      "type" : "text",
+      "width" : 260,
+      "x" : 3124,
+      "y" : 1476
+    },
+    {
+      "color" : "2",
+      "height" : 120,
+      "id" : "c41960e8686f9a35",
+      "text" : "usurping\n*usurp, usurpings*\n\n1. v. 篡夺，霸占( usurp的现在分词 ); 盗用; 篡夺，篡权\n\n--- AI 释义 ---\n1）英\/ juːˈzɜːpɪŋ \/  美\/ juːˈzɜːrpɪŋ \/\n2）v.篡夺，夺取；侵占\n3）to take control of something without having the right to do so, especially a position of power\n4）The law prevents the Court from usurping the rightful powers of the other branches of government.",
+      "type" : "text",
+      "width" : 260,
+      "x" : 3396,
+      "y" : 1476
+    },
+    {
+      "height" : 120,
+      "id" : "de2b2e4d7a3754df",
+      "text" : "prior to\n\n1. adj. 前于\n2. [网络] 此前；在…之前；先于",
+      "type" : "text",
+      "width" : 260,
+      "x" : 3124,
+      "y" : 684
+    },
+    {
+      "height" : 120,
+      "id" : "21a523ebaa6acc94",
+      "text" : "habitually\n\n1. adv. 习惯地；日常地\n\n--- AI 释义 ---\n1）英\/ həˈbɪtʃuəli \/  美\/ həˈbɪtʃuəli \/\n2）adv.习惯性地；通常地\n3）in a habitual or customary manner; as a regular practice\n4）social and political issues are habitually framed in this language: separation of powers, federalism, free speech, due process.",
+      "type" : "text",
+      "width" : 260,
+      "x" : 3124,
+      "y" : 552
+    },
+    {
+      "height" : 120,
+      "id" : "8c9cd07f5aa0acf8",
+      "text" : "inferior class\n\n1）英\/ɪnˈfɪəriə klɑːs\/ 美\/ɪnˈfɪriər klæs\/\n2）n.低等阶级，劣等阶级\n3）a social group regarded as having lower status or quality than others\n4）In the framing of the Constitution, blacks were considered as a subordinate and inferior class of beings not included within",
+      "type" : "text",
+      "width" : 260,
+      "x" : 3124,
+      "y" : 816
+    },
+    {
+      "color" : "2",
+      "height" : 120,
+      "id" : "8c817c1bbd74ba73",
+      "text" : "vestiges\n*vestige*\n\n1. n. 痕迹（vestige的复数形式）；残留部分\n\n--- AI 释义 ---\n1）英\/ ˈvestɪdʒɪz \/  美\/ ˈvestɪdʒɪz \/\n2）n.残余，痕迹；遗迹\n3）a small remaining part of something that used to exist but is now almost gone\n4）the vestiges of slavery and limited government’s ability to discriminate",
+      "type" : "text",
+      "width" : 260,
+      "x" : 3396,
+      "y" : 1212
+    },
+    {
+      "height" : 120,
+      "id" : "de16d6fce043efa7",
+      "text" : "rehearsing\n*rehearse, rehearsings*\n\n1. v. 预演，排演（rehearse的现在分词形式）\n\n--- AI 释义 ---\n1）英\/ rɪˈhɜːsɪŋ \/  美\/ rɪˈhɜːrsɪŋ \/\n2）\nv.排练，预演；默诵，复述；详细叙述\n3）to practice or repeat something, such as a speech, play, or story, in preparation for a performance or",
+      "type" : "text",
+      "width" : 260,
+      "x" : 3124,
+      "y" : 1344
+    },
+    {
+      "color" : "3",
+      "height" : 120,
+      "id" : "fda91739715515f1",
+      "text" : "contractors\n*contractor*\n\n1. n. [经] 承包商；[法] 立约人；合约商（contractor的复数）\n\n--- AI 释义 ---\n1）英\/ kənˈtræktə \/  美\/ ˈkɑːntræktər \/\n2）n.承包商；订约人\n3）a person or company that agrees to perform work or provide services under a contract\n4）May the government favor minority contractors for public works projects.",
+      "type" : "text",
+      "width" : 260,
+      "x" : 3396,
+      "y" : 1344
+    },
+    {
+      "height" : 120,
+      "id" : "d320856bdb342c9d",
+      "text" : "protesters\n*protester*\n\n1. n. 抗议者( protester的名词复数 ); 反对者; 拒绝者; 断言者\n\n--- AI 释义 ---\n1）英\/ prəˈtestəz \/  美\/ prəˈtestərz \/\n2）n.抗议者，反对者\n3）people who publicly express strong opposition to something, especially by participating in a demonstration or rally\n4）The protesters gathered in the square, demanding justice and equal rights.",
+      "type" : "text",
+      "width" : 260,
+      "x" : 3396,
+      "y" : 288
+    },
+    {
+      "height" : 120,
+      "id" : "6dbb9b8dc17e289d",
+      "text" : "burdensome\n\n1. adj. 繁重的；累赘的；恼人的\n\n--- AI 释义 ---\n1）英\/ ˈbɜːrdnsəm \/  美\/ ˈbɜːrdnsəm \/\n2）\nadj.繁重的， burdensome；难以负担的；令人烦恼的\n3）causing difficulty or worry; hard to bear or deal with\n4）impose unreasonably burdensome regulations on small businesses, imprison the wrong people, or use the army to repress dissent?",
+      "type" : "text",
+      "width" : 260,
+      "x" : 3396,
+      "y" : 156
+    },
+    {
+      "height" : 120,
+      "id" : "0e9945104001d7aa",
+      "text" : "designated\n*designate*\n\n1. adj. 指定的；特指的\n\n--- AI 释义 ---\n1）英\/ ˈdezɪɡneɪtɪd \/ 美\/ ˈdezɪɡneɪtɪd \/\n2）adj. 指定的，指派的；特指的\nv. 指定，指派（designate 的过去式和过去分词）\n3）appointed or chosen for a particular duty or purpose; officially given a particular name or status\n4）The room was designated as a no-smoking area.",
+      "type" : "text",
+      "width" : 260,
+      "x" : 3396,
+      "y" : 552
+    },
+    {
+      "color" : "1",
+      "height" : 120,
+      "id" : "6d3c1e727c791d1b",
+      "text" : "adjudication\n*adjudications*\n\n1. n. 裁定；判决；破产之宣告\n\n--- AI 释义 ---\n1）英\/ əˌdʒuːdɪˈkeɪʃn \/  美\/ əˌdʒuːdɪˈkeɪʃn \/\n2）n. 判决，裁定，宣告；审评\n3）the process of making an official decision about who is right in a dispute\n4）your opinion, all other opinions must yield to the majesty of that authoritative adjudication.",
+      "type" : "text",
+      "width" : 260,
+      "x" : 3396,
+      "y" : 948
+    },
+    {
+      "color" : "2",
+      "height" : 120,
+      "id" : "db350fa9a0f731e1",
+      "text" : "immunities\n*immunity*\n\n1. n. 免除，豁免( immunity的名词复数 ); 免疫力\n\n--- AI 释义 ---\n1）英\/ɪˈmjuːnɪtiz\/ 美\/ɪˈmjuːnətiz\/\n2）n.豁免；免疫；豁免权（immunity的复数）\n3）special rights or protections that exempt someone from certain legal obligations, penalties, or requirements\n4）The privileges and immunities clause in the Constitution prevents states from discriminating against citizens of other states.",
+      "type" : "text",
+      "width" : 260,
+      "x" : 3396,
+      "y" : 1080
+    },
+    {
+      "height" : 120,
+      "id" : "2d1c80a90cc960fa",
+      "text" : "subordinate\n*subordinates, subordinated, subordinating*\n\n1. n. 下属，下级；部属，属下\n2. adj. 从属的；次要的\n3. vt. 使……居下位；使……服从\n\n--- AI 释义 ---\n1）英\/ səˈbɔːdɪnət \/  美\/ səˈbɔːrdɪnət \/\n2）adj.下级的，从属的；次要的 v.使处于从属地位，使服从 n.下属，下级\n3）having a lower or less important position; placed in or belonging to a lower rank or order\n4）of the framing of the Constitution blacks were “considered as a subordinate and inferior class of beings” not",
+      "type" : "text",
+      "width" : 260,
+      "x" : 3396,
+      "y" : 684
+    },
+    {
+      "color" : "2",
+      "height" : 120,
+      "id" : "e54a068366fa4cf0",
+      "text" : "clashed over\n*clash over*\n\n1）英\/klæʃt ˈəʊvə\/  美\/klæʃt ˈoʊvər\/\n2）v.在……上发生激烈争论，与……冲突\n3）to have a strong disagreement or argument about a particular issue\n4）Abraham Lincoln and Stephen Douglas clashed over Dred Scott.",
+      "type" : "text",
+      "width" : 260,
+      "x" : 3396,
+      "y" : 816
+    },
+    {
+      "height" : 120,
+      "id" : "800a0bcdc500a24f",
+      "text" : "repress\n*repressing, repressed, represses*\n\n1. vt. 抑制；镇压（叛乱等）；约束\n2. vi. 抑制；镇压",
+      "type" : "text",
+      "width" : 260,
+      "x" : 3124,
+      "y" : 288
+    },
+    {
+      "height" : 120,
+      "id" : "cbd678f326a0fc28",
+      "text" : "terrorists\n*terrorist*\n\n1. n. 恐怖分子；恐吓者（terrorist的复数）\n\n--- AI 释义 ---\n1）英\/ ˈterərɪsts \/  美\/ ˈterərɪsts \/\n2）\nn.恐怖分子，恐怖主义者\n3）a person who uses violent action, or the threat of violent action, for political purposes\n4）The government is taking strong measures against drugs and foreign terrorists.",
+      "type" : "text",
+      "width" : 260,
+      "x" : 3396,
+      "y" : 24
+    },
+    {
+      "color" : "1",
+      "height" : 120,
+      "id" : "724f2986c3577fa7",
+      "text" : "provisions\n*provision*\n\n1. n. 规定（provision的复数）；食品；预备\n2. v. 供应补给品；供应粮食（provision的三单形式）\n\n--- AI 释义 ---\n1）英\/ prəˈvɪʒnz \/  美\/ prəˈvɪʒnz \/\n2）n. 规定，条款；供应品，食物\n3）a clause or stipulation in a legal document, or supplies of food and other necessities\n4）also often contain provisions that are not particularly “constitutional,”",
+      "type" : "text",
+      "width" : 260,
+      "x" : 2504,
+      "y" : 1344
+    },
+    {
+      "color" : "2",
+      "height" : 120,
+      "id" : "2c39d68b984065d9",
+      "text" : "cumbersome\n\n1. adj. 笨重的；累赘的；难处理的\n\n--- AI 释义 ---\n1）英\/ˈkʌmbəsəm\/ 美\/ˈkʌmbərsəm\/\n2）adj.笨重的；累赘的；冗长的；复杂的\n3）difficult to handle or use because of size, weight, or complexity\n4）The old software was too cumbersome for the new system.",
+      "type" : "text",
+      "width" : 260,
+      "x" : 2776,
+      "y" : 1344
+    },
+    {
+      "color" : "2",
+      "height" : 120,
+      "id" : "f1571ff42831592a",
+      "text" : "referendum\n*referendums*\n\n1. n. 公民投票权；外交官请示书\n\n--- AI 释义 ---\n1）英\/ ˌrefəˈrendəm \/  美\/ ˌrefəˈrendəm \/\n2）\nn.公民投票，全民公决；公投\n3）a direct vote by the people of a country or region on a particular political issue\n4）The decision will be made by referendum rather than by parliament.",
+      "type" : "text",
+      "width" : 260,
+      "x" : 2504,
+      "y" : 1476
+    },
+    {
+      "color" : "2",
+      "height" : 120,
+      "id" : "1242040f9152a7c3",
+      "text" : "hortatory\n\n1. adj. 激励的；劝告的\n\n--- AI 释义 ---\n1）英\/ˈhɔːtətəri\/ 美\/ˈhɔːrtətɔːri\/\n2）adj.劝告的，激励的，告诫的\n3）giving encouragement or strong advice; exhortatory\n4）These early documents included provisions guaranteeing the rights of the people and also hortatory statements of government principle, such as the recommendation",
+      "type" : "text",
+      "width" : 260,
+      "x" : 2776,
+      "y" : 1476
+    },
+    {
+      "color" : "2",
+      "height" : 120,
+      "id" : "74cb14e3568fa3eb",
+      "text" : "dictated\n*dictate*\n\n1. v. 口述（dictate的过去分词）\n2. adj. 口述的（dictate的过去分词）\n\n--- AI 释义 ---\n1）英\/ dɪkˈteɪtɪd \/  美\/ ˈdɪkteɪtɪd \/\n2）\nv.命令，规定；口述，听写；支配，影响\n3）to state or order something with authority; to say words for someone else to write down\n4）The Constitution created the national government and dictated its organization and powers.",
+      "type" : "text",
+      "width" : 260,
+      "x" : 2504,
+      "y" : 1212
+    },
+    {
+      "color" : "2",
+      "height" : 120,
+      "id" : "52e1df7aca875bd6",
+      "text" : "insulated\n*insulate*\n\n1. v. 使…绝缘（insulate的过去式）\n2. adj. [电] 绝缘的；隔热的",
+      "type" : "text",
+      "width" : 260,
+      "x" : 2504,
+      "y" : 1080
+    },
+    {
+      "color" : "2",
+      "height" : 120,
+      "id" : "157e2d9e57ec7d11",
+      "text" : "ratification\n*ratifications*\n\n1. n. 批准；承认，认可\n\n--- AI 释义 ---\n1）英\/ˌrætɪfɪˈkeɪʃn\/ 美\/ˌrætəfəˈkeɪʃn\/\n2）\nn.正式批准，认可；签署生效\n3）the act of making an agreement officially valid by signing it or formally accepting it\n4）The ratification of the treaty was delayed due to political disagreements.",
+      "type" : "text",
+      "width" : 260,
+      "x" : 2776,
+      "y" : 1080
+    },
+    {
+      "height" : 120,
+      "id" : "3b6b7fdf54bf0c7d",
+      "text" : "dissidents\n*dissident*\n\n1. 公开大唱反调者\n2. 持异议者\n3. 持不同政见者",
+      "type" : "text",
+      "width" : 260,
+      "x" : 3124,
+      "y" : 420
+    },
+    {
+      "height" : 120,
+      "id" : "a63156bafabb2795",
+      "text" : "unscrupulous\n\n1. adj. 肆无忌惮的；寡廉鲜耻的；不讲道德的\n\n--- AI 释义 ---\n1）英\/ ʌnˈskruːpjʊləs \/  美\/ ʌnˈskruːpjələs \/\n2）adj.不道德的，无道德原则的；不诚实的，无耻的；肆无忌惮的\n3）having or showing no moral principles; not honest or fair\n4）We must protect ourselves from unscrupulous merchants who sell dangerous products.",
+      "type" : "text",
+      "width" : 260,
+      "x" : 3124,
+      "y" : 24
+    },
+    {
+      "height" : 120,
+      "id" : "b5fa8793465a0216",
+      "text" : "crooked\n*crook*\n\n1. adj. 弯曲的；歪的；不正当的\n\n--- AI 释义 ---\n1）英\/ˈkrʊkɪd\/  美\/ˈkrʊkɪd\/\n2）adj.弯曲的；不诚实的，欺诈的；畸形的\n3）not straight; dishonest or illegal\n4）The crooked businessman was sentenced to ten years in prison.",
+      "type" : "text",
+      "width" : 260,
+      "x" : 3124,
+      "y" : 156
+    },
+    {
+      "color" : "2",
+      "height" : 120,
+      "id" : "de08cd67379dba68",
+      "text" : "enumerated\n*enumerate*\n\n1. n. 枚举类型\n2. v. 枚举，计算（enumerate的过去形式）\n\n--- AI 释义 ---\n1）英\/ɪˈnjuːməreɪtɪd\/  美\/ɪˈnuːməreɪtɪd\/\n2）v.列举，枚举；adj.被列举的，明确列出的\n3）mentioned or named one by one; specifically listed\n4）The national government is a government of enumerated powers, possessing only those authorities granted by the Constitution.",
+      "type" : "text",
+      "width" : 260,
+      "x" : 2776,
+      "y" : 1212
+    },
+    {
+      "color" : "2",
+      "height" : 120,
+      "id" : "4174954af3b1986a",
+      "text" : "overtly\n\n1. adv. 明显地；公开地，公然地",
+      "type" : "text",
+      "width" : 260,
+      "x" : 2504,
+      "y" : 816
+    },
+    {
+      "color" : "1",
+      "height" : 120,
+      "id" : "737f8135745851de",
+      "text" : "constituents\n*constituent*\n\n1. n. 成分（constituent的复数）\n\n--- AI 释义 ---\n1）英\/ kənˈstɪtʃuənts \/  美\/ kənˈstɪtʃuənts \/\n2）\nn.选民，选区居民；成分，构成要素；组成成分；（机器的）组件\n3）the people who live and vote in a particular area, or the parts that form something\n4）The senator emphasized the importance of listening to his constituents before making a decision.",
+      "type" : "text",
+      "width" : 260,
+      "x" : 2776,
+      "y" : 816
+    },
+    {
+      "color" : "1",
+      "height" : 120,
+      "id" : "348fac85e04d73af",
+      "text" : "lobbied\n*lobby*\n\n1. vi. 为了支持或抵制某项特定目标游说（lobby的过去式与过去分词形式）\n\n--- AI 释义 ---\n1）英\/ ˈlɒbi \/  美\/ ˈlɑːbi \/\n2）\nv. 游说，对……进行疏通（以影响决策）；企图影响（议员、官员等）；（在议会走廊或休息室）游说议员\nn. 游说团体；门厅，大厅；议会休息室\n3）to try to persuade a politician, public official, or a government to support or oppose a particular action, law, or policy, especially by visiting them or writing to them\n4）The industry has lobbied the government to reduce taxes on their products.",
+      "type" : "text",
+      "width" : 260,
+      "x" : 2504,
+      "y" : 948
+    },
+    {
+      "color" : "2",
+      "height" : 120,
+      "id" : "879dd1d5836de913",
+      "text" : "pros and cons\n\n1. n. 利弊; 正反两方面; 优缺点; 赞成和反对的理由",
+      "type" : "text",
+      "width" : 260,
+      "x" : 2776,
+      "y" : 948
+    },
+    {
+      "color" : "2",
+      "height" : 120,
+      "id" : "eebdeadadba14e66",
+      "text" : "contested\n*contest*\n\n1. vt. 争辩；提出质疑\n2. vi. 竞争；争辩\n3. n. 竞赛；争夺；争论\n\n--- AI 释义 ---\n1）英\/ kənˈtestɪd \/  美\/ kənˈtestɪd \/\n2）\nadj.有争议的，引起争论的；竞争激烈的\n3）disputed or argued about; not accepted by everyone\n4）Clear, but whether it is appropriate is much more contested.",
+      "type" : "text",
+      "width" : 260,
+      "x" : 2504,
+      "y" : 684
+    },
+    {
+      "color" : "2",
+      "height" : 120,
+      "id" : "8641ee532070bcbd",
+      "text" : "arbiters\n*arbiter*\n\n1. n. 仲裁人，裁决者( arbiter的名词复数 )",
+      "type" : "text",
+      "width" : 260,
+      "x" : 2776,
+      "y" : 684
+    },
+    {
+      "color" : "2",
+      "height" : 120,
+      "id" : "bd21d4a79456db78",
+      "text" : "grandiose\n\n1. adj. 宏伟的；堂皇的；浮夸的；宏大的",
+      "type" : "text",
+      "width" : 260,
+      "x" : 2504,
+      "y" : 1872
+    },
+    {
+      "color" : "2",
+      "height" : 120,
+      "id" : "8edeb978d4007471",
+      "text" : "polestar\n*polestars*\n\n1. n. 北极星，指导原则，目标",
+      "type" : "text",
+      "width" : 260,
+      "x" : 2776,
+      "y" : 1872
+    },
+    {
+      "color" : "2",
+      "height" : 120,
+      "id" : "c6dda0bb82f50ee3",
+      "text" : "compel\n*compelled, compelling, compels*\n\n1. vt. 强迫，迫使；强使发生\n2. n. (Compel)人名；(法)孔佩尔",
+      "type" : "text",
+      "width" : 260,
+      "x" : 2504,
+      "y" : 1740
+    },
+    {
+      "color" : "2",
+      "height" : 120,
+      "id" : "19a9b5be549aac1a",
+      "text" : "overlaid\n*overlay*\n\n1. v. 覆盖（overlay的过去分词）",
+      "type" : "text",
+      "width" : 260,
+      "x" : 2504,
+      "y" : 420
+    },
+    {
+      "color" : "2",
+      "height" : 120,
+      "id" : "2561b24494f37392",
+      "text" : "thereof\n\n1. adv. 它的；由此；在其中；关于…；将它",
+      "type" : "text",
+      "width" : 260,
+      "x" : 2776,
+      "y" : 420
+    },
+    {
+      "color" : "1",
+      "height" : 120,
+      "id" : "04d43737d50743a7",
+      "text" : "amendments\n*amendment*\n\n1. n. 修正（amendment的复数）；修正案",
+      "type" : "text",
+      "width" : 260,
+      "x" : 2504,
+      "y" : 156
+    },
+    {
+      "color" : "2",
+      "height" : 120,
+      "id" : "1c49dfcec234972b",
+      "text" : "refrigerators\n*refrigerator*\n\n1. n. [制冷] 冰箱，[制冷] 冷藏室；[制冷] 冷冻库（refrigerator的复数）\n\n--- AI 释义 ---\n1）英\/ rɪˈfrɪdʒəreɪtəz \/  美\/ rɪˈfrɪdʒəreɪtərz \/\n2）n.冰箱（复数形式）\n3）A household or commercial appliance that uses insulation and mechanical cooling to preserve food and other perishable items by keeping them at a low temperature.\n4）Refrigerators have become a standard appliance in most modern kitchens.",
+      "type" : "text",
+      "width" : 260,
+      "x" : 2776,
+      "y" : 156
+    },
+    {
+      "color" : "2",
+      "height" : 120,
+      "id" : "5260b0329d3bae58",
+      "text" : "infringe on\n\n1. v. 侵犯\n2. [网络] 侵害；破坏",
+      "type" : "text",
+      "width" : 260,
+      "x" : 2504,
+      "y" : 288
+    },
+    {
+      "color" : "2",
+      "height" : 120,
+      "id" : "9d1f2b4ffaef22e2",
+      "text" : "proclaims\n*proclaim*\n\n1. v. 正式宣布( proclaim的第三人称单数 ); 显示",
+      "type" : "text",
+      "width" : 260,
+      "x" : 2776,
+      "y" : 288
+    },
+    {
+      "height" : 120,
+      "id" : "34b4beb4d49f5d55",
+      "text" : "guideposts\n*guidepost*\n\n1. 控制指标",
+      "type" : "text",
+      "width" : 260,
+      "x" : 1304,
+      "y" : 3080
+    },
+    {
+      "height" : 120,
+      "id" : "1ef495f6e19f1cb0",
+      "text" : "Democratic\n\n1. adj. 民主的；民主政治的；大众的",
+      "type" : "text",
+      "width" : 260,
+      "x" : 1304,
+      "y" : 2816
+    },
+    {
+      "height" : 120,
+      "id" : "5629ca5cb1a0e61a",
+      "text" : "handshake agreements\n\n1）英\/ˈhændʃeɪk əˈɡriːmənts\/ 美\/ˈhændʃeɪk əˈɡriːmənts\/\n2）n.握手协议，口头协议（通常指双方通过握手达成的非正式、无书面形式的协议）\n3）informal agreements made between parties by shaking hands, often relying on trust rather than written contracts, and sometimes considered legally enforceable but difficult to prove.\n4）Many small businesses still operate based on handshake agreements, but this can lead to misunderstandings later.",
+      "type" : "text",
+      "width" : 260,
+      "x" : 1576,
+      "y" : 2816
+    },
+    {
+      "height" : 120,
+      "id" : "9b5271e0fbfaccf7",
+      "text" : "strips away\n*strip away*\n\n1. un. 一块；剥去；一小块；剥去",
+      "type" : "text",
+      "width" : 260,
+      "x" : 1304,
+      "y" : 2948
+    },
+    {
+      "height" : 120,
+      "id" : "ac42f671fa0138d5",
+      "text" : "Republican\n*republicans*\n\n1. n. 共和党人\n2. adj. 共和党的\n3. 共和的",
+      "type" : "text",
+      "width" : 260,
+      "x" : 1576,
+      "y" : 2684
+    },
+    {
+      "color" : "2",
+      "height" : 120,
+      "id" : "7629a3491a7d7dd5",
+      "text" : "is informed by\n*be informed by, are informed by*\n\n1）英\/ɪnˈfɔːmd baɪ\/  美\/ɪnˈfɔːrmd baɪ\/\n2）受……影响；基于……；以……为支撑\n3）to be based on or influenced by something, especially knowledge or scholarship\n4）The perspective of this book is informed by much of the best scholarship about the subject.",
+      "type" : "text",
+      "width" : 260,
+      "x" : 1304,
+      "y" : 2156
+    },
+    {
+      "color" : "2",
+      "height" : 120,
+      "id" : "746708ffff97efd5",
+      "text" : "tomes\n*tome*\n\n1）英\/ toʊmz \/  美\/ toʊmz \/\n2）n.大部头的书，厚册（尤指学术或权威著作）\n3）a large, heavy, and often scholarly book\n4）He lifted one of the dust-covered, leather-bound tomes of precedents from the law library shelf.",
+      "type" : "text",
+      "width" : 260,
+      "x" : 1576,
+      "y" : 2156
+    },
+    {
+      "color" : "2",
+      "height" : 120,
+      "id" : "90b7a18c4db717ea",
+      "text" : "forth\n*forths*\n\n1. adv. 向前，向外；自…以后\n2. n. (Forth)人名；(德)福特；(英)福思",
+      "type" : "text",
+      "width" : 260,
+      "x" : 1304,
+      "y" : 2288
+    },
+    {
+      "height" : 120,
+      "id" : "94420df3ed89fe18",
+      "text" : "tidbits\n*tidbit*\n\n1. n. 花边新闻（tidbit的复数）",
+      "type" : "text",
+      "width" : 260,
+      "x" : 1576,
+      "y" : 2948
+    },
+    {
+      "color" : "2",
+      "height" : 120,
+      "id" : "1e10b9c5f681c6a8",
+      "text" : "immutable\n\n1）英\/ ɪˈmjuːtəbl \/  美\/ ɪˈmjuːtəbl \/\n2）adj.不可改变的，永恒不变的\n3）not subject or susceptible to change\n4）The law and legal decisions can be seen as inevitable, based on immutable principles of justice, hardly the product of human invention.\n\n--- 自定义笔记 ---\nim-（不）+ mut（变化）+ -able（可…的）→ 不可变化的。\n例句：The laws of physics are immutable, no matter how much we might wish otherwise. \n联想：想象一块刻着“物理定律”的巨石，无论风吹雨打、岁月流逝，它的形状和文字都纹丝不动——immutable 就是这种“雷打不动”的感觉。",
+      "type" : "text",
+      "width" : 260,
+      "x" : 1304,
+      "y" : 2684
+    },
+    {
+      "color" : "2",
+      "height" : 120,
+      "id" : "d3196933035d8ea4",
+      "text" : "off the hook\n\n1）英\/ɒf ðə hʊk\/  美\/ɔːf ðə hʊk\/\n2）\nadj.脱离困境的，脱身的；不再有责任的\n3）no longer in a difficult or responsible situation; free from an obligation or commitment that was previously required\n4）If you promise to take your children to the movies, are you off the hook if an important business meeting comes up?",
+      "type" : "text",
+      "width" : 260,
+      "x" : 1304,
+      "y" : 2420
+    },
+    {
+      "color" : "2",
+      "height" : 120,
+      "id" : "a2f0a64051467747",
+      "text" : "Pilgrims\n*pilgrim*\n\n1）英\/ ˈpɪlɡrɪmz \/  美\/ ˈpɪlɡrɪmz \/\n2）\nn.（尤指1620年到达美洲的）清教徒前辈移民；朝圣者；旅行者，流浪者\n3）members of a group of English Puritans who sailed to America on the Mayflower in 1620 and founded the Plymouth Colony in Massachusetts\n4）Even before the Pilgrims landed in Massachusetts, they had signed the Mayflower Compact to establish self-government.",
+      "type" : "text",
+      "width" : 260,
+      "x" : 1576,
+      "y" : 2420
+    },
+    {
+      "color" : "2",
+      "height" : 120,
+      "id" : "9254896a033a8044",
+      "text" : "be liable for\n\n对...承担责任",
+      "type" : "text",
+      "width" : 260,
+      "x" : 1304,
+      "y" : 2552
+    },
+    {
+      "color" : "2",
+      "height" : 120,
+      "id" : "98b9144cbb65618d",
+      "text" : "fattening foods\n\n1）英\/ ˈfætənɪŋ fuːdz \/  美\/ ˈfætənɪŋ fudz \/\n2）使人发胖的食物；高热量食物\n3）foods that are high in calories and likely to cause weight gain\n4）She asked about the portions of fattening foods in the meal.",
+      "type" : "text",
+      "width" : 260,
+      "x" : 1576,
+      "y" : 2552
+    },
+    {
+      "color" : "2",
+      "height" : 120,
+      "id" : "73b3e63c51b51061",
+      "text" : "interpret\n*interpreted, interpreting, interprets*\n\n1. vi. 解释；翻译\n2. vt. 说明；口译",
+      "type" : "text",
+      "width" : 260,
+      "x" : 1576,
+      "y" : 2288
+    },
+    {
+      "color" : "1",
+      "height" : 120,
+      "id" : "e3933de3ac949ac8",
+      "text" : "grand\n*grands, grander, grandest*\n\n1. n. 大钢琴；一千美元\n2. adj. 宏伟的；豪华的；极重要的\n3. n. (Grand)人名；(法)格朗；(英、瑞典)格兰德",
+      "type" : "text",
+      "width" : 260,
+      "x" : 1304,
+      "y" : 2024
+    },
+    {
+      "height" : 120,
+      "id" : "6c96006aa6bcb56c",
+      "text" : "drunkenness\n\n1）英\/ˈdrʌŋkənnəs\/ 美\/ˈdrʌŋkənnəs\/\n2）n.醉酒，酗酒；沉醉\n3）the condition of being drunk, especially as a habitual state\n4）Common human failings such as fornication, drunkenness, and idleness were legally—and frequently—punished, and laws were enacted to suppress them.",
+      "type" : "text",
+      "width" : 260,
+      "x" : 1576,
+      "y" : 2024
+    },
+    {
+      "color" : "1",
+      "height" : 120,
+      "id" : "753bbc6bf976dbc2",
+      "text" : "formulated\n*formulate*\n\n1）英\/ˈfɔːmjuleɪtɪd\/ 美\/ˈfɔːrmjuleɪtɪd\/\n2）\nv.制定，规划；确切地阐述；用公式表示\n3）to create, invent, or produce something carefully, using all the necessary information\n4）The colonists formulated the Mayflower Compact, a legal document that governed their settlement.",
+      "type" : "text",
+      "width" : 260,
+      "x" : 1304,
+      "y" : 1892
+    },
+    {
+      "color" : "1",
+      "height" : 120,
+      "id" : "84295ece1326f39a",
+      "text" : "hyperlexis\n\nHyperlexis（过度立法综合症）指法律体系因法规数量过剩、内容冗余复杂、相互冲突或更新过快，导致公众难以理解遵守、执法成本激增及法治效能下降的现象",
+      "type" : "text",
+      "width" : 260,
+      "x" : 1576,
+      "y" : 1892
+    },
+    {
+      "height" : 120,
+      "id" : "bc80f5ba1541895f",
+      "text" : "loaves\n\n1）英\/ ləʊvz \/  美\/ loʊvz \/\n2）n.面包（复数），（尤指）长方形大块面包\n3）plural form of loaf; shaped portions of bread that are baked in a single piece\n4）closely regulated economic affairs, prescribing the size of loaves of bread",
+      "type" : "text",
+      "width" : 260,
+      "x" : 1304,
+      "y" : 1496
+    },
+    {
+      "color" : "2",
+      "height" : 120,
+      "id" : "905a729f1a28de30",
+      "text" : "orations\n*oration*\n\n1）英\/ ɔːˈreɪʃnz \/  美\/ ɔːˈreɪʃnz \/\n2）n.演说，演讲；正式公开讲话\n3）a formal public speech made on a special occasion, especially one that is impressive and skillful\n4）The senator's orations on civil rights inspired thousands to join the movement.",
+      "type" : "text",
+      "width" : 260,
+      "x" : 1576,
+      "y" : 1496
+    },
+    {
+      "color" : "2",
+      "height" : 120,
+      "id" : "3d9121c2a0a76630",
+      "text" : "forum\n*forums*\n\n1. n. 论坛，讨论会；法庭；公开讨论的广场",
+      "type" : "text",
+      "width" : 260,
+      "x" : 1304,
+      "y" : 1760
+    },
+    {
+      "color" : "1",
+      "height" : 120,
+      "id" : "4358d2b01cb55be6",
+      "text" : "malpractice\n*malpractices*\n\n1. n. 玩忽职守；不法行为；治疗不当",
+      "type" : "text",
+      "width" : 260,
+      "x" : 1576,
+      "y" : 1760
+    },
+    {
+      "color" : "2",
+      "height" : 120,
+      "id" : "c981ae049eee3814",
+      "text" : "collectively\n\n1）英\/ kəˈlektɪvli \/  美\/ kəˈlektɪvli \/\n2）adv.共同地，集体地；总体地\n3）as a group; in a way that involves all the members of a group\n4）The team collectively decided to take a break.",
+      "type" : "text",
+      "width" : 260,
+      "x" : 1304,
+      "y" : 1628
+    },
+    {
+      "color" : "2",
+      "height" : 120,
+      "id" : "de0660df836fc8f4",
+      "text" : "cushion\n*cushions, cushioned, cushioning*\n\n1. n. 垫子；起缓解作用之物；（猪等的）臀肉；银行储蓄\n2. vt. 给…安上垫子；把…安置在垫子上；缓和…的冲击",
+      "type" : "text",
+      "width" : 260,
+      "x" : 1304,
+      "y" : 1100
+    },
+    {
+      "color" : "1",
+      "height" : 120,
+      "id" : "0d78c76a5a7ec98f",
+      "text" : "liberties\n*liberty*\n\n1）英\/ ˈlɪbətiz \/  美\/ ˈlɪbərtiz \/\n2）\nn.自由权；自由（liberty的复数）\n3）the rights or freedoms that people have to do what they want without being controlled by the government\n4）The constitution guarantees basic civil liberties such as freedom of speech and religion.",
+      "type" : "text",
+      "width" : 260,
+      "x" : 1576,
+      "y" : 1100
+    },
+    {
+      "color" : "2",
+      "height" : 120,
+      "id" : "41c169ff2e0aa659",
+      "text" : "trivial\n\n1. adj. 不重要的，琐碎的；琐细的",
+      "type" : "text",
+      "width" : 260,
+      "x" : 1576,
+      "y" : 1628
+    },
+    {
+      "color" : "2",
+      "height" : 120,
+      "id" : "223234da9c2a301d",
+      "text" : "pervaded\n*pervade*\n\n1）英\/ pəˈveɪdɪd \/  美\/ pərˈveɪdɪd \/\n2）v.弥漫，遍及，充满\n3）to spread through and be noticeable in every part of something\n4）A sense of anxiety pervaded the entire community after the incident.",
+      "type" : "text",
+      "width" : 260,
+      "x" : 1304,
+      "y" : 1364
+    },
+    {
+      "color" : "3",
+      "height" : 120,
+      "id" : "90249c5b370b1a14",
+      "text" : "underlie\n*underlying, underlay, underlies*\n1. vt. 成为……的基础；位于……之下",
+      "type" : "text",
+      "width" : 260,
+      "x" : 684,
+      "y" : 1176
+    },
+    {
+      "height" : 120,
+      "id" : "b5f3f0344e6b119e",
+      "text" : "examined\n*examine*\n1）英\/ ɪɡˈzæmɪn \/  美\/ ɪɡˈzæmɪn \/\n2）v.仔细检查；审视；研究；考试\n3）to look at or consider a person or thing carefully and in detail in order to discover something about them\n4）specialties, and I have freshly examined areas I have studied for years.",
+      "type" : "text",
+      "width" : 260,
+      "x" : 956,
+      "y" : 1176
+    },
+    {
+      "color" : "2",
+      "height" : 120,
+      "id" : "7920b20c269d0033",
+      "text" : "amok\n\n1）英\/əˈmɒk\/ 美\/əˈmɑːk\/\n2）adv.疯狂地，狂暴地；v.（与run连用）失去控制，胡作非为\n3）in a wild and uncontrolled manner; to behave in a frenzied, out-of-control way\n4）The children ran amok in the playground.",
+      "type" : "text",
+      "width" : 260,
+      "x" : 684,
+      "y" : 1308
+    },
+    {
+      "height" : 120,
+      "id" : "d02031549513e0a7",
+      "text" : "transition\n1) Noun  \n2) A process or period of changing from one state, system, or condition to another.  \n3) 过渡；转变  \n4) Example sentence: The Civil Law to Common Law Transition represents a fundamental shift in legal frameworks.",
+      "type" : "text",
+      "width" : 260,
+      "x" : 956,
+      "y" : 1308
+    },
+    {
+      "color" : "2",
+      "height" : 120,
+      "id" : "02daa535981f7b8d",
+      "text" : "spouse\n*spouses*\n1. n. 配偶\n2. vt. 和…结婚\n3. n. (Spouse)人名；(英)斯波斯",
+      "type" : "text",
+      "width" : 260,
+      "x" : 684,
+      "y" : 1440
+    },
+    {
+      "color" : "2",
+      "height" : 120,
+      "id" : "919ad4355143cad4",
+      "text" : "scalding\n*scald, scaldings*\n\n1. n. [外科] 烫伤\n2. v. 烫（scald的ing形式）\n3. adj. 滚烫的；尖刻的",
+      "type" : "text",
+      "width" : 260,
+      "x" : 956,
+      "y" : 1440
+    },
+    {
+      "height" : 120,
+      "id" : "97973a2cd4070076",
+      "text" : "due process\n*due processes*\n\n正当程序",
+      "type" : "text",
+      "width" : 260,
+      "x" : 2504,
+      "y" : 24
+    },
+    {
+      "height" : 120,
+      "id" : "7764c62028e4d8e0",
+      "text" : "idleness\n*idlenesses*\n\n1. n. 懒惰；闲散；失业\n\n--- AI 释义 ---\n1）英\/ ˈaɪdlnəs \/  美\/ ˈaɪdlnəs \/\n2）n.懒惰，闲散；无所事事，空闲\n3）the state of being not working or not active, often with the implication of laziness or avoidance of work\n4）Common human failings such as fornication, drunkenness, and idleness were legally— and frequently—punished.",
+      "type" : "text",
+      "width" : 260,
+      "x" : 1576,
+      "y" : 1364
+    },
+    {
+      "color" : "1",
+      "height" : 120,
+      "id" : "74e2d280f9b3699d",
+      "text" : "homicide\n*homicides*\n\n1. n. 过失杀人；杀人犯",
+      "type" : "text",
+      "width" : 260,
+      "x" : 1304,
+      "y" : 1232
+    },
+    {
+      "color" : "1",
+      "height" : 120,
+      "id" : "4083bfb70629d832",
+      "text" : "suspect\n*suspected, suspects, suspecting*\n\n1. n. 嫌疑犯\n2. adj. 可疑的；不可信的\n3. vi. 怀疑；猜想\n4. vt. 怀疑；猜想",
+      "type" : "text",
+      "width" : 260,
+      "x" : 1576,
+      "y" : 1232
+    },
+    {
+      "color" : "2",
+      "height" : 120,
+      "id" : "eb7610c427054051",
+      "text" : "fled\n\n1）英\/ flɛd \/  美\/ flɛd \/\n2）v.逃跑，逃走\n3）to leave somewhere very quickly, in order to escape from danger or a difficult situation\n4）Wilson and then Brown fled.",
+      "type" : "text",
+      "width" : 260,
+      "x" : 684,
+      "y" : 780
+    },
+    {
+      "height" : 120,
+      "id" : "c9d85fdf41f83c05",
+      "text" : "suing\n*sue*\n1）英\/ sjuːɪŋ \/  美\/ suːɪŋ \/\n2）\nv.起诉，控告；提出诉讼\n3）to take legal action against a person or organization, especially by making a claim for money in a court of law\n4）Owning a home to suing someone to asserting your constitutional rights, the law covers many a

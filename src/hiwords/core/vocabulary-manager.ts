@@ -633,8 +633,9 @@ export class VocabularyManager {
 
     /**
      * 写入待同步词汇并做「写入回执」校验：写完重新读该 canvas，确认目标节点真的在里面。
-     * 第一次没确认成功会重试一次（只补「连节点 id 都没拿到」的那些；已拿到 id 的只重新读盘确认，
-     * 避免重写产生重复节点）；两次都失败则写 canvas-write-failures.log + Notice，并返回 false。
+     * 未确认成功会重试一次：文件与写前逐字节一致（说明根本没落盘）就重写，否则只重新读盘确认，
+     * 避免「已经落盘但读回失败」时重写产生重复词条；两次仍失败则写
+     * canvas-write-failures.log + Notice，并返回 false。
      *
      * @returns 是否全部确认落盘
      */

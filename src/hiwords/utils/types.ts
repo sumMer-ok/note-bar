@@ -274,6 +274,20 @@ export interface CrossAppInboxSettings {
     duplicatePolicy: "skip" | "update";
 }
 
+/**
+ * 词库快照备份设置（链路外备份层）。
+ * 同步副本会一起坏，因此备份必须落在 vault 之外、iCloud 之外。
+ */
+export interface CanvasBackupSettings {
+    enabled: boolean;
+    /** 备份根目录；留空用默认 `~/Documents/note-bar-backups` */
+    dir: string;
+    /** 每个词库无条件保留的最近份数（默认 20） */
+    keepRecent: number;
+    /** 每天 1 份保留的天数（默认 30） */
+    keepDailyDays: number;
+}
+
 /** 相遇记录：同一单词在插件内的相遇次数统计（key 为 wordKey，即 studyKey 或 word 小写） */
 export interface EncounterData {
     /** 悬停查看释义次数 */
@@ -333,6 +347,8 @@ export interface HiWordsSettings {
     mobileSync?: MobileSyncSettings;
     /** 跨应用加词收件箱（macOS 划词助手） */
     crossAppInbox?: CrossAppInboxSettings;
+    /** 词库快照备份（vault 外、iCloud 外的定时快照） */
+    canvasBackup?: CanvasBackupSettings;
     flashcard?: FlashcardSettings;
     showDefinitionOnHover: boolean;
     enableAutoHighlight: boolean;

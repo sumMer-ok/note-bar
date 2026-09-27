@@ -1,4 +1,5 @@
 import { App, MarkdownView, Notice, Plugin, PluginSettingTab, Setting, TAbstractFile, TFile, WorkspaceLeaf } from "obsidian";
+import { promises as fs } from 'fs';
 import { Extension } from '@codemirror/state';
 import { ToolbarManager } from "./toolbar/ToolbarManager";
 import { FormattingContext } from "./toolbar/formatting-context";
@@ -23,6 +24,8 @@ import {
 import { pickDirectory } from "./sync/folder-picker";
 import { SyncManager } from "./sync/sync-manager";
 import { isInboxEnabled } from "./sync/inbox-config";
+import { CanvasBackupService, defaultBackupRoot, newestBackupPath } from "./sync/backup-service";
+import { canvasNodeCount, isSuspiciousShrink, validateCanvasText } from "./sync/canvas-integrity";
 
 const DEFAULT_AI_DEFINITION_PROMPT = '你是一个英汉词典编纂助手。请为单词 "{{word}}" 生成词条（上下文句子，可能为空：{{sentence}}）。\n\n输出要求（必须严格遵守）：\n1. 只输出一个 JSON 对象，不要输出任何其他内容：不要 markdown 代码块、不要 ```json 标记、不要注释、不要解释性文字、不要前后缀说明。\n2. JSON 只包含两个字段：\n   - "aliases"：字符串数组。如果该单词是词形变化（-ing / -ed / -s / -es / -ies / -er / -est 等），必须包含其原形（lemma）及常见变形；如果本身就是原形，可返回常见变形或空数组。例如 suing 返回 ["sue", "sued", "sues"]；went 返回 ["go", "goes", "going", "gone"]；better 返回 ["good"]；books 返回 ["book"]。\n   - "definition"：字符串，内容依次为：\n     1）音标（英式/美式）\\n2）中文释义（含词性标注）\\n3）英文释义\\n4）例句\n     其中序号之间的换行使用 JSON 转义符 \\n，不要使用 markdown 列表符号。\n3. 必须是合法 JSON：键和字符串值使用英文双引号；不要有尾随逗号；字符串内部不要有未转义的换行；不要使用单引号。\n\n只输出下面格式的 JSON 对象本身（不要包含任何其他文字）：\n{"aliases": ["sustain", "sustained", "sustaining", "sustains"], "definition": "1）英/ sə\'steɪn / 美/ sə\'steɪn /\\n2）v. 维持，保持；遭受，经受；支持，支撑\\nn. （乐）延音\\n3）to cause or allow something to continue for a period of time\\n4）The economy looks set to sustain its growth into next year."}';
 
@@ -106,10 +109,25 @@ const DEFAULT_HIWORDS_SETTINGS: HiWordsSettings = {
     syncDir: '',
     duplicatePolicy: 'skip',
   },
+  canvasBackup: {
+    enabled: true,
+    dir: '',
+    keepRecent: 20,
+    keepDailyDays: 30,
+  },
 };
 
 interface HiWordsRefreshHooks {
     _refreshReadingModeHighlighter?: () => void;
+}
+
+/** 读磁盘文本，读不到返回 null（体检里读备份文件用） */
+async function readFileUtf8(filePath: string): Promise<string | null> {
+  try {
+    return await fs.readFile(filePath, 'utf8');
+  } catch {
+    return null;
+  }
 }
 
 export default class NoteBarPlugin extends Plugin {
@@ -120,6 +138,7 @@ export default class NoteBarPlugin extends Plugin {
   definitionPopover: DefinitionPopover | null = null;
   encounterTracker: EncounterTracker | null = null;
   syncManager: SyncManager | null = null;
+  canvasBackup: CanvasBackupService | null = null;
   private editorExtensions: Extension[] = [];
   private isSidebarInitialized = false;
 
@@ -134,6 +153,9 @@ export default class NoteBarPlugin extends Plugin {
 
     // 初始化手机同步管理器
     this.syncManager = new SyncManager(this);
+
+    // 初始化词库快照备份（vault 外、iCloud 外；默认开启）
+    this.setupCanvasBackup();
 
     // 初始化已掌握服务
     this.masteredService = new MasteredService(this, this.vocabularyManager);
@@ -259,6 +281,15 @@ export default class NoteBarPlugin extends Plugin {
       }
     });
 
+    // 命令：词库体检（校验每个已启用 canvas，非法则指出最近备份）
+    this.addCommand({
+      id: 'note-bar-health-check-canvases',
+      name: '体检所有词库',
+      callback: () => {
+        void this.runCanvasHealthCheck();
+      }
+    });
+
     // 根据设置自动打开侧边栏
     if (this.hiwordsSettings.showSidebar !== false) {
       this.app.workspace.onLayoutReady(() => {
@@ -268,6 +299,124 @@ export default class NoteBarPlugin extends Plugin {
 
     // 注册文件变更事件（Canvas 生词本删除/修改同步）
     this.registerVaultEvents();
+  }
+
+  /**
+   * 词库快照备份（P1）：把每次成功写入后的防抖快照接到 VocabularyManager 上，
+   * 并启动每小时全量快照。备份目录在 vault 之外、iCloud 之外——同步副本不等于备份。
+   */
+  private setupCanvasBackup(): void {
+    const cfg = this.hiwordsSettings.canvasBackup ?? {
+      enabled: true,
+      dir: '',
+      keepRecent: 20,
+      keepDailyDays: 30,
+    };
+    this.hiwordsSettings.canvasBackup = cfg;
+
+    const vaultBase = (this.app.vault.adapter as any).getBasePath?.() as string | undefined;
+    if (!vaultBase) return; // 移动端没有本地绝对路径，备份层只在桌面端工作
+
+    this.canvasBackup = new CanvasBackupService({
+      vaultBasePath: vaultBase,
+      books: () => this.hiwordsSettings.vocabularyBooks,
+      rootDir: this.backupRootDir(),
+      keepRecent: cfg.keepRecent,
+      keepDailyDays: cfg.keepDailyDays,
+      onError: (message) => new Notice(message),
+    });
+    if (this.vocabularyManager) {
+      this.vocabularyManager.onCanvasWritten = (bookPath) => {
+        this.canvasBackup?.scheduleBackup(bookPath);
+      };
+    }
+    if (cfg.enabled) this.canvasBackup.start();
+  }
+
+  private backupRootDir(): string {
+    const dir = this.hiwordsSettings.canvasBackup?.dir;
+    return dir && dir.trim().length > 0 ? dir : defaultBackupRoot();
+  }
+
+  /** 重启备份服务（设置项变化后调用） */
+  restartCanvasBackup(): void {
+    this.canvasBackup?.stop();
+    this.canvasBackup = null;
+    this.setupCanvasBackup();
+  }
+
+  /** 读 vault 内文件的磁盘原文（体检用；优先 adapter，避免读到内存缓存） */
+  private async readCanvasText(bookPath: string): Promise<string | null> {
+    try {
+      const adapter = this.app.vault.adapter as unknown as { read?: (path: string) => Promise<string> };
+      if (adapter && typeof adapter.read === 'function') return await adapter.read(bookPath);
+    } catch {
+      // 落到 vault.read 兜底
+    }
+    const file = this.app.vault.getAbstractFileByPath(bookPath);
+    if (!(file instanceof TFile)) return null;
+    try {
+      return await this.app.vault.read(file);
+    } catch {
+      return null;
+    }
+  }
+
+  /** 命令实现：校验每个已启用 canvas，报告合法/非法/可疑，非法时指出最近备份路径 */
+  async runCanvasHealthCheck(): Promise<void> {
+    const books = this.hiwordsSettings.vocabularyBooks.filter(
+      (book) => book.enabled && book.path.endsWith('.canvas')
+    );
+    if (books.length === 0) {
+      new Notice('体检：没有已启用的 Canvas 词库');
+      return;
+    }
+
+    const backupRoot = this.backupRootDir();
+    let valid = 0;
+    let invalid = 0;
+    let suspicious = 0;
+    const details: string[] = [];
+
+    for (const book of books) {
+      const raw = await this.readCanvasText(book.path);
+      const backupPath = await newestBackupPath(backupRoot, book.path).catch(() => null);
+
+      if (raw === null) {
+        invalid++;
+        details.push(`• ${book.path}：读不到文件${backupPath ? `（最新备份：${backupPath}）` : ''}`);
+        continue;
+      }
+
+      const verdict = validateCanvasText(raw);
+      if (!verdict.ok) {
+        invalid++;
+        details.push(
+          `• ${book.path}：结构非法（${verdict.reason}）` +
+            (backupPath ? `，最新备份：${backupPath}` : '，暂无备份')
+        );
+        continue;
+      }
+
+      // 可疑：节点数比最近一份备份骤降（正常删词不该触发）
+      let referenceCount: number | null = null;
+      if (backupPath) {
+        const backupRaw = await readFileUtf8(backupPath);
+        referenceCount = backupRaw === null ? null : canvasNodeCount(backupRaw);
+      }
+      if (referenceCount !== null && isSuspiciousShrink(verdict.nodeCount, referenceCount)) {
+        suspicious++;
+        details.push(
+          `• ${book.path}：节点数骤降（${verdict.nodeCount} 个，最新备份 ${referenceCount} 个），请确认是否被截断；备份：${backupPath}`
+        );
+      } else {
+        valid++;
+      }
+    }
+
+    const summary = `词库体检：合法 ${valid}，非法 ${invalid}，可疑 ${suspicious}`;
+    console.log(`Note Bar ${summary}`);
+    new Notice(details.length > 0 ? `${summary}\n${details.join('\n')}` : summary, 15000);
   }
 
   private setupEditorExtensions() {
@@ -528,6 +677,10 @@ export default class NoteBarPlugin extends Plugin {
     // 停止手机同步（清轮询与待执行的镜像任务）
     this.syncManager?.stop();
     this.syncManager = null;
+
+    // 停止备份定时器（防抖中的快照一并取消）
+    this.canvasBackup?.stop();
+    this.canvasBackup = null;
 
     // 相遇记录立即落盘（防抖未触发的数据也会被写入）
     if (this.encounterTracker) {
@@ -1260,6 +1413,58 @@ class NoteBarSettingTab extends PluginSettingTab {
             crossAppInbox.duplicatePolicy = value === "update" ? "update" : "skip";
             await this.plugin.saveHiWordsSettings();
           })
+      );
+
+    // 词库快照备份（vault 外、iCloud 外）
+    containerEl.createEl('h3', { text: '词库快照备份' });
+    const canvasBackup = this.plugin.hiwordsSettings.canvasBackup ?? {
+      enabled: true,
+      dir: '',
+      keepRecent: 20,
+      keepDailyDays: 30,
+    };
+    this.plugin.hiwordsSettings.canvasBackup = canvasBackup;
+
+    new Setting(containerEl)
+      .setName("启用词库快照备份")
+      .setDesc("写入词库后 30 秒快照一次，并每小时全量快照；备份目录在 vault 与 iCloud 之外")
+      .addToggle((toggle) =>
+        toggle.setValue(canvasBackup.enabled).onChange(async (value) => {
+          canvasBackup.enabled = value;
+          await this.plugin.saveHiWordsSettings();
+          this.plugin.restartCanvasBackup();
+        })
+      );
+
+    new Setting(containerEl)
+      .setName("备份目录")
+      .setDesc(canvasBackup.dir || `留空使用默认：${defaultBackupRoot()}`)
+      .addButton((button) =>
+        button.setButtonText("选择目录").onClick(async () => {
+          const dir = await pickDirectory();
+          if (!dir) return;
+          canvasBackup.dir = dir;
+          await this.plugin.saveHiWordsSettings();
+          this.plugin.restartCanvasBackup();
+          this.display();
+        })
+      )
+      .addButton((button) =>
+        button.setButtonText("恢复默认").onClick(async () => {
+          canvasBackup.dir = '';
+          await this.plugin.saveHiWordsSettings();
+          this.plugin.restartCanvasBackup();
+          this.display();
+        })
+      );
+
+    new Setting(containerEl)
+      .setName("保留策略")
+      .setDesc(`每个词库保留最近 ${canvasBackup.keepRecent} 份 + 每天 1 份保留 ${canvasBackup.keepDailyDays} 天`)
+      .addButton((button) =>
+        button.setButtonText("立即体检词库").onClick(async () => {
+          await this.plugin.runCanvasHealthCheck();
+        })
       );
   }
 }

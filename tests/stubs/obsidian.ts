@@ -36,10 +36,19 @@ export class TAbstractFile {
 export class App {}
 
 export class Notice {
+  /** 单测断言「用户可见告警」用：记录构造过的每一条 Notice */
+  static readonly instances: Notice[] = [];
+
+  static reset(): void {
+    Notice.instances.length = 0;
+  }
+
   constructor(
     public message?: unknown,
     public timeout?: number
-  ) {}
+  ) {
+    Notice.instances.push(this);
+  }
 }
 
 export const Platform = {

@@ -1,8 +1,27 @@
-import { App, TFile } from 'obsidian';
+import { App, Notice, TFile } from 'obsidian';
 import type { StudyItem, WordDefinition, VocabularyBook, HiWordsSettings, CanvasData, CanvasNode, WordLifecycle, RetirementCandidate, EncounterData } from '../utils';
 import { CanvasParser } from '../canvas/canvas-parser';
 import { CanvasEditor } from '../canvas/canvas-editor';
 import { HiWordsParser } from '../card';
+import { containsNodeId, validateCanvasText } from '../../sync/canvas-integrity';
+import {
+    appendAuditLine,
+    appendLogLine,
+    canvasAuditLogPath,
+    canvasWriteFailureLogPath,
+    resolveVaultBasePath,
+    sha1Short12,
+    utf8ByteLength,
+} from '../../sync/canvas-audit';
+
+/**
+ * 写入选项。
+ * - `awaitWrite`：等文件**真的含目标节点**才返回成功（收件箱路径必须开，避免「假成功」丢词）。
+ *   不开时保持 UI 批量路径的 1 秒防抖，但落盘后仍会做同样的写入回执校验。
+ */
+export interface CanvasWriteOptions {
+    awaitWrite?: boolean;
+}
 
 export class VocabularyManager {
     private app: App;
@@ -20,6 +39,8 @@ export class VocabularyManager {
     private pendingSyncWords: Map<string, WordDefinition[]> = new Map();
     private syncTimeouts: Map<string, number> = new Map();
     private tempNodeIdCounter = 0;
+    /** 词条确认落盘后的回调（备份服务用它触发快照；由 main.ts 注入） */
+    onCanvasWritten?: (bookPath: string) => void;
 
     constructor(app: App, settings: HiWordsSettings) {
         this.app = app;
@@ -457,7 +478,7 @@ export class VocabularyManager {
         this.rebuildCache();
     }
 
-    async addWordToCanvas(bookPath: string, word: string, definition: string, color?: number, aliases?: string[]): Promise<boolean> {
+    async addWordToCanvas(bookPath: string, word: string, definition: string, color?: number, aliases?: string[], options?: CanvasWriteOptions): Promise<boolean> {
         try {
             const wordDef: WordDefinition = {
                 word,
@@ -469,6 +490,13 @@ export class VocabularyManager {
             };
             this.addWordToMemoryCache(bookPath, wordDef);
             this.rebuildCache();
+            if (options?.awaitWrite) {
+                // 收件箱路径：不等落盘就返回成功，等于把「丢词」判成「完成」（2026-09-26 事故直接原因）
+                const pending = this.pendingSyncWords.get(bookPath) ?? [];
+                pending.push(wordDef);
+                this.pendingSyncWords.set(bookPath, pending);
+                return await this.syncPendingWords(bookPath);
+            }
             this.scheduleCanvasSync(bookPath, wordDef);
             return true;
         } catch (error) {
@@ -477,10 +505,10 @@ export class VocabularyManager {
         }
     }
 
-    async addWordToMultipleCanvas(bookPaths: string[], word: string, definition: string, color?: number, aliases?: string[]): Promise<boolean> {
+    async addWordToMultipleCanvas(bookPaths: string[], word: string, definition: string, color?: number, aliases?: string[], options?: CanvasWriteOptions): Promise<boolean> {
         let allSuccess = true;
         for (const bookPath of bookPaths) {
-            const success = await this.addWordToCanvas(bookPath, word, definition, color, aliases);
+            const success = await this.addWordToCanvas(bookPath, word, definition, color, aliases, options);
             if (!success) {
                 allSuccess = false;
                 console.error(`Failed to add word to canvas book: ${bookPath}`);
@@ -597,25 +625,157 @@ export class VocabularyManager {
         this.syncTimeouts.set(bookPath, timeout);
     }
 
-    private async syncPendingWords(bookPath: string): Promise<void> {
+    private clearSyncTimeout(bookPath: string): void {
+        const timeout = this.syncTimeouts.get(bookPath);
+        if (timeout) activeWindow.clearTimeout(timeout);
+        this.syncTimeouts.delete(bookPath);
+    }
+
+    /**
+     * 写入待同步词汇并做「写入回执」校验：写完重新读该 canvas，确认目标节点真的在里面。
+     * 第一次没确认成功会重试一次（只补「连节点 id 都没拿到」的那些；已拿到 id 的只重新读盘确认，
+     * 避免重写产生重复节点）；两次都失败则写 canvas-write-failures.log + Notice，并返回 false。
+     *
+     * @returns 是否全部确认落盘
+     */
+    private async syncPendingWords(bookPath: string): Promise<boolean> {
         const pendingWords = this.pendingSyncWords.get(bookPath);
-        if (!pendingWords || pendingWords.length === 0) return;
-        try {
-            for (const wordDef of pendingWords) {
-                const generatedNodeId = await this.canvasEditor.addWordToCanvas(
-                    bookPath,
-                    wordDef.word,
-                    wordDef.definition,
-                    wordDef.color ? this.getColorNumber(wordDef.color) : undefined,
-                    wordDef.aliases
-                );
-                if (generatedNodeId) wordDef.nodeId = generatedNodeId;
+        if (!pendingWords || pendingWords.length === 0) return true;
+        // 先出队：失败条目已记日志/归档，留在队列里下次会重复写入同一条词
+        this.pendingSyncWords.delete(bookPath);
+        this.clearSyncTimeout(bookPath);
+
+        const beforeRaw = await this.readCanvasRaw(bookPath);
+        let toCreate = pendingWords.slice();
+        let toVerify: WordDefinition[] = [];
+        let lastMissing: WordDefinition[] = [];
+
+        for (let attempt = 0; attempt < 2 && (toCreate.length > 0 || toVerify.length > 0); attempt++) {
+            const outcome = await this.attemptWriteBatch(bookPath, toCreate, toVerify);
+            lastMissing = [...outcome.notCreated, ...outcome.missingVerified];
+            if (lastMissing.length === 0) break;
+
+            // 重试策略：文件与写前逐字节一致 ⇒ 上一次写入根本没落盘，直接重写（不会产生重复节点）；
+            // 文件变了（写入可能已落盘，只是读回时没看到）⇒ 只重新读盘确认，绝不重写，避免重复词条。
+            const currentRaw = await this.readCanvasRaw(bookPath);
+            if (currentRaw === beforeRaw && attempt === 0) {
+                toCreate = lastMissing;
+                toVerify = [];
+            } else {
+                toCreate = [];
+                toVerify = lastMissing;
             }
-            this.pendingSyncWords.delete(bookPath);
-            this.syncTimeouts.delete(bookPath);
-        } catch (error) {
-            console.error('Failed to sync words to canvas:', error);
         }
+
+        await this.appendWriteAudit(bookPath, beforeRaw, await this.readCanvasRaw(bookPath));
+
+        if (lastMissing.length > 0) {
+            await this.reportWriteFailure(bookPath, lastMissing);
+            return false;
+        }
+        this.onCanvasWritten?.(bookPath);
+        return true;
+    }
+
+    /** 单次尝试：先写「还没写过的」，再统一读盘校验（新写的 + 上一轮未确认的） */
+    private async attemptWriteBatch(
+        bookPath: string,
+        toCreate: WordDefinition[],
+        toVerify: WordDefinition[]
+    ): Promise<{ notCreated: WordDefinition[]; missingVerified: WordDefinition[] }> {
+        const created: WordDefinition[] = [];
+        const notCreated: WordDefinition[] = [];
+        for (const wordDef of toCreate) {
+            const generatedNodeId = await this.canvasEditor.addWordToCanvas(
+                bookPath,
+                wordDef.word,
+                wordDef.definition,
+                wordDef.color ? this.getColorNumber(wordDef.color) : undefined,
+                wordDef.aliases
+            ).catch(() => null);
+            if (generatedNodeId) {
+                wordDef.nodeId = generatedNodeId;
+                created.push(wordDef);
+            } else {
+                notCreated.push(wordDef);
+            }
+        }
+
+        const verifyTargets = [...created, ...toVerify];
+        if (verifyTargets.length === 0) return { notCreated, missingVerified: [] };
+
+        const missingIds = await this.findMissingNodeIds(bookPath, verifyTargets.map(wordDef => wordDef.nodeId));
+        return {
+            notCreated,
+            missingVerified: verifyTargets.filter(wordDef => missingIds.has(wordDef.nodeId)),
+        };
+    }
+
+    /** 读回文件，返回其中确实不存在的节点 id 集合（读不到文件视为全部缺失） */
+    private async findMissingNodeIds(bookPath: string, nodeIds: string[]): Promise<Set<string>> {
+        const missing = new Set<string>();
+        if (nodeIds.length === 0) return missing;
+        const raw = await this.readCanvasRaw(bookPath);
+        if (raw === null) {
+            nodeIds.forEach(nodeId => missing.add(nodeId));
+            return missing;
+        }
+        for (const nodeId of nodeIds) {
+            if (!containsNodeId(raw, nodeId)) missing.add(nodeId);
+        }
+        return missing;
+    }
+
+    /**
+     * 直接读磁盘原文（用于写入回执校验与审计）。
+     * 优先 adapter.read：vault.read/cachedRead 可能命中内存缓存，校验会变成「自证成功」。
+     */
+    private async readCanvasRaw(bookPath: string): Promise<string | null> {
+        try {
+            const adapter = this.app.vault.adapter as unknown as { read?: (path: string) => Promise<string> };
+            if (adapter && typeof adapter.read === 'function') {
+                return await adapter.read(bookPath);
+            }
+        } catch {
+            // 落到 vault.read 兜底
+        }
+        const file = this.app.vault.getAbstractFileByPath(bookPath);
+        if (!(file instanceof TFile)) return null;
+        try {
+            return await this.app.vault.read(file);
+        } catch {
+            return null;
+        }
+    }
+
+    /** 写入失败：日志（可追溯）+ Notice（用户可见），两条缺一不可 */
+    private async reportWriteFailure(bookPath: string, words: WordDefinition[]): Promise<void> {
+        const wordList = words.map(wordDef => wordDef.word).join(', ');
+        console.error(`Note Bar: 词条写入失败（写完未在文件中确认到节点）: ${bookPath} → ${wordList}`);
+        const vaultBasePath = resolveVaultBasePath(this.app);
+        if (vaultBasePath) {
+            await appendLogLine(
+                canvasWriteFailureLogPath(vaultBasePath),
+                `${new Date().toISOString()} | book=${bookPath} | words=${wordList} | reason=node-missing-after-write`
+            );
+        }
+        new Notice(`词条写入失败，已记录，请检查词库文件：${bookPath}`);
+    }
+
+    /** 审计：一次刷盘记一行（写前/写后字节数与 sha1 前 12 位 + 写后是否结构合法） */
+    private async appendWriteAudit(bookPath: string, beforeRaw: string | null, afterRaw: string | null): Promise<void> {
+        const vaultBasePath = resolveVaultBasePath(this.app);
+        if (!vaultBasePath) return;
+        await appendAuditLine(canvasAuditLogPath(vaultBasePath), {
+            timestamp: new Date(),
+            actor: 'plugin',
+            book: bookPath,
+            bytesBefore: beforeRaw === null ? 0 : utf8ByteLength(beforeRaw),
+            bytesAfter: afterRaw === null ? 0 : utf8ByteLength(afterRaw),
+            sha1Before: beforeRaw === null ? '-' : sha1Short12(beforeRaw),
+            sha1After: afterRaw === null ? '-' : sha1Short12(afterRaw),
+            validated: afterRaw !== null && validateCanvasText(afterRaw).ok,
+        });
     }
 
     private async flushAllPendingSyncs(): Promise<void> {
@@ -623,15 +783,12 @@ export class VocabularyManager {
         await Promise.all(pendingPaths.map(path => this.syncPendingWords(path)));
     }
 
-    private async flushPendingSyncForBook(bookPath: string): Promise<void> {
-        const timeout = this.syncTimeouts.get(bookPath);
-        if (timeout) {
-            activeWindow.clearTimeout(timeout);
-            this.syncTimeouts.delete(bookPath);
-        }
+    private async flushPendingSyncForBook(bookPath: string): Promise<boolean> {
+        this.clearSyncTimeout(bookPath);
         if (this.pendingSyncWords.has(bookPath)) {
-            await this.syncPendingWords(bookPath);
+            return await this.syncPendingWords(bookPath);
         }
+        return true;
     }
 
     private getColorNumber(colorString: string): number {

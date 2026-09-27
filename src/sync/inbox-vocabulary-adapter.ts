@@ -37,12 +37,14 @@ export function createInboxVocabularyPort(deps: InboxAdapterDeps): InboxVocabula
     },
 
     async addWord(bookPath: string, entry: InboxEntry) {
+      // awaitWrite：只有文件真的含该节点才返回 true，失败条目由 importer 归档到 .failed.jsonl
       return await manager.addWordToMultipleCanvas(
         [bookPath],
         entry.word,
         entry.definition ?? "",
         toColorValue(entry.color),
-        entry.aliases
+        entry.aliases,
+        { awaitWrite: true }
       );
     },
 

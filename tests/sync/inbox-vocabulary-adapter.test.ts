@@ -53,12 +53,14 @@ test("addWord 把颜色字符串转成数字并透传释义与别名", async () 
   );
 
   assert.equal(ok, true);
+  // 第 6 个参数 awaitWrite：收件箱必须等落盘确认，否则失败条目会被当成成功消费
   assert.deepEqual(calls[0], [
     ["Words/AI Agent.canvas"],
     "sue",
     "v. 起诉",
     4,
     ["sued"],
+    { awaitWrite: true },
   ]);
 });
 
@@ -81,8 +83,8 @@ test("颜色缺失或非法时传 undefined，释义缺失传空串", async () =
   await port.addWord("b.canvas", entry({ word: "sue" }));
   await port.addWord("b.canvas", entry({ word: "sue", color: "not-a-number" }));
 
-  assert.deepEqual(calls[0], [["b.canvas"], "sue", "", undefined, undefined]);
-  assert.deepEqual(calls[1], [["b.canvas"], "sue", "", undefined, undefined]);
+  assert.deepEqual(calls[0], [["b.canvas"], "sue", "", undefined, undefined, { awaitWrite: true }]);
+  assert.deepEqual(calls[1], [["b.canvas"], "sue", "", undefined, undefined, { awaitWrite: true }]);
 });
 
 test("updateWord 透传节点 id", async () => {

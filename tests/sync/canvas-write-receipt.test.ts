@@ -129,6 +129,16 @@ test("awaitWrite：正常 canvas 写入后节点真的在文件里，且不产�
       h.notices().filter((message) => message.includes("词条写入失败")),
       []
     );
+
+    // 审计：写入路径每次刷盘记一行（actor=plugin，写后结构合法）
+    const audit = await fs.readFile(path.join(h.root, "vault", ".obsidian", "plugins", "note-bar", "canvas-audit.log"), "utf8");
+    const lines = audit.trim().split("\n");
+    assert.equal(lines.length, 3, "3 次写入各一行审计");
+    const fields = lines[2].split(" | ");
+    assert.equal(fields.length, 8);
+    assert.equal(fields[1], "plugin");
+    assert.equal(fields[2], RELATIVE_BOOK);
+    assert.equal(fields[7], "yes");
   } finally {
     await h.cleanup();
   }

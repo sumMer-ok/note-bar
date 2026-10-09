@@ -60,6 +60,30 @@ struct HomeView: View {
                         }
                         .buttonStyle(.plain)
                     }
+                    if let draft = appState.reinforceDraft, draft.isResumable {
+                        // 上次本组的不熟词强化没走完 → 提供继续入口（草稿不写复习进度）
+                        NavigationLink {
+                            ReviewView(mode: .learn, books: Set(draft.books), resumeDraft: draft)
+                        } label: {
+                            HStack {
+                                Label("继续强化 \(draft.remainingCount) 个不熟词", systemImage: "arrow.triangle.2.circlepath")
+                                    .font(.subheadline.bold())
+                                Spacer()
+                                Text("第 \(draft.round) 轮 · 已作答 \(draft.totalAnswers) 次")
+                                    .font(.caption)
+                            }
+                            .foregroundStyle(Theme.againRed)
+                            .padding(.vertical, 12).padding(.horizontal, 14)
+                            .frame(maxWidth: .infinity)
+                            .background(Theme.againRed.opacity(0.14), in: RoundedRectangle(cornerRadius: 14))
+                        }
+                        .buttonStyle(.plain)
+                        .contextMenu {
+                            Button("放弃这次强化", role: .destructive) {
+                                appState.clearReinforceDraft()
+                            }
+                        }
+                    }
                     Text("今日待复习 \(totalDue) · 新词 \(totalNew)")
                         .font(.subheadline).foregroundStyle(.secondary)
                     Text("我的词库").font(.headline)

@@ -24,11 +24,13 @@
 		3BC2F642804B1C1D58423ABD /* StudyQueueTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DFA43D21F85C81A44D3F200 /* StudyQueueTests.swift */; };
 		47A2987B0C7BFA8D45BFFFBA /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = D094865C8EF9551ECF75EF2B /* AppState.swift */; };
 		480FDCDC0E4BB3FB7F2C10CA /* WordDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 137C0613FA4F5BA1D56F8633 /* WordDetailView.swift */; };
+		4AD1A4DAF4E75B11F833CF26 /* ReinforceSessionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F5CD9A5C5642DA420B2A1E7 /* ReinforceSessionTests.swift */; };
 		59705D884A02A48FD45597D0 /* Sidecar.swift in Sources */ = {isa = PBXBuildFile; fileRef = C26AAA32502E84D7567E9A3C /* Sidecar.swift */; };
 		613B5E9752341CC86AB32E0B /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D3CB4C4271E0F647A82AABF /* SettingsView.swift */; };
 		645DC1A64CCBC273F951CB44 /* FolderPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F3B773FCF701CABAB42B3A8 /* FolderPicker.swift */; };
 		684B7351EA950F7E0235A6CA /* FSRS.swift in Sources */ = {isa = PBXBuildFile; fileRef = DCEE227A2751D1982A361C56 /* FSRS.swift */; };
 		6F61FC3B07A106FAFBE9B005 /* DefinitionSectionsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C106E5FB4CB065E404017DF /* DefinitionSectionsTests.swift */; };
+		71546288199FBBA528A5A8D8 /* ReinforceSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0CD99372CF3D54D7CE6B469C /* ReinforceSession.swift */; };
 		74748A0328E3EB7440E10871 /* DictationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D16AD92E616FBBE75CFB5AE0 /* DictationView.swift */; };
 		886B8B5B540EC6459526AEC9 /* SyncService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D7415C0E0D855E0BA8DB936 /* SyncService.swift */; };
 		889778D4A8311842A43DE3A9 /* ai-definition-prompt.txt in Resources */ = {isa = PBXBuildFile; fileRef = 96DEC8769A041684676C7449 /* ai-definition-prompt.txt */; };
@@ -75,6 +77,7 @@
 
 /* Begin PBXFileReference section */
 		06F5AB7AA50D0AAF0F032322 /* rabbit.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = rabbit.png; sourceTree = "<group>"; };
+		0CD99372CF3D54D7CE6B469C /* ReinforceSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReinforceSession.swift; sourceTree = "<group>"; };
 		0CEC87FCA85F9D48318C559E /* AssetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssetTests.swift; sourceTree = "<group>"; };
 		137C0613FA4F5BA1D56F8633 /* WordDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WordDetailView.swift; sourceTree = "<group>"; };
 		13B39F8FB65E8D7671805100 /* DailyQuoteTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyQuoteTests.swift; sourceTree = "<group>"; };
@@ -104,6 +107,7 @@
 		80727E6A29540AE796D27DBE /* MergeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MergeTests.swift; sourceTree = "<group>"; };
 		8AB964A3D7E735ABF1535087 /* ATTRIBUTION.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = ATTRIBUTION.md; sourceTree = "<group>"; };
 		8D7415C0E0D855E0BA8DB936 /* SyncService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncService.swift; sourceTree = "<group>"; };
+		8F5CD9A5C5642DA420B2A1E7 /* ReinforceSessionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReinforceSessionTests.swift; sourceTree = "<group>"; };
 		96DEC8769A041684676C7449 /* ai-definition-prompt.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "ai-definition-prompt.txt"; sourceTree = "<group>"; };
 		9CCE8521CD0139F771D6BF6F /* NoteBarApp.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = NoteBarApp.entitlements; sourceTree = "<group>"; };
 		9DDA22B3C2676336D9C51A75 /* StudyKey.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyKey.swift; sourceTree = "<group>"; };
@@ -133,6 +137,7 @@
 			children = (
 				DCEE227A2751D1982A361C56 /* FSRS.swift */,
 				1D1902E1ECCC2B362771FCFE /* Merge.swift */,
+				0CD99372CF3D54D7CE6B469C /* ReinforceSession.swift */,
 				9DDA22B3C2676336D9C51A75 /* StudyKey.swift */,
 				BEF6E94E97B45DE935CE8CE6 /* StudyQueue.swift */,
 			);
@@ -167,6 +172,7 @@
 				1C106E5FB4CB065E404017DF /* DefinitionSectionsTests.swift */,
 				4534080E3D49FB96A25396E1 /* FSRSTests.swift */,
 				80727E6A29540AE796D27DBE /* MergeTests.swift */,
+				8F5CD9A5C5642DA420B2A1E7 /* ReinforceSessionTests.swift */,
 				744E431B3BDB9CD363258901 /* StudyKeyTests.swift */,
 				9DFA43D21F85C81A44D3F200 /* StudyQueueTests.swift */,
 				A724F3DE76950D827B493BE3 /* SyncIntegrationTests.swift */,
@@ -450,6 +456,7 @@
 				6F61FC3B07A106FAFBE9B005 /* DefinitionSectionsTests.swift in Sources */,
 				EF1274650F59D819B4249A61 /* FSRSTests.swift in Sources */,
 				D83D8025A6F0B503A1BD7FF2 /* MergeTests.swift in Sources */,
+				4AD1A4DAF4E75B11F833CF26 /* ReinforceSessionTests.swift in Sources */,
 				AF9605836477D0D5B3C9AC4A /* StudyKeyTests.swift in Sources */,
 				3BC2F642804B1C1D58423ABD /* StudyQueueTests.swift in Sources */,
 				CE6AF2B6B2A776868D278AC8 /* SyncIntegrationTests.swift in Sources */,
@@ -478,6 +485,7 @@
 				96AD4EEF084EB7750185B7C7 /* HomeView.swift in Sources */,
 				DFB7B4FAB6A9EA4645644986 /* Merge.swift in Sources */,
 				0C092C2A7CF569D824914A87 /* NoteBarApp.swift in Sources */,
+				71546288199FBBA528A5A8D8 /* ReinforceSession.swift in Sources */,
 				E6BF777ACAF85E642850E388 /* ReviewView.swift in Sources */,
 				613B5E9752341CC86AB32E0B /* SettingsView.swift in Sources */,
 				59705D884A02A48FD45597D0 /* Sidecar.swift in Sources */,

@@ -19,3 +19,11 @@ DerivedData/
 *.xcuserstate
 xcuserdata/
 .summer/
+
+# 本地私有产物 / 个人数据——不得进入公开仓库
+# .dsh-meow/ = meow-memory 记忆库（含 memory.db，会记录私人对话与记忆）
+# .tools/ = 本地编译出的探针二进制
+# AGENTS.md = 个人本地配置（空文件占位）
+.dsh-meow/
+.tools/
+AGENTS.md

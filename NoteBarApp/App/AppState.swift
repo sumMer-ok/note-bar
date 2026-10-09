@@ -16,6 +16,13 @@ final class AppState: ObservableObject {
     @Published var selectedTab: AppTab = .learn
     @Published var libraryFilter: String?
 
+    /// 「本组不熟词强化」的草稿：中途退出后可从首页入口继续。
+    /// 只保存强化环节自身的循环判定状态，与 studyProgress / iCloud 边车完全无交集，
+    /// 因此不会影响掌握度与下次复习时间（强化环节的判定不写复习进度）。
+    @Published var reinforceDraft: ReinforceDraft?
+
+    private static let reinforceDraftKey = "reinforce-draft"
+
     private let context: ModelContext
     private let speaker = Speaker()
     private var libraryFilterConsumed = false
@@ -36,6 +43,30 @@ final class AppState: ObservableObject {
     init(context: ModelContext) {
         self.context = context
         settings = Settings.load()
+        reinforceDraft = Self.loadReinforceDraft()
+    }
+
+    // MARK: - 本组不熟词强化草稿
+
+    /// 保存强化草稿（只含本环节循环判定状态，不含任何复习进度字段）
+    func saveReinforceDraft(_ draft: ReinforceDraft) {
+        reinforceDraft = draft
+        if let data = try? JSONEncoder().encode(draft) {
+            UserDefaults.standard.set(data, forKey: Self.reinforceDraftKey)
+        }
+    }
+
+    /// 强化全部通过或用户放弃后清空草稿
+    func clearReinforceDraft() {
+        reinforceDraft = nil
+        UserDefaults.standard.removeObject(forKey: Self.reinforceDraftKey)
+    }
+
+    private static func loadReinforceDraft() -> ReinforceDraft? {
+        guard let data = UserDefaults.standard.data(forKey: reinforceDraftKey),
+              let draft = try? JSONDecoder().decode(ReinforceDraft.self, from: data),
+              draft.isResumable else { return nil }
+        return draft
     }
 
     struct Settings: Codable, Equatable {

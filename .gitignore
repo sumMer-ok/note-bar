@@ -6,6 +6,9 @@ main.js
 src/hiwords/data/*
 !src/hiwords/data/dictionary.json
 !src/hiwords/data/legal-dictionary.json
+# 常用词子集（约 1.4 万条 / 1.8MB）：随仓库入库，让公开克隆者能离线查常用词。
+# 全量词典与词库源文件（AutoCompleteData.db / Blacks Law Dictionary PDF）不入库。
+!src/hiwords/data/dictionary.lite.json
 references/
 src/annotation/
 docs/

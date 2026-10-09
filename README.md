@@ -143,7 +143,13 @@ npm run build
 
 构建产物是 `main.js`（由 esbuild 从 `src/main.ts` 打包），需与仓库根目录的 `manifest.json`、`styles.css` 一起放在插件目录。
 
-> ⚠️ **公开仓库 clone 后无法直接构建**：`dictionary.json` 由 `scripts/build-dictionary.js` 从 `src/hiwords/data/AutoCompleteData.db` 生成，而该目录被 `.gitignore` 排除。构建前需先放置词库源文件并执行 `npm run build:dictionary`。详见[已知限制](#已知限制)。
+> 💡 **词典**：`npm run build` **不需要词典**（词典是运行时从 vault 读的，不参与打包）。但 clone 后仓库里的 `dictionary.json` 是个 1.4KB 的 LFS 指针，直接用会查不到词。
+> 想离线查常用词，复制仓库自带的子集即可：
+> ```bash
+> mkdir -p <你的 vault>/.obsidian/plugins/note-bar/data
+> cp src/hiwords/data/dictionary.lite.json <你的 vault>/.obsidian/plugins/note-bar/data/dictionary.json
+> ```
+> 需要完整 363MB 词库的话，需自备词库源文件 `AutoCompleteData.db` 放到 `src/hiwords/data/` 后执行 `npm run build:dictionary`。
 
 启用插件：Obsidian → 设置 → 第三方插件 → 关闭安全模式 → 启用 Note Bar。
 
@@ -289,7 +295,7 @@ node NoteBarHelper/scripts/check-form-js.mjs   # 助手表单回归（JS 断言 
 
 ## 已知限制
 
-- **公开仓库无法直接构建**：离线词典源文件（`AutoCompleteData.db`，位于被 gitignore 的 `src/hiwords/data/`）不在仓库中，需自备或改为提交生成好的 `dictionary.json`。
+- **全量离线词典不在仓库中**：363MB 的 `dictionary.json` 超过 GitHub 单文件 100MB 限制，仓库里只是一个 LFS 指针，clone 后**不能用**。但这不影响构建——词典是插件**运行时**从 vault 读的，不参与打包。仓库另附 `dictionary.lite.json`（1.4 万常用词 / 1.8MB），把它复制到 `.obsidian/plugins/note-bar/data/dictionary.json` 即可离线查常用词；需要全量请自备 `AutoCompleteData.db` 并执行 `npm run build:dictionary`。
 - **`HiWords/`、`documents/`、`references/`、`release/`、`docs/` 不在仓库中**：这些是被 `.gitignore` 排除的本地目录（上游参考实现、设计文档、构建产物等）。
 - **iOS 端运行依赖 macOS + Xcode**：仅能在 Mac 上构建模拟器版本。
 - **macOS 助手需要辅助功能权限**：首次运行或更换签名后，需在「系统设置 → 隐私与安全性 → 辅助功能」重新授权，否则取词失败（会自检并引导授权）。

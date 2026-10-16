@@ -147,7 +147,10 @@ class BaiduPanClient(
             // invalid_grant 在授权码流程里几乎总是「码过期/已被用过」——
             // 只说 "invalid code, expired or revoked" 用户不知道该怎么办（真机实测反馈），
             // 所以这里给出可执行的下一步：重新走一次授权、10 分钟内用掉。
-            val hint = if (oauthError == "invalid_grant" && !isRefresh) {
+            val hint = if (oauthError == "invalid_client") {
+                "AppKey 或 SecretKey 不正确：AppKey 是 32 位字母数字（控制台里 AppID 下方那一行），" +
+                    "常见错误是把纯数字的 AppID 当成 AppKey 填了"
+            } else if (oauthError == "invalid_grant" && !isRefresh) {
                 "授权码无效或已过期。授权码为一次性、有效期 10 分钟，请重新打开授权链接获取新授权码后立即填入"
             } else if (oauthError == "invalid_grant") {
                 "刷新令牌已失效（refresh_token 一次性，用过即废），请重新完成 OAuth 授权"
@@ -568,6 +571,20 @@ class BaiduPanClient(
 
         /** 百度网盘开放平台的固定 scope（基础信息 + 网盘读写） */
         const val OAUTH_SCOPE = "basic,netdisk"
+
+        /**
+         * 百度应用 AppKey 的长度（32 位字母数字）。
+         *
+         * 真机反馈（2026-10-17）：用户在设置页把控制台的 **AppID**（`124480177`，纯数字）
+         * 当成了 AppKey 填进去，授权页直接报 `invalid_client / unknown client id`——
+         * 那是个百度自家的错误页，用户完全无从自查（旧标签还写着「AppKey（应用 ID）」，
+         * 等于在诱导填错）。因此在进入授权页之前先用本函数做形态校验，把问题挡在 App 内。
+         */
+        const val APP_KEY_LENGTH = 32
+
+        /** AppKey 形态校验：32 位字母数字。仅用于**提前提示**，不做硬性拦截（防百度改格式后卡死） */
+        fun looksLikeAppKey(value: String): Boolean =
+            value.length == APP_KEY_LENGTH && value.all { it.isLetterOrDigit() }
 
         /**
          * 拼「授权页」链接（授权码模式，`redirect_uri=oob` 即页面直接显示授权码）。

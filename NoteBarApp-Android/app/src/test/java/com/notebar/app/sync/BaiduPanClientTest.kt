@@ -743,6 +743,44 @@ class BaiduPanClientTest {
         assertEquals(BaiduPanErrorKind.AUTH, error.kind)
     }
 
+    // ------------------------------------------- AppKey 形态校验（2026-10-17 真机反馈）
+
+    @Test
+    fun looksLikeAppKeyAcceptsThirtyTwoAlphanumeric() {
+        assertTrue(BaiduPanClient.looksLikeAppKey("JmYOVc0P9Jhw6EMuN0SdRq6lXf5kLznT"))
+        assertTrue(BaiduPanClient.looksLikeAppKey("abcdefghijklmnopqrstuvwxyz012345"))
+    }
+
+    @Test
+    fun looksLikeAppKeyRejectsAppIdAndOtherShapes() {
+        // 真机事故：用户把控制台的 AppID（纯数字）当成 AppKey 填了 →
+        // 授权页报 invalid_client / unknown client id，用户无从自查
+        assertFalse("AppID 不是 AppKey", BaiduPanClient.looksLikeAppKey("124480177"))
+        assertFalse("少一位也不行", BaiduPanClient.looksLikeAppKey("JmYOVc0P9Jhw6EMuN0SdRq6lXf5kLzn"))
+        assertFalse("多一位也不行", BaiduPanClient.looksLikeAppKey("JmYOVc0P9Jhw6EMuN0SdRq6lXf5kLznTX"))
+        assertFalse("空值", BaiduPanClient.looksLikeAppKey(""))
+        assertFalse("含非字母数字", BaiduPanClient.looksLikeAppKey("JmYOVc0P9Jhw6EMuN0SdRq6lXf5kLz-T"))
+    }
+
+    /** invalid_client 必须提示「AppKey 不是 AppID」，否则用户只会看到百度自家的错误页文案 */
+    @Test
+    fun invalidClientExplainsAppIdConfusion() {
+        val (client, _) = clientWith(
+            listOf(
+                ScriptedTransport.json(
+                    """{"error":"invalid_client","error_description":"unknown client id"}""",
+                ),
+            ),
+        )
+        val error = assertFails<BaiduPanError>("客户端凭证错误必须给出可执行提示") {
+            client.exchangeAuthorizationCode("deadbeef")
+        }
+        val message = error.message.orEmpty()
+        assertTrue("应点名 AppKey：$message", message.contains("AppKey"))
+        assertTrue("应说明 AppID 不是 AppKey：$message", message.contains("AppID"))
+        assertTrue("应给出 32 位线索：$message", message.contains("32"))
+    }
+
     /** 断言某段代码抛 [T]，并返回该异常（比 `assertThrows` 更好读，且能取到 message） */
     private inline fun <reified T : Throwable> assertFails(
         message: String? = null,

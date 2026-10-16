@@ -305,12 +305,29 @@ private fun BaiduPanSection(
             },
         )
 
-        LabelledField("AppKey（应用 ID）", config.appKey, isSecret = true) { v ->
-            onChange(config.copy(appKey = v.trim()))
-        }
-        LabelledField("SecretKey", config.secretKey, isSecret = true) { v ->
-            onChange(config.copy(secretKey = v.trim()))
-        }
+        // AppKey 是**公开值**（就写在授权 URL 里），因此明文显示、便于自查；
+        // 标签必须点明「不是 AppID」——真机反馈里用户被旧标签「AppKey（应用 ID）」误导，
+        // 填了控制台的 AppID（124480177）→ 授权页报 invalid_client / unknown client id。
+        val appKeyLooksValid = BaiduPanClient.looksLikeAppKey(config.appKey)
+        LabelledField(
+            label = "AppKey（应用 Key，不是 AppID）",
+            value = config.appKey,
+            isSecret = false,
+            helper = when {
+                config.appKey.isEmpty() -> "32 位字母数字：控制台「应用管理」里 AppID 下方那一行"
+                appKeyLooksValid -> "格式正确（32 位）"
+                else -> "格式不对：AppKey 应为 32 位字母数字，当前 ${config.appKey.length} 位。" +
+                    "如果你填的是 124480177 这类纯数字，那其实是 AppID，不是 AppKey"
+            },
+            isError = config.appKey.isNotEmpty() && !appKeyLooksValid,
+        ) { v -> onChange(config.copy(appKey = v.trim())) }
+
+        LabelledField(
+            label = "SecretKey",
+            value = config.secretKey,
+            isSecret = true,
+            helper = "32 位字母数字；点右侧「显示」可核对是否填错",
+        ) { v -> onChange(config.copy(secretKey = v.trim())) }
 
         // 授权码：换 token 用，一次性。交换开始后立刻从输入框清掉，不留在设置里。
         var authCode by remember { mutableStateOf("") }
@@ -331,11 +348,11 @@ private fun BaiduPanSection(
                             context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(authorizeUrl)))
                         }.onFailure { authResult = "无法打开浏览器：${it.message ?: "未知错误"}" }
                     },
-                    enabled = config.appKey.isNotBlank(),
+                    enabled = appKeyLooksValid,
                 ) { Text("打开授权链接") }
                 OutlinedButton(
                     onClick = { clipboard.setText(AnnotatedString(authorizeUrl)) },
-                    enabled = config.appKey.isNotBlank(),
+                    enabled = appKeyLooksValid,
                 ) { Text("复制授权链接") }
             }
             Text(
@@ -443,9 +460,16 @@ private fun LabelledField(
     label: String,
     value: String,
     isSecret: Boolean = false,
+    helper: String? = null,
+    isError: Boolean = false,
+    /** 掩码字段是否提供「显示」开关（默认提供：真机反馈里填错却看不见，是最难自查的故障） */
+    allowReveal: Boolean = true,
     onChange: (String) -> Unit,
 ) {
     var text by remember(value) { mutableStateOf(value) }
+    var revealed by remember { mutableStateOf(false) }
+    val masked = isSecret && !(allowReveal && revealed)
+
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(label, style = MaterialTheme.typography.labelMedium)
         OutlinedTextField(
@@ -454,14 +478,31 @@ private fun LabelledField(
                 text = it
                 onChange(it)
             },
-            singleLine = !isSecret,
-            visualTransformation = if (isSecret) {
+            singleLine = true,
+            isError = isError,
+            visualTransformation = if (masked) {
                 androidx.compose.ui.text.input.PasswordVisualTransformation()
             } else {
                 androidx.compose.ui.text.input.VisualTransformation.None
             },
+            trailingIcon = if (isSecret && allowReveal) {
+                {
+                    TextButton(onClick = { revealed = !revealed }) {
+                        Text(if (revealed) "隐藏" else "显示", style = MaterialTheme.typography.labelSmall)
+                    }
+                }
+            } else {
+                null
+            },
             modifier = Modifier.fillMaxWidth(),
         )
+        helper?.let {
+            Text(
+                it,
+                style = MaterialTheme.typography.labelSmall,
+                color = if (isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }
 

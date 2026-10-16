@@ -589,3 +589,46 @@ test("所有业务请求都带 User-Agent: pan.baidu.com（否则 31326 防盗�
   await client.listDir("/apps/NoteBar/Words");
   assert.equal((calls[0].init as RequestInit).headers!["User-Agent" as never], "pan.baidu.com");
 });
+
+// ---------------------------------------------------------------------------
+// 回归（2026-10-17 真凭证实测）：filemetas 查「不存在的文件」是正常语义
+//
+// 实测：顶层 errno=12，且 info 里对应项 errno=-9。若当成硬错误抛出，
+// **全新账号首次同步必然全失败**（首次远端本来就没有任何 canvas/边车），
+// 表现为满屏「拉取远端词库失败 / 上传失败」且永远传不上去。
+// ---------------------------------------------------------------------------
+test("filemetas 目标不存在（顶层 errno=12 + 逐项 -9）返回空数组，不抛错", async () => {
+  const { client } = clientWith([
+    { body: { errno: 12, info: [{ errno: -9 }] } },
+  ]);
+  const entries = await client.fileMetas(["/apps/NoteBar/Words/Common Law.canvas"]);
+  assert.deepEqual(entries, [], "不存在的文件应视作「远端没有」，返回空数组");
+});
+
+test("filemetas 部分存在：保留存在的条目、过滤掉 -9 的缺失项", async () => {
+  const { client } = clientWith([
+    {
+      body: {
+        errno: 12,
+        info: [
+          { errno: -9 },
+          { errno: 0, fs_id: 333, path: "/apps/NoteBar/Words/AI.canvas", server_filename: "AI.canvas", isdir: 0, size: 10, server_mtime: 1691048400 },
+        ],
+      },
+    },
+  ]);
+  const entries = await client.fileMetas([
+    "/apps/NoteBar/Words/Common Law.canvas",
+    "/apps/NoteBar/Words/AI.canvas",
+  ]);
+  assert.equal(entries.length, 1);
+  assert.equal(entries[0].name, "AI.canvas");
+});
+
+test("其他 errno（非 12）仍然抛错，不被误容忍", async () => {
+  const { client } = clientWith([{ body: { errno: 20020, errmsg: "无权限" } }]);
+  await assert.rejects(
+    async () => client.fileMetas(["/apps/NoteBar/Words/x.canvas"]),
+    /errno=20020|权限/
+  );
+});

@@ -221,6 +221,7 @@ class BaiduPanClient(
                 "target" to JsonArray(targets.map { JsonPrimitive(it) }).toString(),
                 "dlink" to if (dlink) "1" else "0",
             ),
+            tolerateErrnos = FILE_NOT_FOUND_ERRNOS,
         )
         val info = data["info"] as? JsonArray ?: return targets.map { null }
         return targets.mapIndexed { index, path ->
@@ -465,6 +466,11 @@ class BaiduPanClient(
         query: List<Pair<String, String>>,
         body: Map<String, String>? = null,
         multipart: HttpBody.Multipart? = null,
+        /**
+         * 业务错误码白名单：命中这些 errno 时**不抛错**，把原始响应交给调用方判断。
+         * 用于「目标不存在」这类正常语义（见 [FILE_NOT_FOUND_ERRNOS]）。
+         */
+        tolerateErrnos: Set<Long> = emptySet(),
     ): JsonObject {
         // URL 必须在**每次重试时重新拼**：鉴权失败会先刷新 token 再重放，
         // 若沿用首轮的 access_token，重放必然再次 401（对应的桌面端实现同样在循环内 buildUrl）。
@@ -533,6 +539,8 @@ class BaiduPanClient(
                 refreshTokens()
                 continue
             }
+            // 「目标不存在」是正常语义，不是失败：交回调用方按空结果处理
+            if (errno != null && errno in tolerateErrnos) return data
             throw apiErrorFrom(data, "网盘接口调用失败")
         }
     }
@@ -557,6 +565,16 @@ class BaiduPanClient(
 
         /** 文档中的「未过审应用」配额错误码：访问超限 / 命中接口频控 / 异步任务占用 */
         internal val RATE_LIMIT_ERRNOS = setOf(20012L, 31034L, 111L)
+
+        /**
+         * 「目标文件不存在」类错误码（**正常语义，不是失败**）。
+         *
+         * 实测（2026-10-17 真凭证）：`method=filemetas` 查不存在的路径时，顶层返回 `errno=12`，
+         * 且 `info` 里对应项带 `errno=-9`。若当硬错误抛出，**全新账号首次同步必然全部失败**
+         * （首次远端本来就没有任何 canvas/边车），表现为满屏「拉取远端词库失败/上传失败」、
+         * 永远传不上去。桌面端曾有同一缺陷，两端已同步修复。
+         */
+        internal val FILE_NOT_FOUND_ERRNOS = setOf(12L)
 
         /** 鉴权类错误码：命中后先刷新 token 再重试一次 */
         internal val AUTH_ERRNOS = setOf(-6L, 20016L, 20017L, 31045L, 45018L)

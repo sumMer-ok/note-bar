@@ -660,6 +660,53 @@ class BaiduPanClientTest {
         assertEquals(5L, metas[0]!!.size)
     }
 
+    /**
+     * 回归（2026-10-17 真凭证实测）：**真实 API** 查不存在的路径时，顶层返回 `errno=12`
+     * 且 `info` 对应项为 `{"errno":-9}`（既有测试 mock 的是顶层 errno:0，现实里不存在，
+     * 所以这条真实形态必须单独钉住）。若把 12 当硬错误抛出，全新账号首次同步必然全失败。
+     */
+    @Test
+    fun fileMetasToleratesTopLevelErrno12ForMissingPaths() {
+        val (client, _) = clientWith(
+            listOf(
+                ScriptedTransport.json("""{"errno":12,"info":[{"errno":-9}]}"""),
+            ),
+        )
+        val metas = client.fileMetas(listOf("/apps/NoteBar/Words/none.canvas"))
+        assertEquals(1, metas.size)
+        assertNull("顶层 errno=12 + 逐项 -9 应视作「远端没有」而非失败", metas[0])
+    }
+
+    /** 部分存在：保留存在项、缺失项为 null（同样是顶层 errno=12 的真实形态） */
+    @Test
+    fun fileMetasWithErrno12KeepsExistingAndNullsMissing() {
+        val (client, _) = clientWith(
+            listOf(
+                ScriptedTransport.json(
+                    """{"errno":12,"info":[
+                        {"errno":-9},
+                        {"errno":0,"fs_id":7,"path":"/apps/NoteBar/Words/AI.canvas","server_filename":"AI.canvas","size":9}
+                    ]}""",
+                ),
+            ),
+        )
+        val metas = client.fileMetas(listOf("/apps/NoteBar/Words/none.canvas", "/apps/NoteBar/Words/AI.canvas"))
+        assertEquals(2, metas.size)
+        assertNull(metas[0])
+        assertEquals("AI.canvas", metas[1]!!.name)
+    }
+
+    /** 其他 errno 仍须抛错，不能被白名单误容忍 */
+    @Test
+    fun fileMetasStillThrowsForOtherErrnos() {
+        val (client, _) = clientWith(
+            listOf(ScriptedTransport.json("""{"errno":20020,"errmsg":"无权限"}""")),
+        )
+        assertFails<BaiduPanError>("非「不存在」类错误码必须抛错") {
+            client.fileMetas(listOf("/apps/NoteBar/Words/x.canvas"))
+        }
+    }
+
     /** 断言某段代码抛 [T]，并返回该异常（比 `assertThrows` 更好读，且能取到 message） */
     private inline fun <reified T : Throwable> assertFails(
         message: String? = null,

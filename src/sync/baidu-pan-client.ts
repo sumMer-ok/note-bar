@@ -151,6 +151,18 @@ function encodeJsonArrayParam(values: Array<string | number>): string {
 }
 
 /**
+ * 「目标文件不存在」类错误码（**正常语义，不是失败**）。
+ *
+ * 实测（2026-10-17 真凭证）：`method=filemetas` 查一个不存在的路径时，
+ * 顶层返回 `errno=12`，且 `info` 里对应项带 `errno=-9`。若把它当硬错误抛出，
+ * **全新账号首次同步必然全部失败**（首次远端本来就没有任何 canvas/边车），
+ * 表现为「拉取远端词库失败/上传失败」满屏报错、永远传不上去。
+ * 因此 fileMetas 显式容忍 errno 12，并把逐项 -9 过滤掉（等价于「远端没有这个文件」）。
+ */
+const FILE_NOT_FOUND_ERRNOS: ReadonlySet<number> = new Set([12]);
+const ITEM_NOT_FOUND_ERRNO = -9;
+
+/**
  * 规整网盘绝对路径：
  * - 必须以 `/` 开头（否则认为调用方写错了相对路径）；
  * - 折叠 `//`、去掉 `/./`、解析 `/../`（越出根则直接判非法）；
@@ -412,12 +424,16 @@ export class BaiduPanClient {
         target: encodeJsonArrayParam(targets),
         dlink: options.dlink ? "1" : "0",
       },
+      tolerateErrnos: FILE_NOT_FOUND_ERRNOS,
     });
     const info = Array.isArray(data.info) ? (data.info as Array<Record<string, unknown>>) : [];
-    return info.map((item) => ({
-      ...this.toEntry(item),
-      dlink: typeof item.dlink === "string" && item.dlink.length > 0 ? item.dlink : null,
-    }));
+    return info
+      // 逐项 -9 = 该路径不存在：跳过，不当作条目返回
+      .filter((item) => Number(item.errno ?? 0) !== ITEM_NOT_FOUND_ERRNO)
+      .map((item) => ({
+        ...this.toEntry(item),
+        dlink: typeof item.dlink === "string" && item.dlink.length > 0 ? item.dlink : null,
+      }));
   }
 
   /**
@@ -637,6 +653,11 @@ export class BaiduPanClient {
       query: Record<string, string>;
       body?: Record<string, string>;
       rawBody?: FormData;
+      /**
+       * 业务错误码白名单：命中这些 errno 时**不抛错**，把原始响应交给调用方判断。
+       * 用于「目标不存在」这类正常语义（见 FILE_NOT_FOUND_ERRNOS）。
+       */
+      tolerateErrnos?: ReadonlySet<number>;
   }
   ): Promise<RawApiResponse> {
     const buildUrl = (): string => {
@@ -705,6 +726,8 @@ export class BaiduPanClient {
         await this.refreshTokens();
         continue;
       }
+      // 「目标不存在」是正常语义，不是失败：交回调用方按空结果处理
+      if (options.tolerateErrnos?.has(errno)) return data;
       throw this.apiErrorFrom(data, "网盘接口调用失败");
     }
   }

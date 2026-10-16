@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  单色（monochrome）版本，用于 Android 13+ 的「主题图标」：系统只取 alpha 通道再统一着色，
+  所以这里不能靠「白色卡片 + 彩色文字」，必须用形状本身表达——卡片画成描边，文字画成实心条。
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- 卡片描边：x30 y30 w48 h48 r10，线宽 5 -->
+    <path
+        android:strokeColor="#000000"
+        android:strokeWidth="5"
+        android:fillColor="#00000000"
+        android:pathData="M40,30 h28 a10,10 0 0 1 10,10 v28 a10,10 0 0 1 -10,10 h-28 a10,10 0 0 1 -10,-10 v-28 a10,10 0 0 1 10,-10 z" />
+
+    <!-- 三行文字（实心条） -->
+    <path
+        android:fillColor="#000000"
+        android:pathData="M41,42 h26 a2,2 0 0 1 2,2 v0 a2,2 0 0 1 -2,2 h-26 a2,2 0 0 1 -2,-2 v0 a2,2 0 0 1 2,-2 z" />
+    <path
+        android:fillColor="#000000"
+        android:pathData="M42,51 h24 a3,3 0 0 1 3,3 v0 a3,3 0 0 1 -3,3 h-24 a3,3 0 0 1 -3,-3 v0 a3,3 0 0 1 3,-3 z" />
+    <path
+        android:fillColor="#000000"
+        android:pathData="M41,62 h18 a2,2 0 0 1 2,2 v0 a2,2 0 0 1 -2,2 h-18 a2,2 0 0 1 -2,-2 v0 a2,2 0 0 1 2,-2 z" />
+</vector>

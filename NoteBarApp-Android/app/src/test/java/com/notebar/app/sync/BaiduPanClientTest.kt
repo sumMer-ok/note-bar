@@ -707,6 +707,42 @@ class BaiduPanClientTest {
         }
     }
 
+    // ------------------------------------------------- 授权链接入口（2026-10-17 加）
+
+    @Test
+    fun authorizeUrlCarriesAppKeyAndOobRedirect() {
+        val url = BaiduPanClient.authorizeUrl("APP-KEY-123")
+        assertTrue("应指向授权端点", url.startsWith(BaiduPanClient.OAUTH_AUTHORIZE_URL))
+        assertTrue("必须带 client_id", url.contains("client_id=APP-KEY-123"))
+        assertTrue("必须是 oob（页面直接显示授权码）", url.contains("redirect_uri=oob"))
+        assertTrue("必须是授权码模式", url.contains("response_type=code"))
+        assertTrue("scope 必须与换 token 时一致", url.contains("scope=basic,netdisk"))
+        assertTrue("带 display=page", url.contains("display=page"))
+    }
+
+    /**
+     * 真机反馈：授权码失效时只显示 "invalid code , expired or revoked"，用户不知道下一步该干什么。
+     * 回归：invalid_grant 必须给出可执行提示（一次性、10 分钟、重新获取）。
+     */
+    @Test
+    fun invalidGrantYieldsActionableHint() {
+        val (client, _) = clientWith(
+            listOf(
+                ScriptedTransport.json(
+                    """{"error":"invalid_grant","error_description":"invalid code , expired or revoked"}""",
+                ),
+            ),
+        )
+        val error = assertFails<BaiduPanError>("授权码失效必须给出可执行的下一步") {
+            client.exchangeAuthorizationCode("deadbeef")
+        }
+        val message = error.message.orEmpty()
+        assertTrue("应说明一次性：$message", message.contains("一次性"))
+        assertTrue("应说明 10 分钟有效期：$message", message.contains("10 分钟"))
+        assertTrue("应告诉用户重新获取：$message", message.contains("重新"))
+        assertEquals(BaiduPanErrorKind.AUTH, error.kind)
+    }
+
     /** 断言某段代码抛 [T]，并返回该异常（比 `assertThrows` 更好读，且能取到 message） */
     private inline fun <reified T : Throwable> assertFails(
         message: String? = null,

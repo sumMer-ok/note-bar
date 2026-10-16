@@ -95,32 +95,38 @@ data class ApplyRemoteResult(
 )
 
 /**
- * 同步状态提示文案。取值 1:1 取自 iOS `SyncService` 的 `onStatusChanged(...)` 调用点，
- * 便于 Phase 4 的 UI 直接透传，不自造文案。
+ * 同步状态提示文案。触发条件与状态分组 1:1 对齐 iOS `SyncService` 的
+ * `onStatusChanged(...)` 调用点（同样的 6 种情形、同样的判定），便于 Phase 4 的 UI 直接透传。
  *
- * 说明：iOS 中 canvas 读/写失败的两条文案（`无法读取同步目录…` / `无法写回 iCloud：单词修改…`）
- * 属于 Phase 4 的 `readCanvas`/`writeCanvas` 端口，本阶段只放本阶段会产生的 6 条。
+ * **措辞按端本地化（2026-10-17 修正）**：原文案是从 iOS 逐字搬来的，含「iCloud 云盘中的
+ * NoteBar 文件夹」——在 Android 上这句是**错的**（Android 既没有 iCloud，同步根也是应用私有
+ * 目录或用户自选目录），真机上会显示成「请到设置重新选择 iCloud 中的 NoteBar 文件夹」，
+ * 让用户以为要去 iOS 设置里找东西。iOS 的 Swift 侧有自己的一份文案，本文件只服务 Android，
+ * 因此这里改为平台中立的说法。**状态集合与触发条件不变**（三端行为口径仍然一致）。
  */
 data class SyncStatus(val message: String) {
     companion object {
-        /** iOS L111：书签为空时的提示 */
+        /** 同步根在 UI 里的统称（Android 上通常是应用私有目录或用户自选目录） */
+        const val SYNC_FOLDER_LABEL = "同步文件夹"
+
+        /** 书签/目录为空时的提示（iOS L111 对应情形） */
         const val MISSING_DIRECTORY =
-            "未选择同步目录：请到「设置」选择 iCloud 云盘中的 NoteBar 文件夹"
+            "未选择同步目录：请到「设置」选择$SYNC_FOLDER_LABEL"
 
-        /** iOS L113：有书签但解析不出目录时的提示 */
+        /** 有配置但解析不出目录时的提示（iOS L113 对应情形） */
         const val INACCESSIBLE_DIRECTORY =
-            "无法访问同步目录：请到「设置」重新选择 iCloud 中的 NoteBar 文件夹"
+            "无法访问同步目录：请到「设置」重新选择$SYNC_FOLDER_LABEL"
 
-        /** iOS L125：目录枚举失败（安全作用域失效）时的提示 */
+        /** 目录枚举失败（权限/安全作用域失效）时的提示（iOS L125 对应情形） */
         const val SCAN_FAILED =
-            "同步失败：目录权限不可用，请到「设置」重新选择 iCloud 中的 NoteBar 文件夹"
+            "同步失败：目录权限不可用，请到「设置」重新选择$SYNC_FOLDER_LABEL"
 
-        /** iOS L212：算不出边车物理路径时的提示 */
-        const val PROGRESS_PATH_UNAVAILABLE = "无法访问同步目录：进度未能写回 iCloud"
+        /** 算不出边车物理路径时的提示（iOS L212 对应情形） */
+        const val PROGRESS_PATH_UNAVAILABLE = "无法访问同步目录：进度未能写回"
 
-        /** iOS L229：进度写回后读回校验仍失败时的提示 */
+        /** 进度写回后读回校验仍失败时的提示（iOS L229 对应情形） */
         const val PROGRESS_WRITE_FAILED =
-            "无法写回 iCloud：本次评分未同步到电脑端，请重试或重新选择同步目录"
+            "无法写回：本次评分未同步到电脑端，请重试或重新选择同步目录"
 
         /** iOS L190：扫描成功后的状态行（含最近同步时刻 HH:mm） */
         fun connected(rootName: String, time: String): SyncStatus =

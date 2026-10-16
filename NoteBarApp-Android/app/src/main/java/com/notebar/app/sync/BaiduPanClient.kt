@@ -144,9 +144,24 @@ class BaiduPanClient(
         val oauthError = data.stringOrNull("error")
         if (oauthError != null) {
             val description = data.stringOrNull("error_description").orEmpty()
+            // invalid_grant 在授权码流程里几乎总是「码过期/已被用过」——
+            // 只说 "invalid code, expired or revoked" 用户不知道该怎么办（真机实测反馈），
+            // 所以这里给出可执行的下一步：重新走一次授权、10 分钟内用掉。
+            val hint = if (oauthError == "invalid_grant" && !isRefresh) {
+                "授权码无效或已过期。授权码为一次性、有效期 10 分钟，请重新打开授权链接获取新授权码后立即填入"
+            } else if (oauthError == "invalid_grant") {
+                "刷新令牌已失效（refresh_token 一次性，用过即废），请重新完成 OAuth 授权"
+            } else {
+                ""
+            }
+            val detail = if (description.isNotEmpty()) "：$description" else ""
             throw BaiduPanError(
                 if (oauthError == "invalid_grant") BaiduPanErrorKind.AUTH else BaiduPanErrorKind.API,
-                "OAuth 失败（$oauthError）${if (description.isNotEmpty()) "：$description" else ""}",
+                if (hint.isEmpty()) {
+                    "OAuth 失败（$oauthError）$detail"
+                } else {
+                    "$hint（$oauthError$detail）"
+                },
             )
         }
         val accessToken = data.stringOrNull("access_token").orEmpty()
@@ -547,8 +562,25 @@ class BaiduPanClient(
 
     companion object {
         const val OAUTH_TOKEN_URL = "https://openapi.baidu.com/oauth/2.0/token"
+        const val OAUTH_AUTHORIZE_URL = "https://openapi.baidu.com/oauth/2.0/authorize"
         const val PAN_FILE_API = "https://pan.baidu.com/rest/2.0/xpan/file"
         const val PAN_QUOTA_API = "https://pan.baidu.com/api/quota"
+
+        /** 百度网盘开放平台的固定 scope（基础信息 + 网盘读写） */
+        const val OAUTH_SCOPE = "basic,netdisk"
+
+        /**
+         * 拼「授权页」链接（授权码模式，`redirect_uri=oob` 即页面直接显示授权码）。
+         *
+         * 设置页用它提供「打开授权链接 / 复制授权链接」，**不需要用户手工拼 URL 或从别处搬运**：
+         * 真机实测中用户失败的原因正是拿到了一个旧的、已被消费过的授权码——
+         * 让他能在手机上现取现用，比任何错误提示都有效。
+         *
+         * 注意 `redirect_uri` 必须与换取 token 时用的值一致（客户端默认 `oob`）。
+         */
+        fun authorizeUrl(appKey: String): String =
+            "$OAUTH_AUTHORIZE_URL?response_type=code&client_id=$appKey" +
+                "&redirect_uri=oob&scope=$OAUTH_SCOPE&display=page"
 
         /** 上传/下载域名接口的固定主机；真正上传地址由 locateupload 下发（这里用官方示例域名兜底） */
         const val UPLOAD_LOCATE_HOST = "d.pcs.baidu.com"

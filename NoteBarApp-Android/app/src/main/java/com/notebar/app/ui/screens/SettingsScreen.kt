@@ -1,5 +1,7 @@
 package com.notebar.app.ui.screens
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -30,10 +32,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.notebar.app.data.DefinitionModule
 import com.notebar.app.data.Settings
+import com.notebar.app.sync.BaiduPanClient
 import com.notebar.app.sync.BaiduPanConfig
 import com.notebar.app.sync.BaiduPanSettings
 import com.notebar.engine.sync.SyncConflict
@@ -309,8 +315,35 @@ private fun BaiduPanSection(
         // 授权码：换 token 用，一次性。交换开始后立刻从输入框清掉，不留在设置里。
         var authCode by remember { mutableStateOf("") }
         var authResult by remember { mutableStateOf<String?>(null) }
+
+        // 授权链接入口（2026-10-17 加）：真机实测里用户失败的原因就是**拿到了旧的、已被消费过的授权码**
+        // （浏览器里还开着上一次的授权页）。让他能在手机上现取现用，比任何错误提示都有效。
+        val context = LocalContext.current
+        val clipboard = LocalClipboardManager.current
+        val authorizeUrl = remember(config.appKey) { BaiduPanClient.authorizeUrl(config.appKey) }
+
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text("授权码（用授权链接拿到，换 token 后自动清空）", style = MaterialTheme.typography.labelMedium)
+            Text("第一步：打开授权链接并点「授权」", style = MaterialTheme.typography.labelMedium)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(
+                    onClick = {
+                        runCatching {
+                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(authorizeUrl)))
+                        }.onFailure { authResult = "无法打开浏览器：${it.message ?: "未知错误"}" }
+                    },
+                    enabled = config.appKey.isNotBlank(),
+                ) { Text("打开授权链接") }
+                OutlinedButton(
+                    onClick = { clipboard.setText(AnnotatedString(authorizeUrl)) },
+                    enabled = config.appKey.isNotBlank(),
+                ) { Text("复制授权链接") }
+            }
+            Text(
+                "第二步：把页面上显示的授权码复制下来（长按即可复制，或点页面上的「复制授权码」）",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text("第三步：粘贴到下面并点「换取令牌」", style = MaterialTheme.typography.labelMedium)
             OutlinedTextField(
                 value = authCode,
                 onValueChange = { authCode = it },
@@ -328,6 +361,11 @@ private fun BaiduPanSection(
                 },
                 enabled = authCode.isNotBlank() && config.isConfigured,
             ) { Text("换取令牌") }
+            Text(
+                "注意：授权码只能使用一次、且 10 分钟后过期；过期或已用过就必须重新打开授权链接取新码。",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
             if (!config.isConfigured) {
                 Text(
                     "先填 AppKey 与 SecretKey 才能换取令牌",

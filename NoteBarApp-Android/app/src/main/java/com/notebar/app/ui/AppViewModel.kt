@@ -20,6 +20,7 @@ import com.notebar.engine.ReinforceDraft
 import com.notebar.engine.ReinforceSession
 import com.notebar.engine.sync.SyncConflict
 import com.notebar.app.sync.SyncCoordinator
+import com.notebar.app.sync.SyncRootProbe
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -90,7 +91,17 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             // 恢复上次配置的同步目录与网盘开关，并开启定时扫描
             // （对应 iOS `sync.start()` 的 15s 轮询；网盘配额有限，见 [pollIntervalMs]）
             val settings = settingsRepo.currentSettings()
-            val configured = settingsRepo.syncRoot.first()
+            var configured = settingsRepo.syncRoot.first()
+
+            // 自愈：旧版本允许把「不可写」的路径存进设置（例如共享存储 /storage/emulated/0/…，
+            // 而 App 只有 INTERNET 权限）——一旦存在，之后每次同步都只报「目录权限不可用」，
+            // 用户被卡在死状态（真机 2026-10-17 就是这么卡住的）。这里检测到不可写就清除并回落默认。
+            if (!configured.isNullOrBlank() && !SyncRootProbe.isWritableDirectory(configured)) {
+                settingsRepo.setSyncRoot(null)
+                _syncStatus.value = "已恢复默认同步目录：原目录不可写入（$configured）"
+                configured = null
+            }
+
             sync.currentRoot = resolveRoot(configured)
             applyBackend(settings)
             startSyncLoop()
@@ -160,11 +171,30 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     /** 设置流的一次性快照（供需要同步取值的场景使用） */
     suspend fun currentSettings(): Settings = settingsRepo.currentSettings()
 
-    suspend fun setSyncRoot(path: String?) {
-        settingsRepo.setSyncRoot(path)
-        sync.currentRoot = resolveRoot(path)
+    /**
+     * 设置本地同步根（`null` = 恢复默认的应用私有目录）。
+     *
+     * **先探测可写再持久化**：真机反馈（2026-10-17）是用户填了 `/storage/emulated/0/NoteBar`
+     * 并点了「使用该目录」，该路径因缺存储权限必然不可写，却被原样存进设置 →
+     * 此后每次同步都只报「目录权限不可用」，且界面看不出是"路径本身不可能可用"。
+     * 现在不可写的路径一律**不保存**，并把原因写进同步状态行（正面告诉用户怎么办）。
+     *
+     * @return 出错时的说明文案；成功返回 null
+     */
+    suspend fun setSyncRoot(path: String?): String? {
+        val candidate = path?.trim().orEmpty()
+        if (candidate.isNotEmpty() && !SyncRootProbe.isWritableDirectory(candidate)) {
+            val message = "该目录不可写入，已保持原设置：$candidate —— " +
+                "Android 11+ 访问共享存储需要「安全目录选择器」（SAF，尚未接入）。" +
+                "同步根通常无需修改，点「恢复默认目录」用应用私有目录即可"
+            _syncStatus.value = message
+            return message
+        }
+        settingsRepo.setSyncRoot(candidate.ifEmpty { null })
+        sync.currentRoot = resolveRoot(candidate.ifEmpty { null })
         applyBackend(settingsRepo.currentSettings())
         runScan()
+        return null
     }
 
     // -------------------------------------------------------------- 百度网盘

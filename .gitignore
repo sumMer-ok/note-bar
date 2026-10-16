@@ -30,3 +30,6 @@ xcuserdata/
 .dsh-meow/
 .tools/
 AGENTS.md
+
+# xcodebuild 的派生数据（构建产物，绝不入库）
+.derivedData/

@@ -154,7 +154,16 @@ class SyncCoordinator(
             pushLocalEntry(entry)
         }
 
-        lastStatus = result.status.message
+        // 状态行必须自证「同步的是什么」：本地后端扫描一个空目录同样算「成功」，
+        // 而引擎给的文案是「已连接：<同步根末段名>」——对应用私有目录就显示成「已连接：NoteBar」，
+        // 与网盘后端（根是 /apps/NoteBar/Words）几乎无法区分。真机 2026-10-17 用户正是据此
+        // 认为「已经同步了」，却发现单词没出现（其实是本地空目录，压根没碰网盘）。
+        // 因此本地后端一律显式标明「本地目录 + 词库数」，让"0 个词库"自己说话。
+        lastStatus = if (backend.isRemote) {
+            result.status.message
+        } else {
+            "本地目录 · ${result.snapshots.size} 个词库 · 最近同步 ${SyncStatus.timeString()}"
+        }
         lastStatus
     }
 

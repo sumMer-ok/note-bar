@@ -147,6 +147,21 @@ fun HomeScreen(
         item {
             Text("我的词库", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
         }
+        if (books.isEmpty()) {
+            // 空态必须给出下一步：真机 2026-10-17 用户点完同步看到「已连接」却没有单词，
+            // 不知道是"同步失败"还是"本来就没词库"。这里把原因和去处都写清楚。
+            item {
+                Text(
+                    "还没有词库。\n" +
+                        "· 若还没配置：到「设置 → 百度网盘」填 AppKey / SecretKey，点「打开授权链接」" +
+                        "取授权码换令牌，再点「立即同步」\n" +
+                        "· 若已配置：点「设置 → 立即同步」，词库会从网盘下载到这里\n" +
+                        "· 同步状态看「设置 → 同步目录」，会显示当前用的是网盘还是本地目录、有几个词库",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
 
         items(books, key = { it }) { book ->
             val wordCount = entries.count { it.book == book }

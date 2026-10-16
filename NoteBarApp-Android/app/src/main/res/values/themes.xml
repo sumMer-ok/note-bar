@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.NoteBar" parent="android:Theme.Material.Light.NoActionBar" />
+    <!-- 用 AppCompat 的 DayNight 主题链，让 AppCompatDelegate.setDefaultNightMode 的「日间/暗夜」真正生效 -->
+    <style name="Theme.NoteBar" parent="Theme.AppCompat.DayNight.NoActionBar" />
 </resources>

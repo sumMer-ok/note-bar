@@ -187,7 +187,65 @@ final class SyncService {
         for entry in pendingPush {
             await pushLocalEntry(entry)
         }
+        // 把本机全部进度整份并回共享通道（见方法注释：这是两端进度长期不一致的根治点）
+        await exportAllProgress()
         onStatusChanged("已连接：\(root.lastPathComponent) · 最近同步 \(Self.timeString(Date()))")
+    }
+
+    /// 把本机全部进度按词合并写回边车（每个词库读一次、仲裁全部词、原子写一次）。
+    ///
+    /// 为什么必须有它：`persist(book:key:progress:)` 只在**评分时按单个词**写边车，
+    /// 因此本机较新的进度一旦被别的写者**整份覆盖**（桌面插件导出边车就是整体覆盖），
+    /// 就再也不会回到共享通道里 —— 2026-10-17 真机即因此长期出现
+    /// 「iOS 待复习 93 / Android（读被覆盖后的边车）201」的两端不一致，且越用差得越多。
+    /// 每次同步结束时跑一遍，保证本机状态完整参与共享；逐词仍走 `Merge.progress` 仲裁，
+    /// 所以对端更新的词不会被本机旧值顶掉；只在确有变化时才写盘。
+    private func exportAllProgress() async {
+        guard let all = try? store.context.fetch(FetchDescriptor<Entry>()) else { return }
+        for (book, entries) in Dictionary(grouping: all, by: \.book) {
+            guard let url = physicalURL(for: book, suffix: ".nb-sync.json", replacingExtension: ".canvas") else {
+                continue
+            }
+            let payload: [(String, StudyProgress)] = entries.compactMap { entry in
+                // 无进度的词不写（否则边车会为每个词塞一条空记录，既臃肿又掩盖「新词」判定）
+                guard StudyQueue.hasStudyProgress(entry) else { return nil }
+                return (StudyKey.canvas(source: book, nodeId: entry.nodeId), entry.progress)
+            }
+            guard !payload.isEmpty else { continue }
+            await Task.detached(priority: .utility) {
+                Self.mergeProgressInto(url: url, book: book, entries: payload)
+            }.value
+        }
+    }
+
+    /// 读边车 → 逐词按 `Merge.progress` 仲裁 → 原子写回；无变化则不写盘。
+    @discardableResult
+    private nonisolated static func mergeProgressInto(
+        url: URL,
+        book: String,
+        entries: [(String, StudyProgress)]
+    ) -> Bool {
+        var sidecar: SidecarFile
+        if let data = readData(at: url),
+           let decoded = try? JSONDecoder().decode(SidecarFile.self, from: data) {
+            sidecar = decoded
+        } else {
+            sidecar = SidecarFile(version: 1, book: book, words: [:], updatedAt: "")
+        }
+        var changed = false
+        for (key, progress) in entries {
+            let merged = Merge.progress(local: sidecar.words[key], remote: progress)
+            if merged != sidecar.words[key] {
+                if let merged { sidecar.words[key] = merged }
+                changed = true
+            }
+        }
+        guard changed else { return false }
+        sidecar.updatedAt = ISO8601DateFormatter().string(from: Date())
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        guard let data = try? encoder.encode(sidecar) else { return false }
+        return writeAtomically(data, to: url)
     }
 
     /// 把本地未上传的单词编辑重新写回 iCloud；成功后清除「待推送」标记

@@ -22,7 +22,7 @@ export const PLUGIN_ID = "note-bar";
 /** 审计日志轮转阈值 */
 export const AUDIT_LOG_ROTATE_BYTES = 512 * 1024;
 
-export type AuditActor = "plugin" | "mirror";
+export type AuditActor = "plugin" | "mirror" | "baidupan";
 
 export interface AuditLogEntry {
   timestamp: Date;

@@ -288,6 +288,28 @@ export interface CanvasBackupSettings {
     keepDailyDays: number;
 }
 
+/**
+ * 百度网盘同步设置（Android App 经网盘共享同一套词库与边车）。
+ *
+ * 新增字段一律可选/带默认值：旧 data.json 里没有 `baiduPan` 时按默认值补齐，
+ * 且只在真的发生变化时才写回（见 `ensureBaiduPanSettings`）。
+ */
+export interface BaiduPanSettings {
+    enabled: boolean;
+    /** 应用 AppKey（凭证，绝不写日志） */
+    appKey: string;
+    /** 应用 SecretKey（凭证，绝不写日志） */
+    secretKey: string;
+    /** OAuth access_token（凭证，绝不写日志） */
+    accessToken: string;
+    /** OAuth refresh_token（一次性，刷新后必须保存新的） */
+    refreshToken: string;
+    /** access_token 过期时间戳（毫秒）；0 表示未知/未授权 */
+    expiresAt: number;
+    /** 网盘内应用沙箱下的目录名，默认 NoteBar（实际路径 `/apps/<dir>/Words/`） */
+    dir: string;
+}
+
 /** 相遇记录：同一单词在插件内的相遇次数统计（key 为 wordKey，即 studyKey 或 word 小写） */
 export interface EncounterData {
     /** 悬停查看释义次数 */
@@ -349,6 +371,8 @@ export interface HiWordsSettings {
     crossAppInbox?: CrossAppInboxSettings;
     /** 词库快照备份（vault 外、iCloud 外的定时快照） */
     canvasBackup?: CanvasBackupSettings;
+    /** 百度网盘同步（Android App 与桌面插件共享词库/边车） */
+    baiduPan?: BaiduPanSettings;
     flashcard?: FlashcardSettings;
     showDefinitionOnHover: boolean;
     enableAutoHighlight: boolean;

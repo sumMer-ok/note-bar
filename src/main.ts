@@ -26,6 +26,20 @@ import { SyncManager } from "./sync/sync-manager";
 import { isInboxEnabled } from "./sync/inbox-config";
 import { CanvasBackupService, defaultBackupRoot, newestBackupPath } from "./sync/backup-service";
 import { canvasNodeCount, isSuspiciousShrink, validateCanvasText } from "./sync/canvas-integrity";
+import {
+  canvasAuditLogPath,
+  canvasWriteFailureLogPath,
+  pluginDataDir,
+  resolveVaultBasePath,
+} from "./sync/canvas-audit";
+import { BaiduPanClient } from "./sync/baidu-pan-client";
+import { BaiduPanProvider } from "./sync/baidu-pan-provider";
+import { BaiduPanSyncService } from "./sync/baidu-pan-service";
+import {
+  baiduPanWordsDir,
+  defaultBaiduPanSettings,
+  ensureBaiduPanSettings,
+} from "./sync/baidu-pan-config";
 
 const DEFAULT_AI_DEFINITION_PROMPT = '你是一个英汉词典编纂助手。请为单词 "{{word}}" 生成词条（上下文句子，可能为空：{{sentence}}）。\n\n输出要求（必须严格遵守）：\n1. 只输出一个 JSON 对象，不要输出任何其他内容：不要 markdown 代码块、不要 ```json 标记、不要注释、不要解释性文字、不要前后缀说明。\n2. JSON 只包含两个字段：\n   - "aliases"：字符串数组。如果该单词是词形变化（-ing / -ed / -s / -es / -ies / -er / -est 等），必须包含其原形（lemma）及常见变形；如果本身就是原形，可返回常见变形或空数组。例如 suing 返回 ["sue", "sued", "sues"]；went 返回 ["go", "goes", "going", "gone"]；better 返回 ["good"]；books 返回 ["book"]。\n   - "definition"：字符串，内容依次为：\n     1）音标（英式/美式）\\n2）中文释义（含词性标注）\\n3）英文释义\\n4）例句\n     其中序号之间的换行使用 JSON 转义符 \\n，不要使用 markdown 列表符号。\n3. 必须是合法 JSON：键和字符串值使用英文双引号；不要有尾随逗号；字符串内部不要有未转义的换行；不要使用单引号。\n\n只输出下面格式的 JSON 对象本身（不要包含任何其他文字）：\n{"aliases": ["sustain", "sustained", "sustaining", "sustains"], "definition": "1）英/ sə\'steɪn / 美/ sə\'steɪn /\\n2）v. 维持，保持；遭受，经受；支持，支撑\\nn. （乐）延音\\n3）to cause or allow something to continue for a period of time\\n4）The economy looks set to sustain its growth into next year."}';
 
@@ -115,6 +129,7 @@ const DEFAULT_HIWORDS_SETTINGS: HiWordsSettings = {
     keepRecent: 20,
     keepDailyDays: 30,
   },
+  baiduPan: defaultBaiduPanSettings(),
 };
 
 interface HiWordsRefreshHooks {
@@ -139,6 +154,8 @@ export default class NoteBarPlugin extends Plugin {
   encounterTracker: EncounterTracker | null = null;
   syncManager: SyncManager | null = null;
   canvasBackup: CanvasBackupService | null = null;
+  baiduPanService: BaiduPanSyncService | null = null;
+  baiduPanClient: BaiduPanClient | null = null;
   private editorExtensions: Extension[] = [];
   private isSidebarInitialized = false;
 
@@ -202,6 +219,11 @@ export default class NoteBarPlugin extends Plugin {
         // 收件箱独立于手机同步：只要开着「跨应用加词」就单独启动监听
         if (isInboxEnabled(this.hiwordsSettings)) {
           this.syncManager?.startInbox();
+        }
+
+        // 百度网盘同步：与 iCloud 手机同步各自独立，各自开关
+        if (this.hiwordsSettings.baiduPan?.enabled) {
+          this.startBaiduPanSync();
         }
 
         // 延迟加载相遇记录（与词库加载同一时机，避免阻塞启动）
@@ -343,6 +365,131 @@ export default class NoteBarPlugin extends Plugin {
     this.canvasBackup?.stop();
     this.canvasBackup = null;
     this.setupCanvasBackup();
+  }
+
+  // ------------------------------------------------------------ 百度网盘同步
+
+  /**
+   * 构造百度网盘客户端。
+   * 凭证只停留在请求参数与内存里：日志/Notice 一律走 `BaiduPanError` 的脱敏消息。
+   */
+  private buildBaiduPanClient(): BaiduPanClient {
+    const cfg = this.hiwordsSettings.baiduPan ?? defaultBaiduPanSettings();
+    this.hiwordsSettings.baiduPan = cfg;
+    if (!this.baiduPanClient) {
+      this.baiduPanClient = new BaiduPanClient({
+        config: cfg,
+        onTokens: () => {
+          // 刷新后新的 refresh_token 必须落盘，否则下次刷新会因旧值失效而需要重新授权
+          void this.saveHiWordsSettings();
+        },
+      });
+    } else {
+      this.baiduPanClient.updateConfig(cfg);
+    }
+    return this.baiduPanClient;
+  }
+
+  /** 本地边车目录：与 iCloud 手机同步同约定，没有就退回插件数据目录 */
+  private baiduPanLocalSidecarDir(): string {
+    const syncDir = this.hiwordsSettings.mobileSync?.syncDir?.trim();
+    if (syncDir) return syncDir;
+    const vaultBase = resolveVaultBasePath(this.app);
+    return vaultBase ? pluginDataDir(vaultBase) : "";
+  }
+
+  private buildBaiduPanProvider(): BaiduPanProvider | null {
+    const cfg = this.hiwordsSettings.baiduPan;
+    if (!cfg?.enabled) return null;
+    if (cfg.appKey.length === 0 || cfg.secretKey.length === 0) return null;
+    if (cfg.accessToken.length === 0 && cfg.refreshToken.length === 0) return null;
+
+    const vaultBase = resolveVaultBasePath(this.app);
+    const client = this.buildBaiduPanClient();
+    return new BaiduPanProvider({
+      settings: this.hiwordsSettings,
+      client,
+      vaultBasePath: vaultBase,
+      localSidecarDir: this.baiduPanLocalSidecarDir(),
+      backup: this.canvasBackup,
+      auditLogPath: vaultBase ? canvasAuditLogPath(vaultBase) : null,
+      failureLogPath: vaultBase ? canvasWriteFailureLogPath(vaultBase) : null,
+      onError: (message) => new Notice(`百度网盘同步：${message}`),
+      saveSettings: () => this.saveHiWordsSettings(),
+      onProgressMerged: (result) => {
+        if (result.mergedKeys > 0) {
+          this.vocabularyManager?.refreshStudyCache();
+          this.refreshHighlighter();
+        }
+      },
+    });
+  }
+
+  /** 启动百度网盘定时同步（设置项与启动流程各自调用；未配置凭证时静默不启动） */
+  startBaiduPanSync(): void {
+    const provider = this.buildBaiduPanProvider();
+    if (!provider) {
+      this.stopBaiduPanSync();
+      return;
+    }
+    if (!this.baiduPanService) {
+      this.baiduPanService = new BaiduPanSyncService({
+        provider: () => this.buildBaiduPanProvider(),
+        onError: (message) => new Notice(`百度网盘同步：${message}`),
+      });
+    }
+    this.baiduPanService.start();
+  }
+
+  /** 停止百度网盘同步；可重复调用 */
+  stopBaiduPanSync(): void {
+    this.baiduPanService?.stop();
+    this.baiduPanService = null;
+  }
+
+  /** 立即同步一次（设置面板按钮与命令共用） */
+  async syncBaiduPanNow(): Promise<{ mergedKeys: number; uploaded: number; downloaded: number; failed: number } | null> {
+    const provider = this.buildBaiduPanProvider();
+    if (!provider) {
+      new Notice("请先启用百度网盘同步并填写 AppKey / SecretKey 与令牌");
+      return null;
+    }
+    if (!this.baiduPanService) {
+      this.baiduPanService = new BaiduPanSyncService({
+        provider: () => this.buildBaiduPanProvider(),
+        onError: (message) => new Notice(`百度网盘同步：${message}`),
+      });
+    }
+    const result = await this.baiduPanService.syncNow();
+    return result
+      ? {
+          mergedKeys: result.mergedKeys,
+          uploaded: result.uploaded,
+          downloaded: result.downloaded,
+          failed: result.failed.length,
+        }
+      : null;
+  }
+
+  /**
+   * 用授权码换取令牌（设置面板「授权」按钮调用）。
+   * 授权码一次性、10 分钟过期；换到的 refresh_token 会随设置落盘。
+   */
+  async authorizeBaiduPan(code: string): Promise<boolean> {
+    const cfg = this.hiwordsSettings.baiduPan ?? defaultBaiduPanSettings();
+    this.hiwordsSettings.baiduPan = cfg;
+    const client = this.buildBaiduPanClient();
+    try {
+      await client.exchangeAuthorizationCode(code.trim());
+      await this.saveHiWordsSettings();
+      new Notice("百度网盘授权成功");
+      this.startBaiduPanSync();
+      return true;
+    } catch (error) {
+      // BaiduPanError 的消息已脱敏；凭证绝不会进入 Notice
+      new Notice(`百度网盘授权失败：${error instanceof Error ? error.message : String(error)}`);
+      return false;
+    }
   }
 
   /** 读 vault 内文件的磁盘原文（体检用；优先 adapter，避免读到内存缓存） */
@@ -601,6 +748,12 @@ export default class NoteBarPlugin extends Plugin {
       this.hiwordsSettings.definitionSectionOrder = resolvedOrder;
       await this.saveData(this.hiwordsSettings);
     }
+    // 百度网盘设置：旧 data.json 没有该字段时补默认值，且只在真的变化时写回（只增不改）。
+    // 凭证字段（appKey/secretKey/accessToken/refreshToken）已有合法值时原样保留。
+    const baiduPanMigration = ensureBaiduPanSettings(this.hiwordsSettings, savedData || {});
+    if (baiduPanMigration.changed) {
+      await this.saveData(this.hiwordsSettings);
+    }
     // 升级旧版默认 AI 释义提示词：旧版本未明确 JSON 格式，易导致模型返回错误格式
     const aiDef = this.hiwordsSettings.aiDefinition;
     if (aiDef) {
@@ -681,6 +834,10 @@ export default class NoteBarPlugin extends Plugin {
     // 停止备份定时器（防抖中的快照一并取消）
     this.canvasBackup?.stop();
     this.canvasBackup = null;
+
+    // 停止百度网盘同步轮询（在途请求自然结束，不再安排下一轮）
+    this.stopBaiduPanSync();
+    this.baiduPanClient = null;
 
     // 相遇记录立即落盘（防抖未触发的数据也会被写入）
     if (this.encounterTracker) {
@@ -1464,6 +1621,116 @@ class NoteBarSettingTab extends PluginSettingTab {
       .addButton((button) =>
         button.setButtonText("立即体检词库").onClick(async () => {
           await this.plugin.runCanvasHealthCheck();
+        })
+      );
+
+    // 百度网盘同步（Android App 与桌面插件共享词库/边车）
+    containerEl.createEl('h3', { text: '百度网盘同步' });
+    const baiduPan = this.plugin.hiwordsSettings.baiduPan ?? defaultBaiduPanSettings();
+    this.plugin.hiwordsSettings.baiduPan = baiduPan;
+
+    new Setting(containerEl)
+      .setName("启用百度网盘同步")
+      .setDesc(`把词库与进度边车镜像到网盘 ${baiduPanWordsDir(baiduPan)}，与 Android 端共享数据`)
+      .addToggle((toggle) =>
+        toggle.setValue(baiduPan.enabled).onChange(async (value) => {
+          baiduPan.enabled = value;
+          await this.plugin.saveHiWordsSettings();
+          if (value) this.plugin.startBaiduPanSync();
+          else this.plugin.stopBaiduPanSync();
+          this.display();
+        })
+      );
+
+    new Setting(containerEl)
+      .setName("应用目录名")
+      .setDesc("网盘沙箱内的应用名称，即 /apps/{名称}/；必须与开放平台后台申请的应用名称一致")
+      .addText((text) =>
+        text
+          .setValue(baiduPan.dir)
+          .setPlaceholder("NoteBar")
+          .onChange(async (value) => {
+            const trimmed = value.trim();
+            baiduPan.dir = trimmed.length > 0 ? trimmed : "NoteBar";
+            await this.plugin.saveHiWordsSettings();
+          })
+      );
+
+    // 凭证输入：type=password，绝不把值打到日志或 Notice 里
+    new Setting(containerEl)
+      .setName("AppKey")
+      .setDesc("开放平台应用的 AppKey（凭证，仅保存在本机 data.json）")
+      .addText((text) => {
+        text.inputEl.type = "password";
+        text.inputEl.autocomplete = "off";
+        text.setValue(baiduPan.appKey).onChange(async (value) => {
+          baiduPan.appKey = value.trim();
+          await this.plugin.saveHiWordsSettings();
+        });
+      });
+
+    new Setting(containerEl)
+      .setName("SecretKey")
+      .setDesc("开放平台应用的 SecretKey（凭证，仅保存在本机 data.json）")
+      .addText((text) => {
+        text.inputEl.type = "password";
+        text.inputEl.autocomplete = "off";
+        text.setValue(baiduPan.secretKey).onChange(async (value) => {
+          baiduPan.secretKey = value.trim();
+          await this.plugin.saveHiWordsSettings();
+        });
+      });
+
+    new Setting(containerEl)
+      .setName("授权码")
+      .setDesc("在浏览器完成授权后，把回调地址上的 code 粘贴到这里换取令牌（授权码一次性、10 分钟过期）")
+      .addText((text) => {
+        text.setPlaceholder("粘贴 code").setValue("").onChange(() => undefined);
+        text.inputEl.id = "note-bar-baidu-pan-code";
+      })
+      .addButton((button) =>
+        button.setButtonText("换取令牌").onClick(async () => {
+          const input = containerEl.querySelector<HTMLInputElement>("#note-bar-baidu-pan-code");
+          const code = input?.value?.trim() ?? "";
+          if (code.length === 0) {
+            new Notice("请先粘贴授权码");
+            return;
+          }
+          const ok = await this.plugin.authorizeBaiduPan(code);
+          if (ok && input) input.value = "";
+          this.display();
+        })
+      );
+
+    const expiresText = baiduPan.accessToken.length === 0
+      ? "未授权"
+      : baiduPan.expiresAt > 0
+        ? `有效期至 ${new Date(baiduPan.expiresAt).toLocaleString()}`
+        : "已授权（到期时间未知）";
+
+    new Setting(containerEl)
+      .setName("令牌状态")
+      .setDesc(`${expiresText}；refresh_token ${baiduPan.refreshToken.length > 0 ? "已保存" : "缺失"}`)
+      .addButton((button) =>
+        button.setButtonText("立即同步").onClick(async () => {
+          const result = await this.plugin.syncBaiduPanNow();
+          if (!result) return;
+          const failed = result.failed > 0 ? `，失败 ${result.failed} 个文件` : "";
+          new Notice(
+            `百度网盘同步完成：上传 ${result.uploaded}，下载 ${result.downloaded}，合并进度 ${result.mergedKeys}${failed}`
+          );
+          this.display();
+        })
+      )
+      .addButton((button) =>
+        button.setButtonText("清除凭证").onClick(async () => {
+          baiduPan.accessToken = "";
+          baiduPan.refreshToken = "";
+          baiduPan.expiresAt = 0;
+          this.plugin.stopBaiduPanSync();
+          await this.plugin.saveHiWordsSettings();
+          new Notice("已清除百度网盘令牌");
+          this.display();
         })
       );
   }

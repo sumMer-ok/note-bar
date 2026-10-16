@@ -1,4 +1,4 @@
-import { App, MarkdownView, Notice, Plugin, PluginSettingTab, Setting, TAbstractFile, TFile, WorkspaceLeaf } from "obsidian";
+import { App, MarkdownView, Notice, Plugin, PluginSettingTab, Setting, TAbstractFile, TFile, WorkspaceLeaf, requestUrl } from "obsidian";
 import { promises as fs } from 'fs';
 import { Extension } from '@codemirror/state';
 import { ToolbarManager } from "./toolbar/ToolbarManager";
@@ -33,6 +33,7 @@ import {
   resolveVaultBasePath,
 } from "./sync/canvas-audit";
 import { BaiduPanClient } from "./sync/baidu-pan-client";
+import { createObsidianFetch } from "./sync/obsidian-http";
 import { BaiduPanProvider } from "./sync/baidu-pan-provider";
 import { BaiduPanSyncService } from "./sync/baidu-pan-service";
 import {
@@ -379,6 +380,9 @@ export default class NoteBarPlugin extends Plugin {
     if (!this.baiduPanClient) {
       this.baiduPanClient = new BaiduPanClient({
         config: cfg,
+        // 必须用 Obsidian 的 requestUrl 适配层：渲染进程的 fetch 受 CORS 限制，
+        // 直连百度网盘 API 会抛 "Failed to fetch"（详见 obsidian-http.ts 注释）。
+        fetchImpl: createObsidianFetch(requestUrl),
         onTokens: () => {
           // 刷新后新的 refresh_token 必须落盘，否则下次刷新会因旧值失效而需要重新授权
           void this.saveHiWordsSettings();

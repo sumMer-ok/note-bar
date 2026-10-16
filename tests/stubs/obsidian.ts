@@ -69,3 +69,12 @@ export function normalizePath(inputPath: string): string {
     .replace(/\/{2,}/g, "/")
     .replace(/\/+$/, "");
 }
+
+/**
+ * requestUrl 桩：主 agent 于 2026-10-17 补。
+ * 真实插件必须用它发 HTTP（渲染进程 fetch 受 CORS 限制，直连外部 API 会 Failed to fetch）；
+ * 单测里若需要它，注入假实现即可，这里只保证类型与导出形态存在。
+ */
+export async function requestUrl(_request: unknown): Promise<unknown> {
+    throw new Error("requestUrl 桩未实现：请在测试里注入假实现");
+}

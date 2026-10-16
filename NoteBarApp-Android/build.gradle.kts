@@ -1,13 +1,12 @@
 // NoteBar Android 版 —— 根构建脚本
-// 目前只含纯 JVM 的 engine 模块（Phase 1：引擎移植 + 单测）。
-// Phase 2 起再挂 app 模块（Compose UI）与 sync 模块（百度网盘）。
+//
+// 模块划分：
+// - :engine —— 纯 JVM 复习引擎与同步纯逻辑（无 Android SDK 依赖，任何机器可单测）
+// - :app    —— Compose UI + Room + DataStore + 百度网盘客户端（Phase 4）
 plugins {
-    kotlin("jvm") version "2.0.21" apply false
-    kotlin("plugin.serialization") version "2.0.21" apply false
-}
-
-allprojects {
-    repositories {
-        mavenCentral()
-    }
+    alias(libs.plugins.android.application) apply false
+    alias(libs.plugins.kotlin.android) apply false
+    alias(libs.plugins.kotlin.compose) apply false
+    alias(libs.plugins.kotlin.serialization) apply false
+    alias(libs.plugins.ksp) apply false
 }

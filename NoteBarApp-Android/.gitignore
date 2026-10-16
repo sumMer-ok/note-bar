@@ -1,4 +1,4 @@
-# Gradle / Kotlin 构建产物——不入库
+# Gradle / Kotlin / Android 构建产物——不入库
 .gradle/
 .kotlin/
 build/
@@ -6,3 +6,5 @@ build/
 local.properties
 *.hprof
 .idea/
+*.apk
+*.aab

@@ -9,6 +9,8 @@ plugins {
     kotlin("plugin.serialization")
 }
 
+// 版本由根 build.gradle.kts 统一解析（Kotlin 2.0.21）
+
 dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
 

@@ -1,5 +1,12 @@
 package com.notebar.app.ui.screens
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -251,7 +258,20 @@ fun DictationScreen(
             )
         }
 
-        if (state.revealAnswer) {
+        // 揭示答案：对应 iOS `.transition(.scale(scale: 0.7).combined(with: .opacity))`
+        // + `.animation(.spring(duration: 0.35, bounce: 0.5), value: revealAnswer)`
+        // ——原 Android 版是硬切换（答案"啪"地出现），补上缩放+淡入。
+        AnimatedVisibility(
+            visible = state.revealAnswer,
+            enter = scaleIn(
+                initialScale = 0.7f,
+                animationSpec = spring(
+                    dampingRatio = Spring.DampingRatioMediumBouncy,
+                    stiffness = Spring.StiffnessMedium,
+                ),
+            ) + fadeIn(),
+            exit = scaleOut(targetScale = 0.7f) + fadeOut(),
+        ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(entry.word, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 IconButton(onClick = { onSpeak(entry.word) }) {

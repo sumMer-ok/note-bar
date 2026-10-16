@@ -36,6 +36,7 @@ import com.notebar.app.domain.ProficiencyBand
 import com.notebar.app.domain.StudyScope
 import com.notebar.app.ui.components.DefinitionModulesView
 import com.notebar.app.ui.components.EmptyState
+import com.notebar.app.ui.components.FlipCard
 import com.notebar.app.ui.components.GlassCard
 import com.notebar.app.ui.theme.wordColor
 import com.notebar.engine.Entry
@@ -313,39 +314,51 @@ fun BrowseScreen(
         )
 
         GlassCard(modifier = Modifier.fillMaxWidth().weight(1f)) {
-            Column(
+            // 与 iOS `BrowseView` 一样是 3D 翻面（原 Android 版是瞬间换内容，没有翻面动作）
+            FlipCard(
+                flipped = flipped,
+                stateKey = current.studyKey,
                 modifier = Modifier.fillMaxSize().clickable(onClick = onFlip),
-                verticalArrangement = Arrangement.spacedBy(14.dp),
-            ) {
-                if (flipped) {
-                    Text(
-                        current.word,
-                        style = MaterialTheme.typography.headlineMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = wordColor(),
-                    )
-                    DefinitionModulesView(
-                        raw = current.definition,
-                        order = definitionOrder,
-                        onEdit = { module -> onEditModule(current, module) },
-                    )
-                } else {
-                    Text(
-                        current.word,
-                        style = MaterialTheme.typography.headlineLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = wordColor(),
-                    )
-                    IconButton(onClick = { onSpeak(current.word) }) {
-                        Icon(Icons.AutoMirrored.Filled.VolumeUp, contentDescription = "发音")
+                front = {
+                    Column(
+                        modifier = Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.spacedBy(14.dp),
+                    ) {
+                        Text(
+                            current.word,
+                            style = MaterialTheme.typography.headlineLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = wordColor(),
+                        )
+                        IconButton(onClick = { onSpeak(current.word) }) {
+                            Icon(Icons.AutoMirrored.Filled.VolumeUp, contentDescription = "发音")
+                        }
+                        Text(
+                            "点击翻面",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                     }
-                    Text(
-                        "点击翻面",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
+                },
+                back = {
+                    Column(
+                        modifier = Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.spacedBy(14.dp),
+                    ) {
+                        Text(
+                            current.word,
+                            style = MaterialTheme.typography.headlineMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = wordColor(),
+                        )
+                        DefinitionModulesView(
+                            raw = current.definition,
+                            order = definitionOrder,
+                            onEdit = { module -> onEditModule(current, module) },
+                        )
+                    }
+                },
+            )
         }
 
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {

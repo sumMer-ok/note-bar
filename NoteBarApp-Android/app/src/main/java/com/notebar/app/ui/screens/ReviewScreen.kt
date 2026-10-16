@@ -1,5 +1,10 @@
 package com.notebar.app.ui.screens
 
+import androidx.compose.animation.core.LinearOutSlowInEasing
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animate
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -31,11 +36,15 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -43,6 +52,9 @@ import com.notebar.app.data.DefinitionModule
 import com.notebar.app.domain.PhoneticExtractor
 import com.notebar.app.domain.ReviewDirection
 import com.notebar.app.domain.ReviewSessionState
+import com.notebar.app.ui.components.FlipCard
+import kotlinx.coroutines.launch
+import kotlin.math.abs
 import com.notebar.app.ui.components.DefinitionModulesView
 import com.notebar.app.ui.components.EmptyState
 import com.notebar.app.ui.components.GlassCard
@@ -324,7 +336,28 @@ private fun RateButton(title: String, color: Color, modifier: Modifier = Modifie
     ) { Text(title) }
 }
 
-/** 可滑动评分的卡片：左右 = 不认识/认识，上下 = 太简单/模糊（对应 iOS `direction(for:)`） */
+/**
+ * 与 iOS `ReviewView.direction(for:)` 同构：死区以内返回 null，否则按主轴判方向。
+ *
+ * 两处调用传不同死区：拖拽中显示方向徽标用 24px；松手是否算数用评分阈值（240px）。
+ */
+private fun directionOf(dx: Float, dy: Float, deadZone: Float): ReviewDirection? {
+    if (abs(dx) < deadZone && abs(dy) < deadZone) return null
+    if (abs(dx) >= abs(dy)) return if (dx < 0) ReviewDirection.again else ReviewDirection.good
+    return if (dy < 0) ReviewDirection.easy else ReviewDirection.hard
+}
+
+/**
+ * 可滑动评分的卡片：左右 = 不认识/认识，上下 = 太简单/模糊（对应 iOS `direction(for:)`）。
+ *
+ * 动画对齐 iOS `ReviewView`（2026-10-17 补，此前 Android 侧只有裸 float 位移，松手瞬间归零、
+ * 过阈值直接切下一张，观感是"卡片突然消失"）：
+ * - **翻面**：与 iOS `FlipView` 同构——正面绕 Y 轴 0→180°、背面 -180°→0，
+ *   且**过半（90°）才切可见面**，避免两层同时可见产生残影；点按触发 spring(≈0.45s)；
+ * - **未过阈值松手**：弹簧归位；
+ * - **过阈值松手**：先按 iOS `flyOffset` 飞出（主轴 ±1.3 屏，easeOut 0.38s），
+ *   **飞出结束后才评分**并切下一张；期间用 `flying` 拦住重复手势。
+ */
 @Composable
 private fun SwipeableCard(
     entry: Entry,
@@ -336,33 +369,86 @@ private fun SwipeableCard(
     onRate: (ReviewDirection) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    var dragX by remember(entry.studyKey) { mutableStateOf(0f) }
-    var dragY by remember(entry.studyKey) { mutableStateOf(0f) }
+    val key = entry.studyKey
+    var dragX by remember(key) { mutableStateOf(0f) }
+    var dragY by remember(key) { mutableStateOf(0f) }
+    var flying by remember(key) { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    val density = LocalDensity.current.density
+    val configuration = LocalConfiguration.current
+    val screenW = configuration.screenWidthDp * density
+    val screenH = configuration.screenHeightDp * density
     val threshold = 240f
 
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .pointerInput(entry.studyKey) {
+            .graphicsLayer {
+                translationX = dragX
+                translationY = dragY
+                // 拖拽时轻微倾斜，手感更接近 iOS
+                rotationZ = (dragX / 60f).coerceIn(-10f, 10f)
+            }
+            .pointerInput(key) {
                 detectDragGestures(
                     onDragEnd = {
+                        if (flying) return@detectDragGestures
                         val dx = dragX
                         val dy = dragY
-                        dragX = 0f
-                        dragY = 0f
-                        if (maxOf(kotlin.math.abs(dx), kotlin.math.abs(dy)) < threshold) {
-                            return@detectDragGestures
+                        val dir = directionOf(dx, dy, threshold)
+                        if (dir == null) {
+                            // 未过阈值：弹簧归位
+                            scope.launch {
+                                val startX = dragX
+                                val startY = dragY
+                                animate(
+                                    initialValue = 0f,
+                                    targetValue = 1f,
+                                    animationSpec = spring(
+                                        dampingRatio = Spring.DampingRatioNoBouncy,
+                                        stiffness = Spring.StiffnessMediumLow,
+                                    ),
+                                ) { t, _ ->
+                                    dragX = startX * (1f - t)
+                                    dragY = startY * (1f - t)
+                                }
+                                dragX = 0f
+                                dragY = 0f
+                            }
+                        } else {
+                            // 过阈值：先飞出屏幕，飞出结束再评分（对应 iOS 的 0.38s + asyncAfter）
+                            flying = true
+                            scope.launch {
+                                val startX = dragX
+                                val startY = dragY
+                                val targetX: Float
+                                val targetY: Float
+                                when (dir) {
+                                    ReviewDirection.again -> { targetX = -screenW * 1.3f; targetY = startY }
+                                    ReviewDirection.good -> { targetX = screenW * 1.3f; targetY = startY }
+                                    ReviewDirection.easy -> { targetX = startX; targetY = -screenH * 1.3f }
+                                    ReviewDirection.hard -> { targetX = startX; targetY = screenH * 1.3f }
+                                }
+                                animate(
+                                    initialValue = 0f,
+                                    targetValue = 1f,
+                                    animationSpec = tween(
+                                        durationMillis = 380,
+                                        easing = LinearOutSlowInEasing,
+                                    ),
+                                ) { t, _ ->
+                                    dragX = startX + (targetX - startX) * t
+                                    dragY = startY + (targetY - startY) * t
+                                }
+                                onRate(dir)
+                                dragX = 0f
+                                dragY = 0f
+                                flying = false
+                            }
                         }
-                        onRate(
-                            when {
-                                kotlin.math.abs(dx) >= kotlin.math.abs(dy) ->
-                                    if (dx < 0) ReviewDirection.again else ReviewDirection.good
-                                dy < 0 -> ReviewDirection.easy
-                                else -> ReviewDirection.hard
-                            },
-                        )
                     },
                     onDrag = { change, amount ->
+                        if (flying) return@detectDragGestures
                         change.consume()
                         dragX += amount.x
                         dragY += amount.y
@@ -371,14 +457,16 @@ private fun SwipeableCard(
             }
             .clickable(onClick = onFlip),
     ) {
-        CardBody(entry, flipped, order, onSpeak, onEditModule)
-        val activeDir = when {
-            kotlin.math.abs(dragX) < 24f && kotlin.math.abs(dragY) < 24f -> null
-            kotlin.math.abs(dragX) >= kotlin.math.abs(dragY) ->
-                if (dragX < 0) ReviewDirection.again else ReviewDirection.good
-            dragY < 0 -> ReviewDirection.easy
-            else -> ReviewDirection.hard
-        }
+        // 正反两面交给共享的 FlipCard（与 iOS FlipView 同构，见其注释）
+        FlipCard(
+            flipped = flipped,
+            stateKey = key,
+            modifier = Modifier.fillMaxSize(),
+            front = { CardBody(entry, false, order, onSpeak, onEditModule) },
+            back = { CardBody(entry, true, order, onSpeak, onEditModule) },
+        )
+
+        val activeDir = directionOf(dragX, dragY, deadZone = 24f)
         if (activeDir != null) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text(

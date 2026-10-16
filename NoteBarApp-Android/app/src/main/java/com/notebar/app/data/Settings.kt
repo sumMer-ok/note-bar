@@ -1,5 +1,7 @@
 package com.notebar.app.data
 
+import com.notebar.app.sync.BaiduPanConfig
+import com.notebar.app.sync.BaiduPanSettings
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -9,6 +11,9 @@ import kotlinx.serialization.json.Json
  *
  * 序列化口径同样对齐 iOS：字段名 camelCase、缺省值与原版一致，
  * 并且保留旧版 `forceDarkMode` 布尔开关 → `appearance` 的迁移路径。
+ *
+ * [baiduPan] 是 Phase 4b 新增的百度网盘通道配置，对应桌面端的 `settings.baiduPan`
+ * （同一份语义、同一个 JSON 键名，见 [BaiduPanConfig.SETTINGS_KEY]）。
  */
 @Serializable
 data class Settings(
@@ -27,6 +32,7 @@ data class Settings(
     val aiNotesPrompt: String = DEFAULT_AI_NOTES_PROMPT,
     val defaultBooks: List<String> = emptyList(),
     val pinnedBooks: List<String> = emptyList(),
+    val baiduPan: BaiduPanSettings = BaiduPanSettings(),
 ) {
     enum class Appearance(val storageValue: String) {
         system("system"),
@@ -108,6 +114,8 @@ object SettingsCodec {
         "dailyReviewLimit", "dictationPerSession", "dictationAutoAdvance", "ttsTemplate",
         "definitionOrder", "aiApiUrl", "aiApiKey", "aiModel", "aiExtraParams",
         "aiNotesPrompt", "defaultBooks", "pinnedBooks",
+        // Phase 4b：百度网盘通道配置（键名与桌面端 data.json 一致）
+        BaiduPanConfig.SETTINGS_KEY,
     )
 
     /**
@@ -183,6 +191,8 @@ object SettingsCodec {
             aiNotesPrompt = str("aiNotesPrompt") ?: defaults.aiNotesPrompt,
             defaultBooks = decodeStringList(obj, "defaultBooks") ?: defaults.defaultBooks,
             pinnedBooks = decodeStringList(obj, "pinnedBooks") ?: defaults.pinnedBooks,
+            // 网盘配置：缺失/类型不对时回落默认值，未知字段由 BaiduPanConfig 原样保留
+            baiduPan = BaiduPanConfig.normalize(obj[BaiduPanConfig.SETTINGS_KEY]),
         )
     }
 

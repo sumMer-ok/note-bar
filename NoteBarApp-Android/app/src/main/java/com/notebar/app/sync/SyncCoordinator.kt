@@ -26,12 +26,49 @@ import kotlinx.serialization.json.JsonObject
  * 红线 2：`.canvas` 与 `.nb-sync.json` 一字不改；Room 只是本地缓存，
  * 同步时**一律**用 [SyncEngine.applyRemote]（内部走 `Merge.progress`）决定进度归属，
  * 绝不让 Room 覆盖文件里更新的进度。
+ *
+ * Phase 4b：后端（百度网盘 / 本地目录）由 [configureBackend] 注入的选择结果决定，
+ * 本类不再硬编码 [LocalFileStore]。**后端仍在运行时向 engine 索要物理路径**，
+ * 所有路径换算继续复用 `SyncEngine.physicalPath`（单一真相），本类只把
+ * [SyncBackendChoice.logicalPrefix] 覆盖掉探测结果。
  */
 class SyncCoordinator(
     private val dao: EntryDao,
-    private val store: FileStore = LocalFileStore(),
+    private var backend: SyncBackendChoice = SyncBackendSelector.select(BaiduPanSettings(), null),
     private val engine: SyncEngine = SyncEngine(),
 ) {
+
+    /** 当前后端使用的 [FileStore]（本地或网盘） */
+    val store: FileStore get() = backend.store
+
+    /** true = 当前走百度网盘通道 */
+    val isRemoteBackend: Boolean get() = backend.isRemote
+
+    /** 已应用的后端选择（用来做幂等判断，见 [configureBackend]） */
+    private var appliedBackendKey: String? = null
+
+    /**
+     * 切换后端（设置页改动网盘开关 / 凭证后调用）。
+     *
+     * **幂等**：设置页每敲一个字符都会调到这里；若每次都重建客户端，就会把
+     * 「刷新后暂存的新 refresh_token」与在途状态一起丢掉，也白白多分配对象。
+     * 只有影响选择的字段（enabled / 凭证 / dir / 本地根）真的变了才重选。
+     *
+     * @param root 本地同步根；网盘配置齐全时会被后端自己的远端根取代
+     */
+    fun configureBackend(pan: BaiduPanSettings, localRoot: String?) {
+        val key = listOf(
+            pan.enabled.toString(),
+            pan.appKey,
+            pan.secretKey,
+            pan.dir,
+            localRoot.orEmpty(),
+        ).joinToString("\u0000")
+        if (key == appliedBackendKey) return
+
+        backend = SyncBackendSelector.select(pan, localRoot)
+        appliedBackendKey = key
+    }
 
     /** 最近一次扫描结果（UI 用来展示冲突列表） */
     @Volatile
@@ -44,19 +81,30 @@ class SyncCoordinator(
         private set
 
     /**
+     * 当前后端声明的逻辑前缀；null 表示交给 engine 的启发式探测。
+     *
+     * 为什么需要覆盖：engine 的 `logicalPrefixFor` 用「目录里有没有 `.canvas`」判断，
+     * 而网盘同步根在首次同步时是空的 → 会被误判成 `Words/`，物理路径多出一层。
+     * 网盘布局是已知的，因此由后端自己声明（见 [BaiduPanFileStore.LOGICAL_PREFIX]）。
+     */
+    private fun resolvePrefix(root: String): String =
+        backend.logicalPrefix ?: engine.logicalPrefixFor(store, root)
+
+    /**
      * 全量扫描 + 词条合并。对应 iOS `SyncService.scan()`。
      *
      * @param root 同步目录（可为 null，表示还没选目录）
      * @return 本次扫描的状态文案（与 iOS 的 `onStatusChanged` 文案逐字一致）
      */
     suspend fun scan(root: String?): String = withContext(Dispatchers.IO) {
-        if (root.isNullOrBlank()) {
+        val effectiveRoot = backend.root ?: root
+        if (effectiveRoot.isNullOrBlank()) {
             lastStatus = SyncStatus.MISSING_DIRECTORY
             return@withContext lastStatus
         }
 
-        val prefix = engine.logicalPrefixFor(store, root)
-        val result: SyncScanResult = engine.scan(store, root, prefix)
+        val prefix = resolvePrefix(effectiveRoot)
+        val result: SyncScanResult = engine.scan(store, effectiveRoot, prefix)
 
         if (result.status.message == SyncStatus.SCAN_FAILED) {
             lastStatus = SyncStatus.SCAN_FAILED
@@ -115,8 +163,8 @@ class SyncCoordinator(
      * 读 canvas → `CanvasEditor.updateWord` → 原子写 → 成功后清 `localEditedAt`。
      */
     suspend fun pushLocalEntry(entry: Entry): Boolean = withContext(Dispatchers.IO) {
-        val root = currentRoot ?: return@withContext false
-        val prefix = engine.logicalPrefixFor(store, root)
+        val root = effectiveRoot() ?: return@withContext false
+        val prefix = resolvePrefix(root)
         val canvasPath = engine.physicalPath(
             root = root,
             logicalPrefix = prefix,
@@ -154,8 +202,8 @@ class SyncCoordinator(
      */
     suspend fun persist(book: String, key: String, progress: StudyProgress): Boolean =
         withContext(Dispatchers.IO) {
-            val root = currentRoot ?: return@withContext false
-            val prefix = engine.logicalPrefixFor(store, root)
+            val root = effectiveRoot() ?: return@withContext false
+            val prefix = resolvePrefix(root)
             val path = engine.physicalPath(
                 root = root,
                 logicalPrefix = prefix,
@@ -168,8 +216,8 @@ class SyncCoordinator(
 
     /** 读取 Canvas JSON。对应 iOS `SyncService.readCanvas(_:)` */
     suspend fun readCanvas(relative: String): JsonObject? = withContext(Dispatchers.IO) {
-        val root = currentRoot ?: return@withContext null
-        val prefix = engine.logicalPrefixFor(store, root)
+        val root = effectiveRoot() ?: return@withContext null
+        val prefix = resolvePrefix(root)
         val path = engine.physicalPath(root, prefix, relative, "", null)
         val text = store.readText(path) ?: return@withContext null
         runCatching { com.notebar.engine.NoteBarJson.instance.parseToJsonElement(text) as JsonObject }
@@ -178,8 +226,8 @@ class SyncCoordinator(
 
     /** 写回 Canvas JSON。对应 iOS `SyncService.writeCanvas(_:data:)` */
     suspend fun writeCanvas(relative: String, data: JsonObject): Boolean = withContext(Dispatchers.IO) {
-        val root = currentRoot ?: return@withContext false
-        val prefix = engine.logicalPrefixFor(store, root)
+        val root = effectiveRoot() ?: return@withContext false
+        val prefix = resolvePrefix(root)
         val path = engine.physicalPath(root, prefix, relative, "", null)
         val encoded = com.notebar.engine.NoteBarJson.instance.encodeToString(JsonObject.serializer(), data)
         val ok = store.writeAtomic(path, encoded)
@@ -203,8 +251,8 @@ class SyncCoordinator(
         dao.deleteByBook(book)
         engine.forgetMtime(book)
 
-        val root = currentRoot ?: return@withContext false
-        val prefix = engine.logicalPrefixFor(store, root)
+        val root = effectiveRoot() ?: return@withContext false
+        val prefix = resolvePrefix(root)
         val canvasPath = engine.physicalPath(root, prefix, book, "", null)
         val sidecarPath = engine.physicalPath(root, prefix, book, SyncEngine.SIDECAR_SUFFIX, ".canvas")
         var removed = true
@@ -214,12 +262,15 @@ class SyncCoordinator(
         removed
     }
 
-    /** 当前同步目录（由调用方在设置变化时写入） */
+    /** 当前同步目录（由调用方在设置变化时写入）；网盘后端下由后端自己决定 */
     @Volatile
     var currentRoot: String? = null
 
+    /** 实际生效的同步根：网盘后端优先用自己的远端根，否则用 [currentRoot] */
+    private fun effectiveRoot(): String? = backend.root ?: currentRoot
+
     /** 供 UI 判断是否已配置目录 */
-    val isConfigured: Boolean get() = !currentRoot.isNullOrBlank()
+    val isConfigured: Boolean get() = !effectiveRoot().isNullOrBlank()
 
     /** 便捷：把 engine 的词条映射成数据库行（供外部测试与 UI 复用） */
     fun toRow(entry: Entry): EntryEntity = EntryCodec.toEntity(entry)

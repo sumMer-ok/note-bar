@@ -77,6 +77,7 @@ fun AppRoot(viewModel: AppViewModel, today: LocalDate = LocalDate.now()) {
     val syncStatus by viewModel.syncStatus.collectAsState()
     val conflicts by viewModel.conflicts.collectAsState()
     val syncRootPath by viewModel.syncRootPath.collectAsState()
+    val usingBaiduPan by viewModel.usingBaiduPan.collectAsState()
 
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -415,11 +416,15 @@ fun AppRoot(viewModel: AppViewModel, today: LocalDate = LocalDate.now()) {
                     syncStatus = syncStatus,
                     syncRoot = syncRootPath,
                     conflicts = conflicts,
+                    usingBaiduPan = usingBaiduPan,
                     onSetSyncRoot = { path -> scope.launch { viewModel.setSyncRoot(path) } },
                     onSyncNow = { scope.launch { viewModel.runScan() } },
                     onUpdate = { transform -> scope.launch { viewModel.updateSettings(transform) } },
                     onResolveConflict = { conflict, keepCopy ->
                         scope.launch { viewModel.resolveConflict(conflict, keepCopy) }
+                    },
+                    onExchangeAuthCode = { code, onResult ->
+                        scope.launch { onResult(viewModel.exchangeBaiduPanAuthCode(code)) }
                     },
                 )
             }

@@ -75,18 +75,24 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private val _conflicts = MutableStateFlow<List<SyncConflict>>(emptyList())
     val conflicts: StateFlow<List<SyncConflict>> = _conflicts.asStateFlow()
 
-    /** 当前实际使用的同步根目录（未显式配置时是 app 私有目录） */
+    /** 当前实际使用的同步根目录（未显式配置时是 app 私有目录；网盘后端下是远端根） */
     private val _syncRootPath = MutableStateFlow<String?>(null)
     val syncRootPath: StateFlow<String?> = _syncRootPath.asStateFlow()
+
+    /** 当前是否走百度网盘通道（设置页展示用） */
+    private val _usingBaiduPan = MutableStateFlow(false)
+    val usingBaiduPan: StateFlow<Boolean> = _usingBaiduPan.asStateFlow()
 
     private var syncTimer: Job? = null
 
     init {
         viewModelScope.launch {
-            // 恢复上次配置的同步目录并开启定时扫描（对应 iOS `sync.start()` 的 15s 轮询）
+            // 恢复上次配置的同步目录与网盘开关，并开启定时扫描
+            // （对应 iOS `sync.start()` 的 15s 轮询；网盘配额有限，见 [pollIntervalMs]）
+            val settings = settingsRepo.currentSettings()
             val configured = settingsRepo.syncRoot.first()
             sync.currentRoot = resolveRoot(configured)
-            _syncRootPath.value = sync.currentRoot
+            applyBackend(settings)
             startSyncLoop()
         }
     }
@@ -99,26 +105,57 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         return java.io.File(app.filesDir, "NoteBar").apply { mkdirs() }.absolutePath
     }
 
+    /**
+     * 依据设置选择同步后端（百度网盘优先、本地目录兜底），并刷新状态文案。
+     *
+     * 后端切换**只在这里发生**（配置变化时），运行期失败不走静默降级——
+     * 否则同一次同步可能把两份来源的数据混在一起，用户却看到「同步成功」。
+     */
+    suspend fun applyBackend(settings: Settings) {
+        sync.configureBackend(settings.baiduPan, sync.currentRoot ?: resolveRoot(null))
+        _usingBaiduPan.value = sync.isRemoteBackend
+        _syncRootPath.value = if (sync.isRemoteBackend) {
+            settings.baiduPan.wordsDir
+        } else {
+            sync.currentRoot
+        }
+        val notice = backendNotice(settings.baiduPan)
+        if (notice != null) _syncStatus.value = notice
+    }
+
+    /** 配置不全时的可见提示（绝不静默回落到本地） */
+    private fun backendNotice(pan: com.notebar.app.sync.BaiduPanSettings): String? {
+        if (!pan.enabled) return null
+        if (!pan.isConfigured) {
+            return "百度网盘同步已启用，但 AppKey / SecretKey 尚未填写，已回退到本地目录"
+        }
+        return null
+    }
+
     private fun startSyncLoop() {
         syncTimer?.cancel()
         syncTimer = viewModelScope.launch {
             while (isActive) {
                 runScan()
-                delay(SYNC_INTERVAL_MS)
+                // 网盘未过审应用每小时仅 10 次配额，轮询间隔必须显著放宽
+                delay(if (sync.isRemoteBackend) BAIDU_PAN_INTERVAL_MS else SYNC_INTERVAL_MS)
             }
         }
     }
 
     suspend fun runScan() {
-        val root = sync.currentRoot
-        val status = sync.scan(root)
+        val status = sync.scan(sync.currentRoot)
         _syncStatus.value = status
         _conflicts.value = sync.lastConflicts
     }
 
     // ------------------------------------------------------------------ 设置
 
-    suspend fun updateSettings(transform: (Settings) -> Settings) = settingsRepo.update(transform)
+    suspend fun updateSettings(transform: (Settings) -> Settings) {
+        settingsRepo.update(transform)
+        // 网盘开关 / 凭证 / 目录变化后立刻重选后端（设置页改完即时生效）
+        applyBackend(settingsRepo.currentSettings())
+    }
 
     /** 设置流的一次性快照（供需要同步取值的场景使用） */
     suspend fun currentSettings(): Settings = settingsRepo.currentSettings()
@@ -126,8 +163,58 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     suspend fun setSyncRoot(path: String?) {
         settingsRepo.setSyncRoot(path)
         sync.currentRoot = resolveRoot(path)
-        _syncRootPath.value = sync.currentRoot
+        applyBackend(settingsRepo.currentSettings())
         runScan()
+    }
+
+    // -------------------------------------------------------------- 百度网盘
+
+    /**
+     * 用一次性授权码换 token，并把新的 access/refresh token 落盘。
+     *
+     * 走的是与同步完全相同的 [BaiduPanClient]，因此「刷新后保存新 refresh_token」的语义
+     * 在授权与刷新两条路径上一致（网盘会轮换 refresh_token，旧值在部分场景下失效）。
+     *
+     * @return 展示给用户的结果文案；**失败也只返回可读原因，绝不包含任何凭证**
+     */
+    suspend fun exchangeBaiduPanAuthCode(code: String): String = withContext(Dispatchers.IO) {
+        val pan = settingsRepo.currentSettings().baiduPan
+        if (!pan.isConfigured) return@withContext "请先填写 AppKey 与 SecretKey"
+
+        val client = com.notebar.app.sync.BaiduPanClient(pan)
+        return@withContext try {
+            val result = client.exchangeAuthorizationCode(code.trim())
+            val latest = settingsRepo.currentSettings().baiduPan
+            // 用返回的令牌落盘；这里显式再写一次，避免将来客户端内部更新路径变化时漏存
+            saveBaiduPanTokens(latest, result.accessToken, result.refreshToken, result.expiresAt)
+            "已授权（令牌有效期至 ${java.time.Instant.ofEpochMilli(result.expiresAt)}）"
+        } catch (error: com.notebar.app.sync.BaiduPanError) {
+            // 客户端已经做过凭证脱敏，这里再兜一层
+            com.notebar.app.sync.sanitizeMessage(
+                "授权失败：${error.message}",
+                listOf(pan.secretKey, pan.appKey),
+            )
+        } catch (error: Exception) {
+            "授权失败：${error.javaClass.simpleName}"
+        }
+    }
+
+    /** 把新令牌写回设置（含刷新后的 refresh_token，绝不写日志） */
+    private suspend fun saveBaiduPanTokens(
+        pan: com.notebar.app.sync.BaiduPanSettings,
+        accessToken: String,
+        refreshToken: String,
+        expiresAt: Long,
+    ) {
+        updateSettings { s ->
+            s.copy(
+                baiduPan = s.baiduPan.copy(
+                    accessToken = accessToken,
+                    refreshToken = refreshToken.ifEmpty { pan.refreshToken },
+                    expiresAt = expiresAt,
+                ),
+            )
+        }
     }
 
     // -------------------------------------------------------------- 强化草稿
@@ -261,8 +348,15 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     companion object {
-        /** 对应 iOS `SyncService.start()` 的 15 秒轮询 */
+        /** 对应 iOS `SyncService.start()` 的 15 秒轮询（本地目录后端） */
         const val SYNC_INTERVAL_MS = 15_000L
+
+        /**
+         * 百度网盘后端的轮询间隔：5 分钟。
+         * 未过审应用每小时仅 10 次调用配额（errno 20012 / 31034），
+         * 与桌面端 `DEFAULT_BAIDU_PAN_POLL_SEC = 300` 保持一致，不能像本地目录那样激进。
+         */
+        const val BAIDU_PAN_INTERVAL_MS = 300_000L
 
         /** 今日日期串（`YYYY-MM-DD`），与 FSRS.dayString 同口径 */
         fun today(): String = FSRS.dayString(FSRS.today())

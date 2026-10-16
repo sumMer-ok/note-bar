@@ -34,15 +34,18 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.notebar.app.data.DefinitionModule
 import com.notebar.app.data.Settings
+import com.notebar.app.sync.BaiduPanConfig
+import com.notebar.app.sync.BaiduPanSettings
 import com.notebar.engine.sync.SyncConflict
 
 /**
  * 设置页。逐块对应 iOS `SettingsView`：
- * 同步目录 / 外观 / 学习 / AI 释义 / 单词卡片显示顺序 / 冲突仲裁。
+ * 同步目录 / 百度网盘 / 外观 / 学习 / AI 释义 / 单词卡片显示顺序 / 冲突仲裁。
  *
  * 与 iOS 的差异（会在报告里说明）：
  * - 「选择目录」在 Android 上先落到 app 私有目录同步目录（SAF 目录选择器未接入）；
- * - 释义模块顺序用上 / 下移按钮代替 iOS 的拖拽把手（同一组动作，Android 更稳）。
+ * - 释义模块顺序用上 / 下移按钮代替 iOS 的拖拽把手（同一组动作，Android 更稳）；
+ * - 「百度网盘」是 Android 独有的设置块（桌面端在插件设置页里，字段语义一致）。
  */
 @Composable
 fun SettingsScreen(
@@ -50,10 +53,15 @@ fun SettingsScreen(
     syncStatus: String,
     syncRoot: String?,
     conflicts: List<SyncConflict>,
+    usingBaiduPan: Boolean,
     onSetSyncRoot: (String?) -> Unit,
     onSyncNow: () -> Unit,
     onUpdate: ((Settings) -> Settings) -> Unit,
     onResolveConflict: (SyncConflict, Boolean) -> Unit,
+    /** 用授权码换 token（内部落盘）；结果经回调返回，文案**绝不含凭证** */
+    onExchangeAuthCode: (code: String, onResult: (String) -> Unit) -> Unit = { _, onResult ->
+        onResult("未接入")
+    },
 ) {
     Column(
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
@@ -108,6 +116,14 @@ fun SettingsScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
+
+        // ------------------------------------------------------------ 百度网盘
+        BaiduPanSection(
+            config = settings.baiduPan,
+            usingBaiduPan = usingBaiduPan,
+            onChange = { next -> onUpdate { it.copy(baiduPan = next) } },
+            onExchangeAuthCode = onExchangeAuthCode,
+        )
 
         // -------------------------------------------------------------- 外观
         Section("外观") {
@@ -248,9 +264,113 @@ fun SettingsScreen(
     }
 }
 
+/**
+ * 百度网盘同步设置块（Android 独有，字段语义与桌面端插件设置页一致）。
+ *
+ * 凭证口径（红线）：AppKey / SecretKey / access_token / refresh_token 都**只读用户输入**，
+ * 这里的输入框一律用密码遮罩；页面上不显示、不复制、不打印任何凭证。
+ * 授权码是一次性交换用的，用后即清空（不只是清 UI 状态）。
+ */
 @Composable
-private fun Section(title: String, content: @Composable () -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+private fun BaiduPanSection(
+    config: BaiduPanSettings,
+    usingBaiduPan: Boolean,
+    onChange: (BaiduPanSettings) -> Unit,
+    /** 用授权码换 token 并落盘；结果经 [onResult] 回调（**绝不含凭证**） */
+    onExchangeAuthCode: (code: String, onResult: (String) -> Unit) -> Unit,
+) {
+    Section("百度网盘") {
+        SwitchRow("启用百度网盘同步", config.enabled) { enabled ->
+            onChange(config.copy(enabled = enabled))
+        }
+        Text(
+            if (usingBaiduPan) {
+                "当前后端：百度网盘 · ${config.wordsDir}"
+            } else if (config.enabled) {
+                "当前后端：本地目录（网盘配置不完整，已回退；见下方提示）"
+            } else {
+                "当前后端：本地目录"
+            },
+            style = MaterialTheme.typography.labelSmall,
+            color = if (config.enabled && !usingBaiduPan) {
+                MaterialTheme.colorScheme.error
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            },
+        )
+
+        LabelledField("AppKey（应用 ID）", config.appKey, isSecret = true) { v ->
+            onChange(config.copy(appKey = v.trim()))
+        }
+        LabelledField("SecretKey", config.secretKey, isSecret = true) { v ->
+            onChange(config.copy(secretKey = v.trim()))
+        }
+
+        // 授权码：换 token 用，一次性。交换开始后立刻从输入框清掉，不留在设置里。
+        var authCode by remember { mutableStateOf("") }
+        var authResult by remember { mutableStateOf<String?>(null) }
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text("授权码（用授权链接拿到，换 token 后自动清空）", style = MaterialTheme.typography.labelMedium)
+            OutlinedTextField(
+                value = authCode,
+                onValueChange = { authCode = it },
+                singleLine = true,
+                placeholder = { Text("粘贴百度下发的 code") },
+                modifier = Modifier.fillMaxWidth(),
+            )
+            OutlinedButton(
+                onClick = {
+                    val code = authCode.trim()
+                    if (code.isEmpty()) return@OutlinedButton
+                    authCode = ""
+                    authResult = "授权中…"
+                    onExchangeAuthCode(code) { result -> authResult = result }
+                },
+                enabled = authCode.isNotBlank() && config.isConfigured,
+            ) { Text("换取令牌") }
+            if (!config.isConfigured) {
+                Text(
+                    "先填 AppKey 与 SecretKey 才能换取令牌",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
+            authResult?.let { result ->
+                Text(result, style = MaterialTheme.typography.labelSmall)
+            }
+        }
+
+        LabelledField("沙箱目录名", config.dir) { v ->
+            // 空值回落默认目录，与桌面端 normalizeBaiduPanSettings 同口径
+            onChange(config.copy(dir = v.trim().ifEmpty { BaiduPanConfig.DEFAULT_DIR }))
+        }
+
+        Text(
+            "网盘路径：${config.wordsDir}／边车：${config.wordsDir}/Words/*.nb-sync.json",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(
+            "凭证只保存在本机设置里，不会写进日志或拼进任何错误文案。" +
+                "授权状态：" + when {
+                    config.accessToken.isEmpty() -> "未授权"
+                    config.expiresAt <= 0L -> "已授权（过期时间未知）"
+                    else -> "已授权"
+                },
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(
+            "说明：网盘通道需要先填入 AppKey / SecretKey 并完成一次 OAuth 授权。" +
+                "未过审应用每小时仅 10 次调用配额，因此网盘后端的轮询间隔为 5 分钟。",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+@Composable
+private fun Section(title: String, content: @Composable () -> Unit) {    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
         content()
         HorizontalDivider()

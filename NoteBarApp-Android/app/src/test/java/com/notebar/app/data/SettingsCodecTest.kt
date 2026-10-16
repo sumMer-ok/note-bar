@@ -151,4 +151,97 @@ class SettingsCodecTest {
         assertEquals("日间", Settings.Appearance.light.title)
         assertEquals("暗夜", Settings.Appearance.dark.title)
     }
+
+    // ------------------------------------------------------- 百度网盘配置（Phase 4b）
+
+    @Test
+    fun baiduPanDefaultsToDisabledNoteBarConfig() {
+        // 默认不启用，且沙箱目录名与桌面端一致（/apps/NoteBar/）
+        val pan = Settings().baiduPan
+        assertFalse(pan.enabled)
+        assertEquals("NoteBar", pan.dir)
+        assertEquals("/apps/NoteBar", pan.sandboxRoot)
+        assertEquals("/apps/NoteBar/Words", pan.wordsDir)
+        assertEquals(0L, pan.expiresAt)
+        assertEquals("", pan.appKey)
+        assertEquals("", pan.secretKey)
+    }
+
+    @Test
+    fun baiduPanRoundTripsThroughSettingsCodec() {
+        val original = Settings(
+            baiduPan = com.notebar.app.sync.BaiduPanSettings(
+                enabled = true,
+                appKey = "app-key",
+                secretKey = "secret-key",
+                accessToken = "access-token",
+                refreshToken = "refresh-token",
+                expiresAt = 1_763_000_000_000L,
+                dir = "MyApp",
+            ),
+        )
+        val decoded = SettingsCodec.decode(SettingsCodec.encode(original))
+        assertEquals(original, decoded)
+        assertEquals("/apps/MyApp", decoded.baiduPan.sandboxRoot)
+    }
+
+    @Test
+    fun missingBaiduPanFallsBackToDefaultsWithoutLosingOtherFields() {
+        // 旧版 Android 设置里根本没有 baiduPan：升级后必须补齐默认值，其余字段不受影响
+        val decoded = SettingsCodec.decode("""{"dailyNewWordLimit":7,"aiModel":"gpt-4o"}""")
+        assertEquals(7, decoded.dailyNewWordLimit)
+        assertEquals("gpt-4o", decoded.aiModel)
+        assertEquals(com.notebar.app.sync.BaiduPanConfig.defaults(), decoded.baiduPan)
+    }
+
+    @Test
+    fun unknownFieldsInsideBaiduPanArePreserved() {
+        // 跨端共享配置的关键承诺：桌面端日后新增的键不能被 Android 吃掉
+        val raw = """
+            {"baiduPan":{"enabled":true,"appKey":"k","futureField":"keep-me","nested":{"a":1}}}
+        """.trimIndent()
+        val pan = SettingsCodec.decode(raw).baiduPan
+        assertTrue(pan.enabled)
+        assertEquals("k", pan.appKey)
+        assertEquals(setOf("futureField", "nested"), pan.extra.keys)
+
+        // 再编码一次，未知字段仍在（不是「忽略」而是「保留」）
+        val reencoded = SettingsCodec.encode(SettingsCodec.decode(raw))
+        assertTrue("未知字段被吃掉：$reencoded", reencoded.contains("keep-me"))
+        assertTrue(reencoded.contains("\"a\":1"))
+        assertTrue(reencoded.contains("\"baiduPan\""))
+    }
+
+    @Test
+    fun baiduPanKeyIsDeclaredInKnownKeys() {
+        // 设置页/迁移脚本据此判断「这个键属于本应用」
+        assertTrue(SettingsCodec.knownKeys().contains("baiduPan"))
+        assertTrue(SettingsCodec.encode(Settings()).contains("\"baiduPan\""))
+    }
+
+    @Test
+    fun illegalBaiduPanValuesAreRepairedNotCrashing() {
+        val raw = """{"baiduPan":{"enabled":"yes","expiresAt":-1,"dir":"   ","appKey":123}}"""
+        val pan = SettingsCodec.decode(raw).baiduPan
+        assertFalse(pan.enabled)
+        assertEquals(0L, pan.expiresAt)
+        assertEquals("NoteBar", pan.dir)
+        assertEquals("", pan.appKey)
+    }
+
+    @Test
+    fun brokenBaiduPanDoesNotResetWholeSettings() {
+        val raw = """{"dailyReviewLimit":88,"baiduPan":"not-an-object"}"""
+        val decoded = SettingsCodec.decode(raw)
+        assertEquals(88, decoded.dailyReviewLimit)
+        assertEquals(com.notebar.app.sync.BaiduPanConfig.defaults(), decoded.baiduPan)
+    }
+
+    @Test
+    fun baiduPanCredentialsNeverAppearInLegacyKeys() {
+        // 凭证只走 baiduPan 一处真相，不得散落到旧键
+        SettingsCodec.legacyKeyNames().forEach { key ->
+            assertFalse(SettingsCodec.encode(Settings()).contains("\"$key\""))
+        }
+    }
 }

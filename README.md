@@ -1,6 +1,6 @@
 # Note Bar
 
-**Obsidian 社区插件** —— 飞书风格划词浮动工具栏 + HiWords 生词本系统，附带 iOS 背词 App 与 macOS 划词助手。
+**Obsidian 社区插件** —— 飞书风格划词浮动工具栏 + HiWords 生词本系统，配套 **iOS App**、**Android App** 与 **macOS 划词助手**。
 
 > 仓库：<https://github.com/sumMer-ok/note-bar> ｜ 许可证：MIT ｜ 插件 ID：`note-bar`
 
@@ -9,11 +9,16 @@
 ## 目录
 
 - [这是什么](#这是什么)
-- [三个交付物](#三个交付物)
+- [四个交付物](#四个交付物)
+- [同步架构](#同步架构)
+  - [iCloud 边车（iOS 与桌面）](#icloud-边车ios-与桌面)
+  - [百度网盘（Android 与桌面）](#百度网盘android-与桌面)
+  - [合并规则（四端一致）](#合并规则四端一致)
 - [核心功能](#核心功能)
   - [浮动格式工具栏](#浮动格式工具栏)
   - [生词本与词库](#生词本与词库)
   - [闪卡复习（FSRS）](#闪卡复习fsrs)
+  - [Android App](#android-app)
   - [词库数据防护](#词库数据防护)
 - [命令列表](#命令列表)
 - [安装](#安装)
@@ -29,26 +34,68 @@
 
 ## 这是什么
 
-Note Bar 是一个「读完就顺手记下来」的阅读工作流插件：
+Note Bar 是一个「读完就顺手记下来」的阅读工作流：
 
 1. 在任意 Markdown / PDF 里**划词** → 弹出飞书风格工具栏，一键排版或**把生词收进词库**；
 2. 之后阅读时，词库里的词**自动高亮**，悬停即可看释义和发音；
 3. 词库用 **Obsidian Canvas 文件**本身作为存储介质 —— 不用额外数据库，词条直接躺在你看得见的 `.canvas` 文件里，可手工编辑、可版本控制；
-4. 到复习点时，用**闪卡复习**按 FSRS 间隔重复算法安排，桌面端与 iOS App 共用同一套学习进度。
+4. 到复习点时，用**闪卡复习**按 FSRS 间隔重复算法安排，桌面端 / iOS / Android **共用同一套词库与学习进度**。
 
-三个端（桌面插件 / iOS App / macOS 助手）共用一套数据语义，词库 Canvas 与学习进度通过 iCloud 边车双向同步。
+四端共用一套数据语义：词库是 Canvas，学习进度是边车文件（`.nb-sync.json`），中间靠 iCloud 或百度网盘搬运。
 
 ---
 
-## 三个交付物
+## 四个交付物
 
 | 交付物 | 目录 | 技术栈 | 说明 |
 |---|---|---|---|
-| **Obsidian 插件** | `src/` | TypeScript + esbuild | 工具栏、生词本、高亮、闪卡、收件箱消费、词库防护 |
-| **iOS App** | `NoteBarApp/` | SwiftUI + SwiftData + FSRS | 背词、复习、与插件同步学习进度 |
+| **Obsidian 插件** | `src/` | TypeScript + esbuild | 工具栏、生词本、高亮、闪卡、收件箱消费、词库防护、百度网盘通道 |
+| **iOS App** | `NoteBarApp/` | SwiftUI + SwiftData + FSRS | 背词、复习、慢游、听写，经 iCloud 边车同步 |
+| **Android App** | `NoteBarApp-Android/` | Kotlin + Compose + Room + DataStore | 与 iOS 等价的背词端，经百度网盘同步（`minSdk 26` / `targetSdk 37` / JDK 17） |
 | **macOS 助手** | `NoteBarHelper/` | SwiftPM（零第三方依赖，macOS 14+） | 任意应用划词 → 写入插件收件箱 |
 
-> iOS 端与桌面端**各自独立实现引擎、不共享代码**，同一功能通常要在两端各做一次；改动时必须保证两端行为口径一致。
+> ⚠️ **四端各自独立实现引擎、不共享代码**。FSRS、学习键归一化、合并仲裁、复习队列、Canvas 与边车读写，每一端都有一份自己的实现；同一功能通常要在各端各做一次，改动时必须保证行为口径一致（仓库用 `sync-vectors.json` 共享向量把三端锁在同一组输入输出上）。
+
+---
+
+## 同步架构
+
+桌面插件是事实上的**中枢**：它既能读本地 vault，也是两条同步通道的一端。两个 App 不直连，各自与桌面共享同一份 Canvas + 边车。
+
+### iCloud 边车（iOS 与桌面）
+
+- 桌面把 `<vault>/Words/*.canvas` 镜像到 iCloud 目录，并为每本词库导出/导入 `<book>.nb-sync.json` 边车（`StudyProgress` 全字段）。
+- iOS 侧读写同一批文件；评分时按词增量写边车。
+
+### 百度网盘（Android 与桌面）
+
+Android 无法访问 iCloud，因此另开一条通道，落在百度网盘开放平台的**应用沙箱**里：
+
+```
+/apps/<dir>/Words/<book>.canvas              # 词库正文（默认 dir = NoteBar）
+/apps/<dir>/Words/Words/<book>.nb-sync.json  # 学习进度边车
+```
+
+> 边车比 Canvas 多一层 `Words/` 是因为它按「镜像目录内的同名文件」组织。**别改这个布局**——两端 path 约定不一致会让同步静默丢数据。
+
+实现要点：
+
+- **OAuth 授权码模式**（`redirect_uri=oob`，`scope=basic,netdisk`）：设置页给出授权链接 → 用户在自己的浏览器授权 → 回填授权码 → 换 access/refresh token。`refresh_token` 是**一次性**的，刷新后必须立刻保存新的，否则下次同步只能重新授权。
+- **所有请求必须带 `User-Agent: pan.baidu.com`**，否则被防盗链拦下（`errno 31326`）。
+- **首次同步不算失败**：`filemetas` 查不存在的远端文件会返回顶层 `errno=12`、逐项 `errno=-9`，两端都把 `12` 列为「文件不存在」可容忍错误，否则全新账号第一次同步会整批报错。
+- **Obsidian 渲染进程受 CORS 限制**：百度 API 不给 `app://obsidian.md` 发 CORS 头，直接用 `fetch` 会 `Failed to fetch`。桌面端通过 `src/sync/obsidian-http.ts` 把 Obsidian 官方的 `requestUrl` 适配成 `FetchLike`（`requestUrl` 不吃 `FormData`，所以 multipart 是手工编码的）。
+- **凭证绝不进日志**：`appKey` / `secretKey` / `access_token` / `refresh_token` 只存本地 `data.json`，日志最多记录「已配置 / 未配置」。
+
+### 合并规则（四端一致）
+
+边车是**多写者共享**的（桌面导出、iOS 增量写、Android 同步都会写），所以任何一次写入都必须先仲裁再落盘：
+
+| 规则 | 说明 |
+|---|---|
+| 主判据 | `lastReview` 较新者胜；相等时按字段完整性 |
+| 信息不丢 | 落败方的**非空字段回填**赢家缺失项（不会因为「旧」而丢 pinned / lifecycle） |
+| 历史去重 | `history` 按 `date\|quality` 去重，上限 50 条 |
+| 导出也必须合并 | 桌面导出边车时**必须先逐键 `mergeProgress`**，不能整体覆盖——整体覆盖会把只存在于手机上的较新进度抹掉（这个缺陷真实发生过：`Common Law` 待复习数桌面 201 / iOS 93） |
 
 ---
 
@@ -95,8 +142,17 @@ Note Bar 是一个「读完就顺手记下来」的阅读工作流插件：
 - 快捷键：`Space` 翻转 / `s` 不认识 / `d` 模糊 / `f` 认识
 - 3D 翻转 + 滑动切换动画
 - 拼写 / 听写练习
-- 每组新词上限 `dailyNewWordLimit`（默认 20），两端一致
-- 作答档位写 FSRS 进度（`s` / `d` / `lapses` / `dueDate` / `lastReview` / `history`），经 iCloud 边车双向同步
+- 每组新词上限 `dailyNewWordLimit`（默认 20），四端一致
+- 作答档位写 FSRS 进度（`s` / `d` / `lapses` / `dueDate` / `lastReview` / `history`），经边车双向同步
+
+### Android App
+
+Android 端与 iOS 等价，但不是逐像素复刻 UI：结构按 Material 3 重排，**语义逐条对齐**。
+
+- **模块拆分**：`:engine` 是纯 JVM 模块（不依赖 Android SDK）——FSRS、学习键归一化、合并仲裁、复习队列、Canvas 读写、边车同步全在里面，可用 JVM 单测覆盖；`:app` 是 Compose 界面 + Room + DataStore + 百度网盘客户端。
+- **界面**：首页、词库、复习、慢游、听写、词条编辑、设置等十余个页面；复习卡与慢游卡都有**点按翻面**的 3D 翻转（绕竖直轴转 180°、带透视、过半才换面防残影）与**滑动评分**（弹簧归位 / 飞出）。
+- **AI 释义与本地词典**：词条编辑页有「生成」与「查词典」两个按钮，三态反馈（进行中 / 成功 / 失败）。AI 请求体、错误文案、解析降级策略与 iOS **逐字一致**（提示词 `ai-definition-prompt.txt` 是同一份资源）；本地词典打包 `dictionary.lite.json`（1.4 万常用词）。
+- **数据语义**：学习键归一化（NFKC → 去首尾空白 → 折叠连续空白 → 去掉首尾标点符号 → 小写折叠）、复习判定（`拥有进度 && 未毕业 && dueDate <= 今天`）、合并规则，与桌面/iOS 完全同口径；临时状态（如强化练习草稿）**不写**复习进度字段。
 
 ### 词库数据防护
 
@@ -128,7 +184,7 @@ Note Bar 是一个「读完就顺手记下来」的阅读工作流插件：
 
 ## 安装
 
-### 手动安装
+### 桌面插件（手动安装）
 
 ```bash
 # 1. 克隆到 Obsidian 插件目录
@@ -152,6 +208,19 @@ npm run build
 > 需要完整 363MB 词库的话，需自备词库源文件 `AutoCompleteData.db` 放到 `src/hiwords/data/` 后执行 `npm run build:dictionary`。
 
 启用插件：Obsidian → 设置 → 第三方插件 → 关闭安全模式 → 启用 Note Bar。
+
+### Android App
+
+需要 JDK 17 与 Android SDK（`compileSdk 37`）：
+
+```bash
+cd NoteBarApp-Android
+./gradlew :app:assembleDebug
+# 产物 app/build/outputs/apk/debug/app-debug.apk
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+```
+
+装好后在 App 的「设置 → 同步」里配百度网盘：填 **AppKey**（32 位，不是纯数字的 AppID）与 SecretKey → 点「打开授权链接」在浏览器里授权 → 把授权码粘回来 → 点同步。同步目录用默认的 App 私有目录即可（在外部存储建目录会因缺少存储权限而不可写，App 会在保存前探测并拒绝）。
 
 ---
 
@@ -180,11 +249,12 @@ npm run build
 - 淘汰候选天数阈值
 
 **数据**
-- 手机同步（iOS App）
+- 手机同步（iOS App，iCloud 边车）
+- 百度网盘同步（Android App，字段见 `BaiduPanSettings`）
 - 跨应用加词收件箱开关与目录
 - 词库快照备份目录
 
-> 💡 **日志纪律**：AI 相关日志**只记录「apiKey=已配置」与否，绝不打印 Key 本身**。
+> 💡 **日志纪律**：AI 与网盘相关日志**只记录「凭证已配置」与否，绝不打印 Key / token 本身**。
 
 ---
 
@@ -193,10 +263,12 @@ npm run build
 | 数据 | 路径 |
 |---|---|
 | 词库（正文） | `<vault>/Words/*.canvas` |
-| 插件设置 / 学习进度 | `.obsidian/plugins/note-bar/data.json` |
+| 插件设置 / 学习进度 / 网盘凭证 | `.obsidian/plugins/note-bar/data.json` |
 | 离线词典 | `.obsidian/plugins/note-bar/data/dictionary.json`、`legal-dictionary.json` |
 | 收件箱（macOS 助手写入） | 设置里 `crossAppInbox.syncDir` 指定的目录；为空时回落到 `mobileSync.syncDir`，两者都为空则不消费 |
 | 词库快照备份 | 设置里配置的备份目录（建议放在 vault 外、iCloud 外） |
+| Android 同步目录 | App 私有目录（默认 `files/NoteBar`），可在设置里改为其他**可写**目录 |
+| Android 设置 | DataStore Preferences（`notebar-settings`） |
 
 ---
 
@@ -231,6 +303,21 @@ xcodebuild test -project NoteBarApp.xcodeproj -scheme NoteBarApp \
   -only-testing:NoteBarAppTests
 ```
 
+### Android App
+
+```bash
+cd NoteBarApp-Android
+export JAVA_HOME=/opt/homebrew/opt/openjdk@17
+export ANDROID_HOME=/opt/homebrew/share/android-commandlinetools
+
+./gradlew :engine:test                  # 纯 JVM 引擎测试
+./gradlew :app:testDebugUnitTest        # App 单元测试（Robolectric / 纯 JVM）
+./gradlew :app:assembleDebug            # 打 debug APK
+
+# 设备测试（需要模拟器或真机已连接）
+./gradlew :app:connectedDebugAndroidTest
+```
+
 ### macOS 助手
 
 ```bash
@@ -262,9 +349,14 @@ note-bar/
 │   │   ├── services/          # 本地词典、AI 词典、翻译
 │   │   ├── ui/                # 侧边栏、弹窗、阅读模式高亮
 │   │   └── utils/             # Trie、句子提取、类型
-│   ├── sync/                  # 手机同步 + 跨应用收件箱 + 词库防护
+│   ├── sync/                  # 手机同步 + 百度网盘通道 + 跨应用收件箱 + 词库防护
 │   └── utils/                 # 编辑器排版、位置计算
-├── NoteBarApp/                # iOS App（SwiftUI）
+├── NoteBarApp/                # iOS App（SwiftUI + SwiftData）
+├── NoteBarApp-Android/        # Android App（Kotlin + Compose）
+│   ├── engine/                # 纯 JVM：FSRS / 归一化 / 合并 / 队列 / Canvas / 边车
+│   │   └── src/test/resources/sync-vectors.json   # 三端共享的冻结向量
+│   └── app/                   # Compose UI、Room、DataStore、百度网盘客户端
+│       └── src/main/assets/    # ai-definition-prompt.txt、dictionary.lite.json
 ├── NoteBarHelper/             # macOS 划词助手（SwiftPM）
 ├── scripts/                   # 构建、词典生成、表单回归等
 └── tests/                     # 插件侧集成测试
@@ -289,7 +381,10 @@ npm test
 cd NoteBarHelper && swift test              # 助手
 xcodebuild test ... -only-testing:NoteBarAppTests   # iOS
 node NoteBarHelper/scripts/check-form-js.mjs   # 助手表单回归（JS 断言 + 样式护栏）
+cd NoteBarApp-Android && ./gradlew :engine:test :app:testDebugUnitTest
 ```
+
+最近一次全量验收：插件 **197** / iOS **54**（1 skip）/ Android 引擎 **82** + App **302** + 设备 **11**，全绿。
 
 ---
 
@@ -298,6 +393,8 @@ node NoteBarHelper/scripts/check-form-js.mjs   # 助手表单回归（JS 断言 
 - **全量离线词典不在仓库中**：363MB 的 `dictionary.json` 超过 GitHub 单文件 100MB 限制，仓库里只是一个 LFS 指针，clone 后**不能用**。但这不影响构建——词典是插件**运行时**从 vault 读的，不参与打包。仓库另附 `dictionary.lite.json`（1.4 万常用词 / 1.8MB），把它复制到 `.obsidian/plugins/note-bar/data/dictionary.json` 即可离线查常用词；需要全量请自备 `AutoCompleteData.db` 并执行 `npm run build:dictionary`。
 - **`HiWords/`、`documents/`、`references/`、`release/`、`docs/` 不在仓库中**：这些是被 `.gitignore` 排除的本地目录（上游参考实现、设计文档、构建产物等）。
 - **iOS 端运行依赖 macOS + Xcode**：仅能在 Mac 上构建模拟器版本。
+- **Android 端构建依赖 JDK 17 与 Android SDK 37**：`compileSdk 37` 需要 `platforms;android-37.0`；仓库不含签名的 release APK，需要自行 `assembleRelease` 并配签名。
+- **百度网盘通道只用于自用**：走应用沙箱 `/apps/<dir>/`，需要自备百度网盘开放平台的应用 AppKey / SecretKey；`access_token` 30 天到期，`refresh_token` 一次性，失效后要在桌面端或 App 里重新走一次授权码流程。
 - **macOS 助手需要辅助功能权限**：首次运行或更换签名后，需在「系统设置 → 隐私与安全性 → 辅助功能」重新授权，否则取词失败（会自检并引导授权）。
 
 ---

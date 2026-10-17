@@ -28,6 +28,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import com.notebar.app.audio.WordSpeaker
 import com.notebar.app.data.DefinitionModule
+import com.notebar.app.services.LocalDictionaryService
+import com.notebar.app.services.loadPrompt
 import com.notebar.app.domain.ReviewMode
 import com.notebar.app.domain.ReviewSessionState
 import com.notebar.app.domain.StudyScope
@@ -42,6 +44,7 @@ import com.notebar.app.ui.screens.ReviewScreen
 import com.notebar.app.ui.screens.SettingsScreen
 import com.notebar.app.ui.screens.StatsScreen
 import com.notebar.app.ui.screens.WordDetailScreen
+import com.notebar.app.ui.screens.WordEditAiRuntime
 import com.notebar.app.ui.screens.WordEditScreen
 import com.notebar.app.ui.screens.WordListScreen
 import com.notebar.app.ui.findByStudyKey
@@ -83,6 +86,16 @@ fun AppRoot(viewModel: AppViewModel, today: LocalDate = LocalDate.now()) {
     val scope = rememberCoroutineScope()
     val speaker = remember { WordSpeaker(context) }
     DisposableEffect(Unit) { onDispose { speaker.shutdown() } }
+
+    // AI 释义 / 本地词典的注入点。词典资源 1.86 MB，服务实例只建一次（内部懒解析并缓存），
+    // 提示词与设置项一起组成 [WordEditAiRuntime]，交给 [WordEditScreen] 的按钮使用。
+    val dictionaryService = remember {
+        LocalDictionaryService { context.assets.open("dictionary.lite.json") }
+    }
+    val assetPrompt = remember { loadPrompt(context) }
+    val aiRuntime = remember(settings, assetPrompt) {
+        WordEditAiRuntime.of(settings, assetPrompt) { word -> dictionaryService.lookupSync(word) }
+    }
 
     var tab by remember { mutableStateOf(AppTab.learn) }
     var stack by remember { mutableStateOf(TabStack.of(AppTab.learn)) }
@@ -401,6 +414,7 @@ fun AppRoot(viewModel: AppViewModel, today: LocalDate = LocalDate.now()) {
                                 }
                                 pop()
                             },
+                            aiRuntime = aiRuntime,
                         )
                     }
                 }

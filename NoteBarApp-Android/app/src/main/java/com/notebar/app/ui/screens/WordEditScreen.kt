@@ -26,6 +26,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -34,14 +35,22 @@ import androidx.compose.ui.unit.dp
 import com.notebar.app.data.DefinitionModule
 import com.notebar.app.domain.DefinitionSections
 import com.notebar.engine.Entry
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
- * 单词编辑。逐块对应 iOS `WordEditSheet`：
- * 单词 / 别名（逗号分隔）/ 每个释义模块一个可折叠输入框；保存时
- * 按 `definitionOrder` 逐模块 `DefinitionSections.update` 序列化，并置 `localEditedAt`。
+ * 单词编辑。逐块对应 iOS `WordEditSheet` + `WordDetailView` 的生成按钮：
+ * 单词 / 别名（逗号分隔）/ 每个释义模块一个可折叠输入框；
+ * ai / legal / notes 三个模块各带一个「AI 生成 / AI 纠正」按钮，
+ * dictionary 模块带一个「查词典」按钮（对应桌面 `autoFillFromDictionary`）。
+ * 保存时按 `definitionOrder` 逐模块 `DefinitionSections.update` 序列化，并置 `localEditedAt`。
  *
- * 未移植：AI 生成 / AI 纠正按钮（iOS 走 `AIDefinitionService`）。
- * 说明见报告「UI 未接完的部分」。
+ * 判定逻辑（按钮可见性、拦截文案、提示词选择、别名回填、成功文案）全部在
+ * [WordEditAiActions]，本文件只负责把 Compose 状态接进去——这样纯函数可以被 JVM 单测覆盖。
+ *
+ * [aiRuntime] 为 null 时整块 AI/词典入口不渲染（预览与未注入的调用方保持原样）。
  */
 @Composable
 fun WordEditScreen(
@@ -50,6 +59,7 @@ fun WordEditScreen(
     focusModule: DefinitionModule?,
     onCancel: () -> Unit,
     onSave: (word: String, aliases: List<String>, contents: Map<DefinitionModule, String>) -> Unit,
+    aiRuntime: WordEditAiRuntime? = null,
 ) {
     var word by remember(entry.studyKey) { mutableStateOf(entry.word) }
     var aliasesText by remember(entry.studyKey) {
@@ -69,6 +79,85 @@ fun WordEditScreen(
                 if (focusModule != null) add(focusModule)
             },
         )
+    }
+
+    val scope = rememberCoroutineScope()
+    // 正在请求的模块（同一时刻只允许一个），用于禁用按钮与换文案
+    var generating by remember(entry.studyKey) { mutableStateOf<DefinitionModule?>(null) }
+    // 每个模块独立一行反馈（iOS `messageByModule`）
+    var messageByModule by remember(entry.studyKey) {
+        mutableStateOf(emptyMap<DefinitionModule, String>())
+    }
+
+    fun setMessage(module: DefinitionModule, message: String?) {
+        messageByModule =
+            if (message == null) messageByModule - module else messageByModule + (module to message)
+    }
+
+    fun failureMessage(error: Throwable): String =
+        error.localizedMessage ?: WordEditAiActions.UNKNOWN_ERROR_MESSAGE
+
+    /** 逐条对齐 iOS `WordDetailView.generate(_:)`。 */
+    fun generate(module: DefinitionModule) {
+        val runtime = aiRuntime ?: return
+        val blocked = WordEditAiActions.blockedMessage(module, word, contents)
+        if (blocked != null) {
+            setMessage(module, blocked)
+            return
+        }
+        setMessage(module, null)
+        generating = module
+        scope.launch {
+            try {
+                val result = runtime.fetch(
+                    word.trim(),
+                    WordEditAiActions.sentenceFor(module, contents),
+                    runtime.config(module),
+                )
+                contents = contents + (module to result.definition)
+                if (WordEditAiActions.shouldFillAliases(module, aliasesText, result.aliases)) {
+                    aliasesText = WordEditAiActions.aliasesText(result.aliases)
+                }
+                expanded = expanded + module
+                setMessage(module, WordEditAiActions.successMessage(module))
+            } catch (cancellation: CancellationException) {
+                throw cancellation
+            } catch (error: Throwable) {
+                setMessage(module, failureMessage(error))
+            } finally {
+                generating = null
+            }
+        }
+    }
+
+    /** 本地词典填充，对应桌面 `autoFillFromDictionary`（命中即覆盖「词典释义」正文）。 */
+    fun lookupDictionary() {
+        val runtime = aiRuntime ?: return
+        val cleanWord = word.trim()
+        if (cleanWord.isEmpty()) {
+            setMessage(DefinitionModule.dictionary, WordEditAiActions.EMPTY_WORD_MESSAGE)
+            return
+        }
+        setMessage(DefinitionModule.dictionary, null)
+        generating = DefinitionModule.dictionary
+        scope.launch {
+            try {
+                // 1.86 MB 词典首次解析不能压在主线程上
+                val hit = withContext(Dispatchers.IO) { runtime.dictionary(cleanWord) }
+                val fill = WordEditAiActions.dictionaryFill(hit)
+                if (fill != null) {
+                    contents = contents + (DefinitionModule.dictionary to fill)
+                    expanded = expanded + DefinitionModule.dictionary
+                }
+                setMessage(DefinitionModule.dictionary, WordEditAiActions.dictionaryMessage(fill))
+            } catch (cancellation: CancellationException) {
+                throw cancellation
+            } catch (error: Throwable) {
+                setMessage(DefinitionModule.dictionary, failureMessage(error))
+            } finally {
+                generating = null
+            }
+        }
     }
 
     Column(
@@ -94,6 +183,7 @@ fun WordEditScreen(
 
         definitionOrder.forEach { module ->
             val isExpanded = expanded.contains(module)
+            val busy = generating == module
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -114,6 +204,30 @@ fun WordEditScreen(
                 ) {
                     Text(module.label, style = MaterialTheme.typography.titleSmall)
                     Spacer(Modifier.weight(1f))
+                    if (aiRuntime != null) {
+                        if (module == DefinitionModule.dictionary) {
+                            TextButton(
+                                onClick = { lookupDictionary() },
+                                enabled = generating == null,
+                            ) {
+                                Text(
+                                    if (busy) "查询中…" else "查词典",
+                                    style = MaterialTheme.typography.labelMedium,
+                                )
+                            }
+                        } else if (WordEditAiActions.showsGenerateButton(module)) {
+                            TextButton(
+                                onClick = { generate(module) },
+                                enabled = generating == null,
+                            ) {
+                                Text(
+                                    if (busy) "生成中…"
+                                    else WordEditAiActions.generateButtonLabel(module),
+                                    style = MaterialTheme.typography.labelMedium,
+                                )
+                            }
+                        }
+                    }
                     Icon(
                         imageVector = if (isExpanded) Icons.Filled.KeyboardArrowDown
                         else Icons.AutoMirrored.Filled.KeyboardArrowRight,
@@ -126,6 +240,18 @@ fun WordEditScreen(
                         value = contents[module] ?: "",
                         onValueChange = { contents = contents + (module to it) },
                         modifier = Modifier.fillMaxWidth().heightIn(min = 120.dp),
+                    )
+                }
+                // 反馈行放在折叠判断外：拦截文案（如「请先输入单词」）在折叠时也要看得见
+                messageByModule[module]?.let { message ->
+                    Text(
+                        message,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (WordEditAiActions.isSuccessMessage(message)) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.error
+                        },
                     )
                 }
             }

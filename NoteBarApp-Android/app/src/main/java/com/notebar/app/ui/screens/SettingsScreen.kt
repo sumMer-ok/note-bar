@@ -307,7 +307,7 @@ private fun BaiduPanSection(
 
         // AppKey 是**公开值**（就写在授权 URL 里），因此明文显示、便于自查；
         // 标签必须点明「不是 AppID」——真机反馈里用户被旧标签「AppKey（应用 ID）」误导，
-        // 填了控制台的 AppID（124480177）→ 授权页报 invalid_client / unknown client id。
+        // 填了控制台的 AppID（123456789）→ 授权页报 invalid_client / unknown client id。
         val appKeyLooksValid = BaiduPanClient.looksLikeAppKey(config.appKey)
         LabelledField(
             label = "AppKey（应用 Key，不是 AppID）",
@@ -317,7 +317,7 @@ private fun BaiduPanSection(
                 config.appKey.isEmpty() -> "32 位字母数字：控制台「应用管理」里 AppID 下方那一行"
                 appKeyLooksValid -> "格式正确（32 位）"
                 else -> "格式不对：AppKey 应为 32 位字母数字，当前 ${config.appKey.length} 位。" +
-                    "如果你填的是 124480177 这类纯数字，那其实是 AppID，不是 AppKey"
+                    "如果你填的是 123456789 这类纯数字，那其实是 AppID，不是 AppKey"
             },
             isError = config.appKey.isNotEmpty() && !appKeyLooksValid,
         ) { v -> onChange(config.copy(appKey = v.trim())) }

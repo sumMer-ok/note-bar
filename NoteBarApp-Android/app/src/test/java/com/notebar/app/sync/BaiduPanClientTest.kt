@@ -747,7 +747,7 @@ class BaiduPanClientTest {
 
     @Test
     fun looksLikeAppKeyAcceptsThirtyTwoAlphanumeric() {
-        assertTrue(BaiduPanClient.looksLikeAppKey("JmYOVc0P9Jhw6EMuN0SdRq6lXf5kLznT"))
+        assertTrue(BaiduPanClient.looksLikeAppKey("A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6"))
         assertTrue(BaiduPanClient.looksLikeAppKey("abcdefghijklmnopqrstuvwxyz012345"))
     }
 
@@ -755,11 +755,11 @@ class BaiduPanClientTest {
     fun looksLikeAppKeyRejectsAppIdAndOtherShapes() {
         // 真机事故：用户把控制台的 AppID（纯数字）当成 AppKey 填了 →
         // 授权页报 invalid_client / unknown client id，用户无从自查
-        assertFalse("AppID 不是 AppKey", BaiduPanClient.looksLikeAppKey("124480177"))
-        assertFalse("少一位也不行", BaiduPanClient.looksLikeAppKey("JmYOVc0P9Jhw6EMuN0SdRq6lXf5kLzn"))
-        assertFalse("多一位也不行", BaiduPanClient.looksLikeAppKey("JmYOVc0P9Jhw6EMuN0SdRq6lXf5kLznTX"))
+        assertFalse("AppID 不是 AppKey", BaiduPanClient.looksLikeAppKey("123456789"))
+        assertFalse("少一位也不行", BaiduPanClient.looksLikeAppKey("A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p"))
+        assertFalse("多一位也不行", BaiduPanClient.looksLikeAppKey("A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6X"))
         assertFalse("空值", BaiduPanClient.looksLikeAppKey(""))
-        assertFalse("含非字母数字", BaiduPanClient.looksLikeAppKey("JmYOVc0P9Jhw6EMuN0SdRq6lXf5kLz-T"))
+        assertFalse("含非字母数字", BaiduPanClient.looksLikeAppKey("A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p-T"))
     }
 
     /** invalid_client 必须提示「AppKey 不是 AppID」，否则用户只会看到百度自家的错误页文案 */

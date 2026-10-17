@@ -76,6 +76,13 @@ object WordEditAiActions {
     /** 未预期异常的兜底文案（iOS 走 `error.localizedDescription`，正常不会到这里） */
     const val UNKNOWN_ERROR_MESSAGE: String = "生成失败，请稍后重试"
 
+    /** 本地已落库、但画布这次没写成（未配同步目录 / 文件被外部移走）：提示待回推，不拦退出 */
+    const val LOCAL_ONLY_MESSAGE: String =
+        "已保存到本机，但词库文件这次没写成；下次同步会重新回推"
+
+    /** 保存连本地都没写进去时的兜底文案 */
+    const val SAVE_FAILED_MESSAGE: String = "保存失败，请稍后重试"
+
     /** iOS：`if module == .ai || module == .legal || module == .notes` 才显示生成按钮。 */
     fun showsGenerateButton(module: DefinitionModule): Boolean = when (module) {
         DefinitionModule.ai, DefinitionModule.legal, DefinitionModule.notes -> true

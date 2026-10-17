@@ -314,8 +314,29 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     // -------------------------------------------------------------- 词条编辑
 
     /**
+     * 单词编辑的保存结果。
+     *
+     * @param saved 本地（Room）是否已写入。false 表示什么都没存下，UI **必须**留在编辑页，
+     *   否则用户看到的正是「点了保存却回到原界面、内容没固化」。
+     * @param canvasWritten `.canvas` 是否已同步写入。false 但 [saved] 为 true 时属于
+     *   「先存本地、待下次同步回推」：`localEditedAt` 仍在行上，`applyRemote` 会保本地并
+     *   记 pendingPush，所以不算丢失，只是这次没推上去（如词库文件被外部删除/网盘失败）。
+     * @param error 用户可读的失败原因（已本地化），仅 [saved] 为 false 时非空。
+     */
+    data class SaveEditResult(
+        val saved: Boolean,
+        val canvasWritten: Boolean,
+        val error: String? = null,
+    )
+
+    /**
      * 保存单词编辑：写 Room（含 `localEditedAt`）→ 写回 canvas。
      * 对应 iOS `WordEditSheet.save()`。
+     *
+     * **整段放在 [SyncCoordinator.exclusive] 互斥区内**：15 秒轮询的 `scan()` 会先读磁盘快照、
+     * 再读 Room 行做仲裁；若保存落在两步之间，扫描会拿**保存前**的快照覆盖刚写的新释义
+     * （回归测试见 `SaveConcurrencyTest.scanMustNotClobberNewerSave`）。
+     * 加锁后「先扫描后保存」与「先保存后扫描」都收敛到新内容。
      */
     suspend fun saveWordEdit(
         original: Entry,
@@ -323,39 +344,84 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         aliases: List<String>,
         contents: Map<com.notebar.app.data.DefinitionModule, String>,
         order: List<com.notebar.app.data.DefinitionModule>,
-    ) = withContext(Dispatchers.IO) {
-        var definition = original.definition
-        for (module in order) {
-            definition = DefinitionSections.update(definition, module, contents[module] ?: "")
-        }
+    ): SaveEditResult = withContext(Dispatchers.IO) {
+        sync.exclusive {
+            try {
+                var definition = original.definition
+                for (module in order) {
+                    definition = DefinitionSections.update(definition, module, contents[module] ?: "")
+                }
 
-        val updated = original.copy(
-            word = word,
-            aliases = aliases,
-            definition = definition,
-            localEditedAt = com.notebar.engine.TimeIso.nowString(),
-        )
-        dao.upsert(EntryCodec.toEntity(updated))
+                val updated = original.copy(
+                    word = word,
+                    aliases = aliases,
+                    definition = definition,
+                    localEditedAt = com.notebar.engine.TimeIso.nowString(),
+                )
+                dao.upsert(EntryCodec.toEntity(updated))
 
-        // 回推 canvas：读 → CanvasEditor.updateWord → 原子写
-        val canvas = sync.readCanvas(original.book)
-        if (canvas != null) {
-            val next = CanvasEditor.updateWord(canvas, original.nodeId, word, definition, aliases)
-            if (next != null && sync.writeCanvas(original.book, next)) {
-                // 上传成功 → 清掉待推送标记
-                dao.upsert(EntryCodec.toEntity(updated.copy(localEditedAt = null)))
+                // 回推 canvas：读 → CanvasEditor.updateWord → 原子写
+                val canvas = sync.readCanvas(original.book)
+                if (canvas == null) {
+                    // 词库文件暂时读不到（未配同步目录 / 文件被移走）：本地已存，留待下轮回推
+                    return@exclusive SaveEditResult(saved = true, canvasWritten = false)
+                }
+                val next = CanvasEditor.updateWord(canvas, original.nodeId, word, definition, aliases)
+                if (next != null && sync.writeCanvas(original.book, next)) {
+                    // 上传成功 → 清掉待推送标记
+                    dao.upsert(EntryCodec.toEntity(updated.copy(localEditedAt = null)))
+                    SaveEditResult(saved = true, canvasWritten = true)
+                } else {
+                    SaveEditResult(saved = true, canvasWritten = false)
+                }
+            } catch (cancellation: kotlinx.coroutines.CancellationException) {
+                throw cancellation
+            } catch (error: Throwable) {
+                SaveEditResult(
+                    saved = false,
+                    canvasWritten = false,
+                    error = error.localizedMessage
+                        ?: com.notebar.app.ui.screens.WordEditAiActions.SAVE_FAILED_MESSAGE,
+                )
             }
         }
     }
 
-    /** 删除词条：本地删除 + 从 canvas 里移除节点。对应 iOS `WordDetailView.delete()` */
-    suspend fun deleteWord(entry: Entry) = withContext(Dispatchers.IO) {
-        dao.deleteByKey(entry.studyKey)
-        val canvas = sync.readCanvas(entry.book)
-        if (canvas != null) {
-            val next = CanvasEditor.deleteWord(canvas, entry.nodeId)
-            if (next != null) sync.writeCanvas(entry.book, next)
+    /**
+     * 删除词条：本地删除 + 从 canvas 里移除节点。对应 iOS `WordDetailView.delete()`。
+     *
+     * 与 [saveWordEdit] 一样整体进互斥区：否则并发的 `scan()` 可能用旧快照把刚删的行
+     * 重新插回 Room（扫描看到文件里还有这个节点）。
+     *
+     * @return true = 本地已删且画布已同步；false = 本地已删但画布没写成（下轮扫描可能复活该行）
+     */
+    suspend fun deleteWord(entry: Entry): Boolean = withContext(Dispatchers.IO) {
+        sync.exclusive {
+            dao.deleteByKey(entry.studyKey)
+            val canvas = sync.readCanvas(entry.book) ?: return@exclusive false
+            val next = CanvasEditor.deleteWord(canvas, entry.nodeId) ?: return@exclusive false
+            sync.writeCanvas(entry.book, next)
         }
+    }
+
+    /**
+     * 编辑已存进本机、但这次没写进词库文件（未配同步目录 / 网盘失败 / 文件被外部移走）。
+     *
+     * 必须显式提示：`localEditedAt` 仍留在行上，下一轮扫描会保本地并回推，
+     * 所以只是「还没推上去」，不是丢了。
+     */
+    fun reportCanvasPending() {
+        _syncStatus.value = com.notebar.app.ui.screens.WordEditAiActions.LOCAL_ONLY_MESSAGE
+    }
+
+    /**
+     * 词条已从本地删除、但画布没删掉（未配同步目录 / 读不到词库）。
+     *
+     * 这种状态必须让用户看到：下一轮 `scan()` 会从画布里把这个节点重新读回 Room，
+     * 表现为「删了又自己回来」。以前这条路径完全静默。
+     */
+    fun reportDeleteMissOnCanvas() {
+        _syncStatus.value = com.notebar.engine.sync.SyncStatus.PROGRESS_PATH_UNAVAILABLE
     }
 
     // ------------------------------------------------------------------ 同步

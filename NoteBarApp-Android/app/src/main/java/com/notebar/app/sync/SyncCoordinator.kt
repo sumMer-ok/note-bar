@@ -13,6 +13,8 @@ import com.notebar.engine.sync.SyncEngine
 import com.notebar.engine.sync.SyncScanResult
 import com.notebar.engine.sync.SyncStatus
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonObject
 
@@ -46,6 +48,25 @@ class SyncCoordinator(
 
     /** 已应用的后端选择（用来做幂等判断，见 [configureBackend]） */
     private var appliedBackendKey: String? = null
+
+    /**
+     * 顶层同步操作的互斥锁。
+     *
+     * 为什么必须有：`scan()` 会先读**文件快照**（[SyncEngine.scan]），再逐词 `dao.byBook`
+     * 拿 Room 行做 `applyRemote` 仲裁。若一次编辑保存正好落在这两步之间
+     * （保存 = 写 Room(带 localEditedAt) → 写 canvas → 清 localEditedAt），
+     * 扫描手里握的仍是**保存前**的旧快照，而它读到的行已经是「已清标记」的新行，
+     * `applyRemote` 于是走 else 分支用旧内容覆盖新内容——用户看到的就是
+     * 「点了保存、AI 释义却没固化」。回归测试见 `SaveConcurrencyTest`。
+     *
+     * 加锁后两种顺序都收敛：先扫描后保存 → 保存赢；先保存后扫描 → 扫描读到新文件。
+     * `readCanvas` / `writeCanvas` **故意不加锁**——它们会被 [exclusive] 内的保存流程
+     * 重复调用，若也加锁必死锁。宿主的「读-改-写」序列请整体包进 [exclusive]。
+     */
+    private val operationLock = Mutex()
+
+    /** 在同步互斥区内执行宿主的「读画布 → 改 → 写盘 → 落库」序列（保存 / 删除编辑用） */
+    suspend fun <T> exclusive(block: suspend () -> T): T = operationLock.withLock { block() }
 
     /**
      * 切换后端（设置页改动网盘开关 / 凭证后调用）。
@@ -96,7 +117,9 @@ class SyncCoordinator(
      * @param root 同步目录（可为 null，表示还没选目录）
      * @return 本次扫描的状态文案（与 iOS 的 `onStatusChanged` 文案逐字一致）
      */
-    suspend fun scan(root: String?): String = withContext(Dispatchers.IO) {
+    suspend fun scan(root: String?): String = operationLock.withLock { scanLocked(root) }
+
+    private suspend fun scanLocked(root: String?): String = withContext(Dispatchers.IO) {
         val effectiveRoot = backend.root ?: root
         if (effectiveRoot.isNullOrBlank()) {
             lastStatus = SyncStatus.MISSING_DIRECTORY
@@ -151,7 +174,7 @@ class SyncCoordinator(
         }
 
         for (entry in pendingPush) {
-            pushLocalEntry(entry)
+            pushLocalEntryLocked(entry)
         }
 
         // 状态行必须自证「同步的是什么」：本地后端扫描一个空目录同样算「成功」，
@@ -171,7 +194,10 @@ class SyncCoordinator(
      * 把本地未上传的单词编辑回推云端。对应 iOS `SyncService.pushLocalEntry`：
      * 读 canvas → `CanvasEditor.updateWord` → 原子写 → 成功后清 `localEditedAt`。
      */
-    suspend fun pushLocalEntry(entry: Entry): Boolean = withContext(Dispatchers.IO) {
+    suspend fun pushLocalEntry(entry: Entry): Boolean =
+        operationLock.withLock { pushLocalEntryLocked(entry) }
+
+    private suspend fun pushLocalEntryLocked(entry: Entry): Boolean = withContext(Dispatchers.IO) {
         val root = effectiveRoot() ?: return@withContext false
         val prefix = resolvePrefix(root)
         val canvasPath = engine.physicalPath(
@@ -210,6 +236,15 @@ class SyncCoordinator(
      * @return true = 已成功写回；false = 写失败或没配同步目录（UI 提示对应文案）
      */
     suspend fun persist(book: String, key: String, progress: StudyProgress): Boolean =
+        operationLock.withLock {
+            writeSidecarLocked(book, key, progress)
+        }
+
+    private suspend fun writeSidecarLocked(
+        book: String,
+        key: String,
+        progress: StudyProgress,
+    ): Boolean =
         withContext(Dispatchers.IO) {
             val root = effectiveRoot() ?: return@withContext false
             val prefix = resolvePrefix(root)
@@ -246,6 +281,9 @@ class SyncCoordinator(
 
     /** 冲突仲裁。对应 iOS `SyncService.resolve(_:keepCopy:)` */
     suspend fun resolveConflict(conflict: SyncConflict, keepCopy: Boolean): Boolean =
+        operationLock.withLock { resolveConflictLocked(conflict, keepCopy) }
+
+    private suspend fun resolveConflictLocked(conflict: SyncConflict, keepCopy: Boolean): Boolean =
         withContext(Dispatchers.IO) {
             val ok = engine.resolveConflict(store, conflict, keepCopy)
             lastConflicts = lastConflicts.filterNot { it.id == conflict.id }
@@ -256,7 +294,10 @@ class SyncCoordinator(
      * 删除词库：先清本地词条，再删云端的 Canvas 与边车。
      * 对应 iOS `SyncService.deleteBook(_:)`。
      */
-    suspend fun deleteBook(book: String): Boolean = withContext(Dispatchers.IO) {
+    suspend fun deleteBook(book: String): Boolean =
+        operationLock.withLock { deleteBookLocked(book) }
+
+    private suspend fun deleteBookLocked(book: String): Boolean = withContext(Dispatchers.IO) {
         dao.deleteByBook(book)
         engine.forgetMtime(book)
 

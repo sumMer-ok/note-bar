@@ -41,6 +41,20 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
+ * 保存结果。由宿主体检（[com.notebar.app.ui.AppViewModel.saveWordEdit]）产出，
+ * UI 据此决定「留在编辑页报错」还是「可以退出」。
+ *
+ * @param saved 本地是否已落库。false → 一律不退出（否则就是「点了保存却回到原界面」）
+ * @param canvasWritten `.canvas` 是否已同步；false 但 saved=true 只是「待回推」，不拦退出
+ * @param error saved=false 时的可读原因
+ */
+data class WordEditSaveOutcome(
+    val saved: Boolean,
+    val canvasWritten: Boolean = true,
+    val error: String? = null,
+)
+
+/**
  * 单词编辑。逐块对应 iOS `WordEditSheet` + `WordDetailView` 的生成按钮：
  * 单词 / 别名（逗号分隔）/ 每个释义模块一个可折叠输入框；
  * ai / legal / notes 三个模块各带一个「AI 生成 / AI 纠正」按钮，
@@ -58,7 +72,8 @@ fun WordEditScreen(
     definitionOrder: List<DefinitionModule>,
     focusModule: DefinitionModule?,
     onCancel: () -> Unit,
-    onSave: (word: String, aliases: List<String>, contents: Map<DefinitionModule, String>) -> Unit,
+    onSaved: (WordEditSaveOutcome) -> Unit,
+    onSave: suspend (word: String, aliases: List<String>, contents: Map<DefinitionModule, String>) -> WordEditSaveOutcome,
     aiRuntime: WordEditAiRuntime? = null,
 ) {
     var word by remember(entry.studyKey) { mutableStateOf(entry.word) }
@@ -88,6 +103,10 @@ fun WordEditScreen(
     var messageByModule by remember(entry.studyKey) {
         mutableStateOf(emptyMap<DefinitionModule, String>())
     }
+
+    // 保存自身也要有状态：以前 onSave 是 fire-and-forget，失败静默、界面照退
+    var saving by remember(entry.studyKey) { mutableStateOf(false) }
+    var saveError by remember(entry.studyKey) { mutableStateOf<String?>(null) }
 
     fun setMessage(module: DefinitionModule, message: String?) {
         messageByModule =
@@ -257,17 +276,45 @@ fun WordEditScreen(
             }
         }
 
+        saveError?.let { message ->
+            Text(
+                message,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+            )
+        }
+
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            TextButton(onClick = onCancel) { Text("取消") }
+            TextButton(onClick = onCancel, enabled = !saving) { Text("取消") }
             Button(
+                enabled = !saving,
                 onClick = {
                     val parsedAliases = aliasesText.split(",")
                         .map { it.trim() }
                         .filter { it.isNotEmpty() }
-                    onSave(word, parsedAliases, contents)
+                    saving = true
+                    saveError = null
+                    scope.launch {
+                        try {
+                            val result = onSave(word, parsedAliases, contents)
+                            if (result.saved) {
+                                // 本地已经存住了就必须退出：把用户扣在编辑页只会以为「没保存」。
+                                // 「画布暂未写成功」由宿主在状态行提示，见 AppRoot 的 onSaved。
+                                onSaved(result)
+                            } else {
+                                saveError = result.error ?: WordEditAiActions.SAVE_FAILED_MESSAGE
+                            }
+                        } catch (cancellation: CancellationException) {
+                            throw cancellation
+                        } catch (error: Throwable) {
+                            saveError = error.localizedMessage ?: WordEditAiActions.SAVE_FAILED_MESSAGE
+                        } finally {
+                            saving = false
+                        }
+                    }
                 },
                 modifier = Modifier.weight(1f),
-            ) { Text("保存") }
+            ) { Text(if (saving) "保存中…" else "保存") }
         }
     }
 }

@@ -45,6 +45,7 @@ import com.notebar.app.ui.screens.SettingsScreen
 import com.notebar.app.ui.screens.StatsScreen
 import com.notebar.app.ui.screens.WordDetailScreen
 import com.notebar.app.ui.screens.WordEditAiRuntime
+import com.notebar.app.ui.screens.WordEditSaveOutcome
 import com.notebar.app.ui.screens.WordEditScreen
 import com.notebar.app.ui.screens.WordListScreen
 import com.notebar.app.ui.findByStudyKey
@@ -385,8 +386,15 @@ fun AppRoot(viewModel: AppViewModel, today: LocalDate = LocalDate.now()) {
                             onEditModule = { module -> push(Screen.WordEdit(entry.studyKey, module)) },
                             onEdit = { push(Screen.WordEdit(entry.studyKey, null)) },
                             onDelete = {
-                                scope.launch { viewModel.deleteWord(entry) }
-                                pop()
+                                // 与保存同理：先等结果，画布没删掉就留在原页（否则下轮扫描会复活该行）
+                                scope.launch {
+                                    val canvasDeleted = viewModel.deleteWord(entry)
+                                    if (canvasDeleted) {
+                                        pop()
+                                    } else {
+                                        viewModel.reportDeleteMissOnCanvas()
+                                    }
+                                }
                             },
                         )
                     }
@@ -402,17 +410,27 @@ fun AppRoot(viewModel: AppViewModel, today: LocalDate = LocalDate.now()) {
                             definitionOrder = settings.definitionOrder,
                             focusModule = screen.focusModule,
                             onCancel = { pop() },
-                            onSave = { word, aliases, contents ->
-                                scope.launch {
-                                    viewModel.saveWordEdit(
-                                        original = entry,
-                                        word = word,
-                                        aliases = aliases,
-                                        contents = contents,
-                                        order = settings.definitionOrder,
-                                    )
-                                }
+                            // 保存成功才退出：以前是 launch 后立刻 pop()，
+                            // 失败时用户看到的就是「回到原界面、AI 释义没固化」
+                            onSaved = { outcome ->
+                                // 本地已存但画布没写成：退出，同时把「待回推」显示在状态行，
+                                // 否则用户以为保存失败了（下一轮扫描会从画布把它读回来）。
+                                if (!outcome.canvasWritten) viewModel.reportCanvasPending()
                                 pop()
+                            },
+                            onSave = { word, aliases, contents ->
+                                val result = viewModel.saveWordEdit(
+                                    original = entry,
+                                    word = word,
+                                    aliases = aliases,
+                                    contents = contents,
+                                    order = settings.definitionOrder,
+                                )
+                                WordEditSaveOutcome(
+                                    saved = result.saved,
+                                    canvasWritten = result.canvasWritten,
+                                    error = result.error,
+                                )
                             },
                             aiRuntime = aiRuntime,
                         )
